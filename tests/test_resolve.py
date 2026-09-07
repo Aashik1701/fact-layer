@@ -76,6 +76,163 @@ def test_resolve_subject_collapses_variants_to_same_canonical():
 
 
 # --------------------------------------------------------------------------
+# Subject resolution levels (see resolve.py's module docstring for the
+# five-level design note). Negative cases come FIRST and are anchored on
+# REAL subjects found in this corpus wherever possible — a hypothetical
+# negative case proves nothing about what the actual extraction produces.
+# --------------------------------------------------------------------------
+
+# ---- Level 1: exact/normalized match (already covered above) + punctuation/
+# case normalization ---------------------------------------------------
+
+def test_punctuation_and_case_variants_of_a_plain_word_collapse():
+    r = Resolver()
+    assert r.resolve_subject("REVENUE") == r.resolve_subject("Revenue") == r.resolve_subject("revenue")
+
+
+def test_apostrophe_and_whitespace_variants_collapse_deterministically():
+    r = Resolver()
+    a = r.resolve_subject("SVF Doorbell (Cayman) Ltd")
+    b = r.resolve_subject("SVF Doorbell (Cayman) Ltd.")
+    assert a == b == "svf doorbell cayman"
+
+
+# ---- Level 3/4 negative cases FIRST: fuzzy/context-supported matching is
+# deliberately NOT implemented for subjects — these prove why. ----------
+
+def test_real_corpus_reserve_money_family_does_not_fuzzy_merge():
+    """The exact real counter-example resolve.py's module docstring cites:
+    a level, a growth rate, and a ratio of the same named indicator are
+    three DISTINCT subjects in the RBI annual report's tables. 'Reserve
+    Money (RM)' is a strict prefix of the other two — proof that a
+    prefix/ratio fuzzy tier (the shape that works for measures) would be
+    actively dangerous here, not just unhelpful."""
+    r = Resolver()
+    level = r.resolve_subject("Reserve Money (RM)")
+    growth = r.resolve_subject("Reserve money (RM) growth")
+    share = r.resolve_subject("Reserve money (RM) share of GDP")
+    assert level != growth != share
+    assert len({level, growth, share}) == 3
+
+
+def test_india_vs_india_banking_sector_never_merges():
+    r = Resolver()
+    country = r.resolve_subject("India")
+    sector = r.resolve_subject("India banking sector")
+    assert country != sector
+
+
+def test_india_vs_indian_firms_never_merges():
+    """'Indian firms' is a real subject in this corpus (the IMF document) —
+    a company-level aggregate is not the country itself, even though the
+    phrasing shares a root word with the alias-table entries below."""
+    r = Resolver()
+    country = r.resolve_subject("India")
+    firms = r.resolve_subject("Indian firms")
+    assert country != firms
+
+
+def test_reserve_bank_of_india_alias_does_not_leak_to_its_departments():
+    """Adding RBI/Reserve Bank of India as a known alias must not make the
+    lookup fuzzy — a sub-unit of the institution is a different subject."""
+    r = Resolver()
+    rbi = r.resolve_subject("RBI")
+    dept = r.resolve_subject("RBI Monetary Policy Department")
+    assert rbi != dept
+
+
+def test_apple_vs_apple_services_segment_never_merges():
+    r = Resolver()
+    apple = r.resolve_subject("Apple")
+    segment = r.resolve_subject("Apple's services segment")
+    assert apple != segment
+
+
+def test_company_vs_company_subsidiary_never_merges():
+    r = Resolver()
+    parent = r.resolve_subject("Company")
+    subsidiary = r.resolve_subject("Company's subsidiary")
+    assert parent != subsidiary
+
+
+def test_real_corpus_delhivery_vs_its_subsidiaries_never_merges():
+    """Real corpus segment-vs-parent case: Delhivery Limited already
+    collapses with 'Delhivery Corp Limited' (Level 1, suffix stripping) but
+    must stay distinct from its actual subsidiaries/plans."""
+    r = Resolver()
+    parent = r.resolve_subject("Delhivery Limited")
+    assert parent == r.resolve_subject("Delhivery Corp Limited")
+    assert parent != r.resolve_subject("Delhivery Robotics LLC")
+    assert parent != r.resolve_subject("Delhivery USA LLC")
+    assert parent != r.resolve_subject("Delhivery Employees Stock Option Plan III, 2020")
+
+
+def test_gdp_vs_gdp_per_capita_never_merges():
+    r = Resolver()
+    assert r.resolve_subject("GDP") != r.resolve_subject("GDP per capita")
+
+
+# ---- Level 2: known alias table — positive cases, each individually
+# justified (see SUBJECT_ALIASES's comment in resolve.py). --------------
+
+def test_subject_alias_table_collapses_rbi_variants():
+    r = Resolver()
+    assert r.resolve_subject("RBI") == r.resolve_subject("Reserve Bank of India") == "Reserve Bank of India"
+
+
+def test_subject_alias_table_collapses_imf_variants():
+    r = Resolver()
+    assert (r.resolve_subject("IMF") == r.resolve_subject("International Monetary Fund")
+            == "International Monetary Fund")
+
+
+def test_subject_alias_table_collapses_government_of_india_variants():
+    r = Resolver()
+    assert r.resolve_subject("GoI") == r.resolve_subject("Government of India") == "Government of India"
+
+
+def test_subject_alias_table_collapses_india_economy_phrasings():
+    r = Resolver()
+    india = r.resolve_subject("India")
+    assert r.resolve_subject("Indian economy") == india
+    assert r.resolve_subject("India's economy") == india
+    assert r.resolve_subject("Indian economic activity") == india
+
+
+def test_subject_alias_decision_is_logged_with_alias_tier():
+    r = Resolver()
+    r.resolve_subject("RBI")
+    decision = r.decisions[-1]
+    assert decision.tier == "alias"
+    assert decision.kind == "subject"
+    assert decision.canonical == "Reserve Bank of India"
+
+
+# ---- Level 5: unresolved/ambiguous — no alias, no fuzzy tier, still gets
+# a (more fragmented, never wrongly merged) canonical id. ---------------
+
+def test_unresolved_subject_still_gets_a_stable_canonical_id_not_dropped():
+    r = Resolver()
+    a = r.resolve_subject("Some Never-Before-Seen Entity Name")
+    b = r.resolve_subject("Some Never-Before-Seen Entity Name")
+    assert a == b   # stable/repeatable
+    assert a != ""  # never silently dropped
+    decision = r.decisions[-1]
+    assert decision.tier == "deterministic"   # not "alias" — no table matched
+
+
+# ---- issuer-vs-country confusion (SUBJECT_NOT_ISSUER) — the field-level
+# counterpart of subject/entity resolution: a country name leaking into the
+# issuer qualifier must be nulled, never guessed into a different issuer. --
+
+def test_india_as_issuer_is_nulled_not_guessed():
+    r = Resolver()
+    assert r.resolve_issuer("India") is None
+    decision = r.decisions[-1]
+    assert decision.tier == "nulled"
+
+
+# --------------------------------------------------------------------------
 # Tier 2: issuer alias table — the exact real-world collapse specification 14a
 # calls out.
 # --------------------------------------------------------------------------
@@ -247,3 +404,12 @@ def test_write_resolution_log_produces_valid_json(tmp_path):
     assert log["summary"]["total_decisions"] == len(resolver.decisions)
     assert "by_tier" in log["summary"]
     assert len(log["decisions"]) == log["summary"]["total_decisions"]
+
+
+# Downstream safety against the real 6-document corpus (fact/cluster/
+# relation count stability, and the real 'RBI' bucket rename-not-merge) is
+# covered in tests/test_store.py, reusing its existing _full_store()
+# real-corpus fixture rather than paying for a second full ingest here —
+# this file's own autouse fixture isolates llm._CACHE_DIR for the synthetic-
+# fact tests above, which is incompatible with reading the real committed
+# cache/llm/.

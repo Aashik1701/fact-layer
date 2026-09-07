@@ -199,6 +199,56 @@ def test_full_corpus_cluster_and_relation_counts():
         assert rel_type in {r.value for r in RelationType}
 
 
+# --------------------------------------------------------------------------
+# Downstream safety of resolve.py's SUBJECT_ALIASES table (entity-resolution
+# turn) against this same real corpus. Measured before adding it: 688
+# facts, 401 canonical subjects, 550 clusters (92 with 2+ facts), 28
+# relations ({'apparent_conflict': 17, 'contradicts': 8, 'corroborates': 2,
+# 'aggregates_into': 1}), with a standalone 'rbi' subject bucket (one fact —
+# the IMF document's bare "RBI" mention). Measured after: byte-identical on
+# every count below — the alias table adds zero merges into any existing
+# cluster on this corpus (no document phrases "Indian economy"/"India's
+# economy"/IMF/GoI as a bare SUBJECT; only "RBI" does, and it had no sibling
+# to merge into anyway). The only observed effect is that lone bucket's
+# canonical STRING changing from 'rbi' to 'Reserve Bank of India' — a
+# rename, not a merge, now spelled consistently with ISSUER_ALIASES. This is
+# the empirical basis for integrating the alias tier while explicitly NOT
+# adding a fuzzy/context tier for subjects (see test_resolve.py's
+# test_real_corpus_reserve_money_family_does_not_fuzzy_merge for the real
+# false-merge risk that tier would carry, and README §13).
+# --------------------------------------------------------------------------
+
+def test_subject_aliases_do_not_change_real_corpus_fact_or_cluster_counts():
+    store = _full_store()
+    summary = store.canonical_summary()
+    assert len(store.facts) == 688
+    assert summary["canonical_subjects"] == 401
+    assert summary["clusters_total"] == 550
+    assert summary["clusters_with_2plus_facts"] == 92
+
+
+def test_subject_aliases_do_not_change_real_corpus_relation_counts():
+    store = _full_store()
+    summary = store.canonical_summary()
+    assert summary["total_relations"] == 28
+    assert summary["relation_counts"] == {
+        "apparent_conflict": 17, "contradicts": 8, "corroborates": 2, "aggregates_into": 1,
+    }
+
+
+def test_subject_aliases_rename_the_real_rbi_bucket_without_merging_it():
+    """The one real effect on this corpus: the IMF document's bare 'RBI'
+    subject mention now canonicalizes to the same spelling ISSUER_ALIASES
+    already uses, rather than a lowercase slug — a rename, not a merge (it
+    was already a singleton cluster and stays one)."""
+    store = _full_store()
+    rbi_facts = [f for f in store.facts.values() if f.subject_raw == "RBI"]
+    assert len(rbi_facts) == 1
+    assert rbi_facts[0].subject == "Reserve Bank of India"
+    cluster_key = rbi_facts[0].cluster_key()
+    assert len(store.clusters[cluster_key]) == 1   # still a singleton — no merge occurred
+
+
 def test_full_corpus_ingest_is_idempotent_on_repeat():
     store = _full_store()
     fact_count_before = len(store.facts)

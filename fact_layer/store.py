@@ -20,32 +20,34 @@ in that cluster are never re-touched, not even to recompute and discard.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal
-from typing import Any, Callable, Optional
+from typing import Callable, Optional, Union
 
 from .adjudicate import adjudicate, adjudicate_cluster
 from .extract import _REJECTED_PATH as _DEFAULT_REJECTED_PATH
 from .extract import extract_document, extract_document_defaults
-from .models import (
-    Evidence,
-    Fact,
-    Modality,
-    Period,
-    PeriodKind,
-    Qualifiers,
-    Quantity,
-    Relation,
-    RelationType,
-    Scope,
-    ValueKind,
-)
+from .models import Evidence, Fact, Qualifiers, Quantity, Relation, RelationType
 from .parse import parse_pdf
 from .resolve import Resolver, resolve_facts, write_resolution_log
+from .storage import FactStore, JsonFactStore, StoreSnapshot
+# Re-exported for backward compatibility: these JSON (de)serialization
+# helpers used to live in this module; they now live in storage.py
+# alongside JsonFactStore, which is their only real caller, but
+# tests/test_evidence_regions.py imports _evidence_to_dict/_evidence_from_dict
+# from here directly, so the names stay available at their original path.
+from .storage import (  # noqa: F401
+    _evidence_from_dict,
+    _evidence_to_dict,
+    _fact_from_dict,
+    _json_safe,
+    _period_from_dict,
+    _qualifiers_from_dict,
+    _relation_from_dict,
+    _relation_to_dict,
+)
 from .triage import _DEMO_BUDGETS, default_budget, select_pages
 
 logger = logging.getLogger("fact_layer.store")
@@ -176,13 +178,21 @@ class Store:
     (subject, measure) via Fact.cluster_key(); relations are computed
     incrementally as documents are ingested, not recomputed from scratch."""
 
-    def __init__(self) -> None:
+    def __init__(self, backend: Optional[FactStore] = None) -> None:
         self.facts: dict[str, Fact] = {}
         self.extra_evidence: dict[str, list[Evidence]] = {}
         self.relations: list[Relation] = []
         self.clusters: dict[str, list[str]] = {}
         self.resolver = Resolver()
         self.ingested_docs: dict[str, str] = {}   # doc_id -> filename
+        # `backend` is the FactStore this Store was loaded from (or defaults
+        # to a plain JsonFactStore) — api.py uses it for the two read-only
+        # diagnostic queries (list_rejected_facts, read_resolution_summary)
+        # that used to open() data/rejected_facts.jsonl / resolution_log.json
+        # directly. It is independent of whatever path save()/load() are
+        # called with (see their docstrings) — in real usage both point at
+        # the same files, so this only matters for tests that redirect paths.
+        self.backend: FactStore = backend or JsonFactStore()
 
     # ---- ingest -----------------------------------------------------------
 
@@ -341,154 +351,34 @@ class Store:
 
     # ---- persistence --------------------------------------------------
 
-    def save(self, path: str = _STORE_PATH) -> None:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        data = {
-            "facts": {fid: _json_safe(f.to_dict()) for fid, f in self.facts.items()},
-            "extra_evidence": {
-                fid: [_evidence_to_dict(e) for e in spans]
-                for fid, spans in self.extra_evidence.items()
-            },
-            "relations": [_relation_to_dict(r) for r in self.relations],
-            "clusters": self.clusters,
-            "ingested_docs": self.ingested_docs,
-        }
-        tmp = f"{path}.tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=2, ensure_ascii=False)
-        os.replace(tmp, path)
+    def save(self, path: Union[str, FactStore] = _STORE_PATH) -> None:
+        """`path` may be a plain path string (wrapped in a JsonFactStore, the
+        pre-refactor behavior — every existing caller does this) or a
+        FactStore instance directly, e.g. a future PostgresFactStore. Either
+        way the actual bytes-on-disk (or bytes-in-database) work happens
+        inside that backend, not here."""
+        backend = path if isinstance(path, FactStore) else JsonFactStore(path)
+        backend.save(StoreSnapshot(
+            facts=self.facts, extra_evidence=self.extra_evidence,
+            relations=self.relations, clusters=self.clusters,
+            ingested_docs=self.ingested_docs,
+        ))
 
     @classmethod
-    def load(cls, path: str = _STORE_PATH) -> "Store":
-        store = cls()
-        if not os.path.exists(path):
-            return store
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-
-        for fid, fd in data.get("facts", {}).items():
-            store.facts[fid] = _fact_from_dict(fd)
-        for fid, spans in data.get("extra_evidence", {}).items():
-            store.extra_evidence[fid] = [_evidence_from_dict(s) for s in spans]
-        for rd in data.get("relations", []):
-            store.relations.append(_relation_from_dict(rd))
-        store.clusters = data.get("clusters", {})
-        store.ingested_docs = data.get("ingested_docs", {})
+    def load(cls, path: Union[str, FactStore] = _STORE_PATH) -> "Store":
+        """Same `path`-or-backend flexibility as save() (see its docstring).
+        The returned Store's `.backend` is the backend it was loaded from —
+        api.py's diagnostic reads (list_rejected_facts, read_resolution_summary)
+        go through it."""
+        backend = path if isinstance(path, FactStore) else JsonFactStore(path)
+        store = cls(backend=backend)
+        snapshot = backend.load()
+        store.facts = snapshot.facts
+        store.extra_evidence = snapshot.extra_evidence
+        store.relations = snapshot.relations
+        store.clusters = snapshot.clusters
+        store.ingested_docs = snapshot.ingested_docs
         return store
-
-
-# --------------------------------------------------------------------------
-# (De)serialization helpers. Fact.to_dict() (models.py, protected) does not
-# stringify date objects NESTED inside qualifiers.period/.as_of — only its
-# own top-level `value` field when value_kind is DATE — so json.dump() would
-# raise on any fact with a parsed period. _json_safe() is a post-processing
-# pass over to_dict()'s OUTPUT, not a change to models.py itself.
-# --------------------------------------------------------------------------
-
-def _json_safe(obj: Any) -> Any:
-    if isinstance(obj, date):
-        return obj.isoformat()
-    if isinstance(obj, Decimal):
-        return str(obj)
-    if isinstance(obj, dict):
-        return {k: _json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_json_safe(v) for v in obj]
-    return obj
-
-
-def _evidence_to_dict(e: Evidence) -> dict:
-    return {
-        "doc_id": e.doc_id, "page": e.page, "char_start": e.char_start, "char_end": e.char_end,
-        "verbatim_quote": e.verbatim_quote,
-        "bbox": list(e.bbox) if e.bbox else None,
-        "extractor": e.extractor, "verified": e.verified,
-        "table_id": e.table_id, "row_index": e.row_index, "column_index": e.column_index,
-        "cell_bbox": list(e.cell_bbox) if e.cell_bbox else None,
-        "row_label": e.row_label, "column_header": e.column_header,
-        "unit_context": e.unit_context,
-    }
-
-
-def _evidence_from_dict(d: dict) -> Evidence:
-    return Evidence(
-        doc_id=d["doc_id"], page=d["page"], char_start=d["char_start"], char_end=d["char_end"],
-        verbatim_quote=d["verbatim_quote"],
-        bbox=tuple(d["bbox"]) if d.get("bbox") else None,
-        extractor=d.get("extractor", "llm"), verified=d.get("verified", False),
-        table_id=d.get("table_id"), row_index=d.get("row_index"), column_index=d.get("column_index"),
-        cell_bbox=tuple(d["cell_bbox"]) if d.get("cell_bbox") else None,
-        row_label=d.get("row_label"), column_header=d.get("column_header"),
-        unit_context=d.get("unit_context", ""),
-    )
-
-
-def _period_from_dict(d: Optional[dict]) -> Optional[Period]:
-    if not d:
-        return None
-    from datetime import date as _date
-    start = _date.fromisoformat(d["start"]) if d.get("start") else None
-    end = _date.fromisoformat(d["end"]) if d.get("end") else None
-    return Period(kind=PeriodKind(d["kind"]), start=start, end=end, label=d.get("label", ""))
-
-
-def _qualifiers_from_dict(d: dict) -> Qualifiers:
-    from datetime import date as _date
-    as_of = _date.fromisoformat(d["as_of"]) if d.get("as_of") else None
-    return Qualifiers(
-        period=_period_from_dict(d.get("period")),
-        as_of=as_of,
-        scope=Scope(d.get("scope", Scope.UNKNOWN.value)),
-        basis=d.get("basis"), segment=d.get("segment"), geography=d.get("geography"),
-        issuer=d.get("issuer"), extra=d.get("extra", {}),
-    )
-
-
-def _fact_from_dict(d: dict) -> Fact:
-    value_kind = ValueKind(d["value_kind"])
-    raw_value = d["value"]
-    if value_kind == ValueKind.QUANTITY and isinstance(raw_value, dict):
-        value: Any = Quantity(
-            value=Decimal(raw_value["value"]), unit=raw_value.get("unit", "count"),
-            currency=raw_value.get("currency"), sig_figs=raw_value.get("sig_figs", 15),
-            raw=raw_value.get("raw", ""),
-        )
-    elif value_kind == ValueKind.DATE and isinstance(raw_value, str):
-        from datetime import date as _date
-        value = _date.fromisoformat(raw_value)
-    else:
-        value = raw_value
-
-    evidence = _evidence_from_dict(d["evidence"]) if d.get("evidence") else None
-
-    return Fact(
-        subject=d["subject"], measure=d["measure"], value_kind=value_kind, value=value,
-        qualifiers=_qualifiers_from_dict(d.get("qualifiers", {})),
-        modality=Modality(d.get("modality", Modality.ASSERTED.value)),
-        evidence=evidence, confidence=d.get("confidence", 1.0),
-        subject_raw=d.get("subject_raw", ""), measure_raw=d.get("measure_raw", ""),
-        value_verification=d.get("value_verification", ""),
-        value_verification_reason=d.get("value_verification_reason", ""),
-        fact_id=d.get("fact_id", ""),
-    )
-
-
-def _relation_to_dict(r: Relation) -> dict:
-    return {
-        "source_fact_id": r.source_fact_id, "target_fact_id": r.target_fact_id,
-        "relation": r.relation.value, "confidence": r.confidence,
-        "reason_code": r.reason_code, "explanation": r.explanation,
-        "qualifier_diff": _json_safe(r.qualifier_diff), "decided_by": r.decided_by,
-    }
-
-
-def _relation_from_dict(d: dict) -> Relation:
-    return Relation(
-        source_fact_id=d["source_fact_id"], target_fact_id=d["target_fact_id"],
-        relation=RelationType(d["relation"]), confidence=d["confidence"],
-        reason_code=d["reason_code"], explanation=d["explanation"],
-        qualifier_diff=d.get("qualifier_diff", {}), decided_by=d.get("decided_by", "rule"),
-    )
 
 
 # --------------------------------------------------------------------------

@@ -7,7 +7,8 @@ project: rules first, LLM only for the residual ambiguous tail.
   1. Deterministic — normalize_entity() for subjects. Already exists, reused
      as-is, never reimplemented.
    2. Declarative alias table — a small, locale-general dict for issuers
-      (specification section 14a) and for well-known measure synonyms. Extensible
+      (specification section 14a), well-known measure synonyms, and (see
+      SUBJECT_ALIASES below) well-known subject/entity synonyms. Extensible
       at runtime, no filename- or dataset-specific rules (project invariant 2).
   3. Fuzzy string match for near-misses (measures only), then — only for
      what's still ambiguous, capped at a small LLM budget — a cached LLM call
@@ -16,6 +17,59 @@ project: rules first, LLM only for the residual ambiguous tail.
 Every canonicalization decision is logged to data/resolution_log.json: which
 tier resolved it and the resulting canonical id. This is a README artifact —
 it shows the tiered approach actually working, not just its output.
+
+--------------------------------------------------------------------------
+Subject/entity resolution levels (design note, not a schema change)
+--------------------------------------------------------------------------
+Subjects participate in Fact.cluster_key() (subject::measure) — an incorrect
+subject merge silently feeds two unrelated claims into comparability/
+adjudication and manufactures a false relationship. This makes subject
+resolution a precision-first problem: "don't maximize entity merging,
+maximize defensible entity identity." Conceptually there are five trust
+levels a subject match could sit at; only the first two are implemented —
+the rest are deliberately left unresolved rather than guessed at:
+
+  1. EXACT/NORMALIZED MATCH  (tier "deterministic") — normalize_entity()
+     already collapses case, punctuation, honorifics ("Mr. Deepak Kapoor" ==
+     "Deepak Kapoor") and company suffixes ("Delhivery Limited" ==
+     "Delhivery Corp Limited"). Reused as-is.
+  2. KNOWN ALIAS  (tier "alias") — SUBJECT_ALIASES below, a small curated
+     table for institution abbreviations (RBI, IMF, GoI) and unambiguous
+     whole-economy phrasings ("Indian economy", "India's economy"). Same
+     shape and same trust level as ISSUER_ALIASES/MEASURE_ALIASES — every
+     entry is a human-vetted, unconditional identity, never a heuristic.
+  3. HIGH-CONFIDENCE FUZZY MATCH — deliberately NOT implemented for
+     subjects. Real corpus counter-example: this corpus's RBI report tables
+     contain 'Reserve Money (RM)', 'Reserve money (RM) growth', and
+     'Reserve money (RM) share of GDP' as three DISTINCT subjects — the
+     first is a strict prefix of the other two, so any prefix/ratio-based
+     fuzzy tier (the same shape that works for measures, see
+     _FUZZY_MEASURE_THRESHOLD) would merge a level, a growth rate, and a
+     ratio into one subject. There is no cheap string-similarity signal
+     that reliably tells "harmless decoration" (a restated abbreviation)
+     apart from "the actual qualifier that makes these different things" —
+     so this tier is skipped rather than guessed at.
+  4. CONTEXT-SUPPORTED MATCH — deliberately NOT implemented as a runtime
+     mechanism (e.g. "merge if the measure/qualifiers also match"). Entity
+     identity should not depend on which measure happens to be reported
+     alongside it — "India" + GDP growth and "India" + inflation are both
+     legitimately India regardless of measure, and gating a merge on
+     measure agreement would be a category error, not a safety net. Instead,
+     context-safety is achieved at CURATION time: SUBJECT_ALIASES only ever
+     contains whole-entity phrasings, never a sub-scoped one ("Indian
+     economy" is in the table; "India's banking sector" and "Indian firms"
+     — both real subjects in this corpus — are deliberately absent).
+  5. UNRESOLVED — there is no explicit "failed to resolve" state for
+     subjects (unlike measures, which have "unknown_measure" for blank
+     input): everything that isn't an exact/alias match still gets a
+     canonical id via normalize_entity(), just a more fragmented one. That
+     fragmentation is the intended failure mode — recall loss, never a
+     false merge.
+
+See tests/test_resolve.py's "Subject resolution levels" section for the
+positive/negative cases this reasoning is checked against, and README §13.11
+("Entity Resolution: Why Subjects Don't Get a Fuzzy Tier") for the
+corpus-wide before/after measurement.
 """
 
 from __future__ import annotations
@@ -74,6 +128,37 @@ ISSUER_ALIASES: dict[str, str] = {
 # elsewhere, not a special case for this one document.
 SUBJECT_NOT_ISSUER: set[str] = {
     "india",
+}
+
+# Tier 2 for SUBJECTS (see the module docstring's "Subject/entity resolution
+# levels" note). Every entry here is a human-vetted, unconditional identity —
+# never a heuristic — so the bar for adding one is "this mapping is true in
+# every context", the same bar ISSUER_ALIASES already holds itself to.
+#
+# Institutional entries deliberately mirror ISSUER_ALIASES's canonical
+# spellings: the same institution should canonicalize to the same string
+# whether it lands in the subject field or the issuer field of some fact.
+#
+# The India/"Indian economy" family exists because a genuinely different
+# document could plausibly narrate the same claim as "India", "Indian
+# economy", or "India's economy" in prose (this exact corpus's tables
+# already produce bare "India" via MACRO_INDICATOR_SUBJECTS below — this
+# table extends that same identity to prose phrasings of the whole economy).
+# It deliberately does NOT include sub-scoped phrases: "India's banking
+# sector", "Indian firms", "Indian mission officials" are real, distinct
+# subjects found in this corpus and must never collapse into "india" — see
+# tests/test_resolve.py's negative cases.
+SUBJECT_ALIASES: dict[str, str] = {
+    "rbi": "Reserve Bank of India",
+    "reserve bank of india": "Reserve Bank of India",
+    "imf": "International Monetary Fund",
+    "international monetary fund": "International Monetary Fund",
+    "goi": "Government of India",
+    "government of india": "Government of India",
+    "indian economy": "india",
+    "india economy": "india",
+    "india s economy": "india",          # "India's economy" after punctuation stripping
+    "indian economic activity": "india",
 }
 
 MEASURE_ALIASES: dict[str, str] = {
@@ -168,9 +253,22 @@ class Resolver:
     llm_calls_used: int = 0
     decisions: list[ResolutionDecision] = field(default_factory=list)
 
-    # ---- subjects: tier 1 only, per spec ---------------------------------
+    # ---- subjects: tier 1 (deterministic) + tier 2 (known alias) ---------
     def resolve_subject(self, subject_raw: str) -> str:
-        canonical = normalize_entity(subject_raw) if subject_raw else (subject_raw or "")
+        if not subject_raw:
+            canonical = subject_raw or ""
+            self.decisions.append(ResolutionDecision("subject", subject_raw, canonical, "deterministic", 1.0))
+            return canonical
+
+        alias = SUBJECT_ALIASES.get(_normalize_key(subject_raw))
+        if alias:
+            self.decisions.append(ResolutionDecision(
+                "subject", subject_raw, alias, "alias", 1.0,
+                "matched SUBJECT_ALIASES — curated, unconditional identity",
+            ))
+            return alias
+
+        canonical = normalize_entity(subject_raw)
         self.decisions.append(ResolutionDecision("subject", subject_raw, canonical, "deterministic", 1.0))
         return canonical
 

@@ -153,7 +153,7 @@ class Evidence:
     # "not established", never a guess — same principle as
     # value_verification's "" vs "unverified" distinction. A record
     # persisted before these fields existed deserializes with these
-    # defaults (store.py's _evidence_from_dict uses .get()).
+    # defaults (storage.py's _evidence_from_dict uses .get()).
     table_id: Optional[str] = None
     row_index: Optional[int] = None
     column_index: Optional[int] = None

@@ -44,6 +44,7 @@ from fact_layer.jobs import Job, JobStage, JobStatus, JobStore
 from fact_layer.models import Fact, Qualifiers, Quantity, Relation
 from fact_layer.parse import _doc_id
 from fact_layer.resolve import write_resolution_log
+from fact_layer.storage import backend_from_env
 from fact_layer.store import Store, _STORE_PATH
 
 logger = logging.getLogger("fact_layer.api")
@@ -154,7 +155,10 @@ app.add_middleware(
 
 # Loaded once at import time — the store already reflects every prior
 # `python -m fact_layer.store` / POST /ingest run; startup must not re-ingest.
-STORE = Store.load(_STORE_PATH)
+# backend_from_env() reads STORAGE_BACKEND (defaults to "json"), so a local
+# run needs zero configuration; see fact_layer/storage.py for what other
+# values mean.
+STORE = Store.load(backend_from_env(store_path=_STORE_PATH))
 
 # --------------------------------------------------------------------------
 # Ingestion jobs (single-process, in-memory — see fact_layer/jobs.py and
@@ -705,21 +709,12 @@ def get_relation(relation_id: str):
 def stats():
     summary = STORE.canonical_summary()
 
-    rejected_count = 0
+    rejected_rows = STORE.backend.list_rejected_facts()
+    rejected_count = len(rejected_rows)
     rejected_by_reason: dict[str, int] = {}
-    if os.path.exists(_REJECTED_PATH):
-        import json
-        with open(_REJECTED_PATH, "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                rejected_count += 1
-                try:
-                    reason = json.loads(line).get("reason", "unknown")
-                except Exception:
-                    reason = "unknown"
-                rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + 1
+    for row in rejected_rows:
+        reason = row.get("reason", "unknown")
+        rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + 1
 
     verified_count = len(STORE.facts)
     total_attempted = verified_count + rejected_count
@@ -730,11 +725,7 @@ def stats():
         if f.evidence:
             facts_by_doc[f.evidence.doc_id] = facts_by_doc.get(f.evidence.doc_id, 0) + 1
 
-    resolution_summary = None
-    if os.path.exists(_RESOLUTION_LOG_PATH):
-        import json
-        with open(_RESOLUTION_LOG_PATH, "r", encoding="utf-8") as fh:
-            resolution_summary = json.load(fh).get("summary")
+    resolution_summary = STORE.backend.read_resolution_summary()
 
     # Coverage: how much of the extracted corpus actually participates in a
     # cross-fact relationship, vs. sitting in a singleton cluster with
@@ -817,25 +808,11 @@ def page_image(doc_id: str, page: int):
 
 @app.get("/rejected-facts")
 def rejected_facts(limit: int = Query(20, ge=1, le=500), reason: Optional[str] = None):
-    import json as _json
-    rows: list[dict] = []
-    total = 0
-    if os.path.exists(_REJECTED_PATH):
-        with open(_REJECTED_PATH, "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = _json.loads(line)
-                except Exception:
-                    continue
-                if reason and row.get("reason") != reason:
-                    continue
-                total += 1
-                if len(rows) < limit:
-                    rows.append(row)
-    return {"total": total, "rejected_facts": rows}
+    matching = [
+        row for row in STORE.backend.list_rejected_facts()
+        if not reason or row.get("reason") == reason
+    ]
+    return {"total": len(matching), "rejected_facts": matching[:limit]}
 
 
 # --------------------------------------------------------------------------

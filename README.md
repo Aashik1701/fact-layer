@@ -31,6 +31,8 @@ The repository includes:
 - [4. System Architecture](#4-system-architecture)
   - [4.1 Pipeline Architecture Flowchart](#41-pipeline-architecture-flowchart)
   - [4.2 Ingest Request Lifecycle](#42-ingest-request-lifecycle)
+  - [4.3 Ingestion Job Model — Honest Scope](#43-ingestion-job-model--honest-scope)
+  - [4.4 Persistence: JSON Today, a Storage Contract for Tomorrow](#44-persistence-json-today-a-storage-contract-for-tomorrow)
 - [5. Frontend Architecture & Modern UI Stack](#5-frontend-architecture--modern-ui-stack)
 - [6. Pipeline Stages Walkthrough](#6-pipeline-stages-walkthrough)
   - [Stage 1: PDF Parsing (`parse.py`)](#stage-1-pdf-parsing-parsepy)
@@ -262,6 +264,39 @@ sequenceDiagram
 - **Concurrency is handled by serialization, not parallelism.** `Store` is one shared, JSON-persisted Python object; a single `threading.Lock` (`api._INGEST_LOCK`) is held for the whole of `process_document()`, so two uploads landing close together process **one at a time**, never interleaved. This is correct and simple, but it is not a throughput feature — a second upload's job sits in `QUEUED`/`PROCESSING` until the first's lock is released, exactly like it would with a single-worker queue. Verified in `tests/test_jobs.py::test_ingest_lock_serializes_concurrent_processing`, which proves two concurrent background tasks never overlap their critical sections.
 - **What would change for multi-instance deployment:** the `JobStore` would need to move to a shared backend (Redis, a database table) so every instance's `GET /jobs/{id}` sees the same state, and the `_INGEST_LOCK` would need to become a distributed lock (or the JSON-backed `Store` would need to become a real database) so concurrent instances don't race on `data/store.json`. None of that exists today — this is a single-process, single-instance design, stated plainly rather than described as more than it is.
 
+### 4.4 Persistence: JSON Today, a Storage Contract for Tomorrow
+
+**Current: `data/store.json` via `JsonFactStore`.** This is a local assignment, run by one grader on one machine, with no concurrent users and a corpus of a handful of PDFs — a single JSON file is simple, fully reproducible (`scripts/build_demo_store.py` rebuilds it deterministically), needs zero external services or credentials, and every existing consumer already round-trips through it correctly (283+ tests, including a byte-for-byte real-corpus regression check). **This is not pretended to be horizontally scalable** — see "What this does not provide" below.
+
+**The point of this section: persistence is isolated behind a contract, not scattered through the domain.** `fact_layer/storage.py` defines:
+
+```
+              FactStore (abstract: load, save, list_rejected_facts, read_resolution_summary)
+                 │
+      ┌──────────┴──────────┐
+      │                      │
+JsonFactStore          PostgresFactStore
+   (data/*.json,           (skeleton only — see its class
+    THIS repo's default)    docstring for what's missing)
+```
+
+- `StoreSnapshot` is the whole persisted fact/relation/document graph as one value (facts, extra_evidence, relations, clusters, ingested_docs) — mirroring exactly what `Store.save()`/`Store.load()` always serialized, because that IS the real write pattern here: `Store` mutates its in-memory dicts incrementally across many `ingest()` calls and flushes one snapshot at a time. The contract's `load()`/`save()` operate on that whole snapshot rather than exposing `save_fact()`/`save_relation()` per-entity methods nothing in this pipeline would ever call one at a time — this is a deliberate, smaller-than-suggested interface, chosen from actual behavior rather than a generic repository template.
+- `list_rejected_facts()` and `read_resolution_summary()` exist because `api.py`'s `/stats` and `/rejected-facts` endpoints used to `open("data/rejected_facts.jsonl")`/`open("data/resolution_log.json")` directly — that was the literal "core domain contains `open(...)`/`json.load(...)`" problem. Both endpoints now go through `STORE.backend` instead.
+- `Store.save(path)` / `Store.load(path)` keep their exact pre-refactor signatures and default paths (`path: str`, defaulting to `data/store.json`) so every existing caller and test is unaffected — but `path` may now also be a `FactStore` instance directly (`Store.load(my_postgres_backend)`), which is the actual seam a future backend plugs into.
+- `Store.backend` is the `FactStore` a `Store` was loaded from (or a fresh `JsonFactStore()` by default) — this is what `api.py`'s diagnostic reads use.
+
+**Two things were deliberately left outside this contract:**
+- `extract.py`'s real-time rejected-fact append (`_append_rejected`, one `open(path, "a")` call per rejected candidate, inline inside extraction) is untouched — it already takes an injectable `path` parameter, which is what tests use to redirect it away from the real deliverable file. Routing a single-line append through a `FactStore` method would add indirection to the extraction hot path for no behavior change; only the aggregate *read* side (api.py assembling the file back into JSON) was unified.
+- `resolve.py`'s `write_resolution_log()` builds its summary dict FROM live `Resolver` state (decision tiers, LLM call counts) — that computation is domain logic, not persistence, so it stays put. Only reading the result back goes through `FactStore.read_resolution_summary()`.
+
+**Configuration:** `STORAGE_BACKEND` (default `json`) selects the backend `api.py`'s `STORE` singleton constructs — see `fact_layer/storage.py::backend_from_env()`. No cloud credentials are needed for local development; `STORAGE_BACKEND=postgres` is accepted as a value (the seam is real) but raises `NotImplementedError` immediately rather than silently pretending to talk to a database that was never connected.
+
+**What a real `PostgresFactStore` would still need** (documented in its class docstring, not built — nothing here justifies the added operational complexity for a local assignment): a `facts`/`relations`/`documents`/`rejected_facts`/`resolution_log` table mirroring `StoreSnapshot`'s fields, `save()` becoming one transaction instead of one `os.replace()`, and a connection pool. That last point is the actual motivating reason to ever make this move for real — see the transactional gap below.
+
+**What this does not provide (documented, not faked):**
+- *Transactions.* `JsonFactStore.save()` is atomic at the **file** level (temp file + `os.replace()`, the same pattern this codebase already uses for the LLM replay cache and the parsed-PDF cache) — a save either fully lands or the previous file is untouched, there is no half-written `store.json`. But there is no multi-table transaction underneath it: "the new facts from this ingest AND the relations they produced land together, or neither does" is not a guarantee a single `open()`/`json.dump()` call can express beyond "the one file that holds all of it was replaced atomically." In practice this hasn't caused a real bug (an ingest failure raises before `Store.save()` is ever called — see `process_document()`), but a true database backend would express it as a real `BEGIN`/`COMMIT` instead of relying on "it's all one file."
+- *Multi-writer concurrency.* Two processes writing `data/store.json` at once is not something JSON-plus-`os.replace()` arbitrates — the last writer wins, in full, with no merge and no conflict error. This repo does not need that: `api.py`'s `_INGEST_LOCK` (a single `threading.Lock`, see §4.3) already serializes every ingest inside the one process that owns the file, which is the actual concurrency risk that exists today (two uploads racing on `Store.facts`/`Store.clusters` within the same running server). It is a real, tested fix for a real, in-process race (`tests/test_jobs.py::test_ingest_lock_serializes_concurrent_processing`) — not a substitute for a database's row-level locking, which is what a genuinely multi-writer deployment (multiple `uvicorn` instances, or manual edits alongside a running server) would need instead. Turning JSON into something that pretends to arbitrate cross-process writes was deliberately not attempted here.
+
 ---
 
 ## 5. Frontend Architecture & Modern UI Stack
@@ -396,11 +431,14 @@ Converts raw strings into structured dataclasses using deterministic Python:
 - **Fiscal Calendar Windows**: Converts `"FY24"` or `"FY2023-24"` into explicit dates: `2023-04-01` to `2024-03-31`. Correctly handles quarterly offsets where Q1 FY25 represents April–June 2024.
 
 ### Stage 6: Multi-Tier Entity & Measure Resolution (`resolve.py`)
-Standardizes surface variations (e.g., `"Acme Pvt Ltd"` vs. `"ACME PRIVATE LIMITED"`) across three tiers:
-1. **Deterministic Normalization**: Cleans punctuation, suffixes, and casing.
-2. **Declarative Alias Tables**: Resolves known institutional entities (e.g., mapping `"Reserve Bank of India"` and `"RBI Bulletin"` $\to$ `"RBI"`).
-3. **Fuzzy Levenshtein Clustering**: Matches strings within tight token edit distances.
-4. **Capped LLM Tail**: Resolves ambiguous remaining measures using a constrained prompt budget.
+
+**Measures** get the full tiered treatment: (1) deterministic normalization, (2) a declarative `MEASURE_ALIASES` table (e.g. `"Revenue from operations"` → `revenue`), (3) fuzzy `SequenceMatcher` clustering for near-misses (typos, minor rephrasing) above an 0.85 ratio threshold, (4) a capped, cached LLM call for the residual ambiguous tail (≤60 calls/run) — never the sole authority, only asked about a pair the deterministic/fuzzy tiers already narrowed down.
+
+**Subjects (entities) deliberately do NOT get the same tiers** — this is a precision-first asymmetry, not an oversight. A subject participates in `Fact.cluster_key()` (`subject::measure`); a false subject merge silently feeds two unrelated claims into comparability/adjudication and manufactures a false relationship, so subject resolution only implements the two SAFE tiers:
+1. **Deterministic normalization** (`normalize_entity()`): case/punctuation, honorific stripping (`"Mr. Deepak Kapoor"` → `"Deepak Kapoor"`), company-suffix stripping (`"Delhivery Limited"` == `"Delhivery Corp Limited"`).
+2. **A small, curated `SUBJECT_ALIASES` table** — institution abbreviations (RBI, IMF, GoI) and unambiguous whole-economy phrasings (`"Indian economy"`, `"India's economy"` → `india`). Every entry is a human-vetted, unconditional identity; sub-scoped phrases (`"India's banking sector"`, `"Indian firms"` — both real subjects in this corpus) are deliberately absent.
+
+**Fuzzy and LLM tiers for subjects were evaluated and rejected** — see §13's "Entity Resolution: Why Subjects Don't Get a Fuzzy Tier" for the real-corpus evidence (this corpus's RBI tables contain `'Reserve Money (RM)'`, `'Reserve money (RM) growth'`, and `'Reserve money (RM) share of GDP'` as three genuinely distinct subjects, where the first is a strict prefix of the other two — proof that a prefix/ratio fuzzy tier would actively cause false merges here, not just fail to help). When subject evidence is ambiguous, the system stays fragmented (recall loss) rather than guesses (precision loss) — "prefer UNRESOLVED over INCORRECT MERGE."
 
 ### Stage 7: Intra-Document Deduplication (`store.py`)
 When the same fact appears multiple times across a single document (e.g., in an executive summary and in detailed financial notes), Fact Layer collapses them into a single canonical fact with multiple evidence anchors. Agreement within the same document is weighted to zero to avoid artificial self-corroboration.
@@ -591,11 +629,11 @@ Across 2,041 canonicalization decisions logged to `data/resolution_log.json`:
 | Dimension | Pre-Seeded Store (5 Documents) | Full Store (All 6 Documents) |
 |---|---|---|
 | Ingested Documents | 5 documents | 6 documents |
-| Stored Facts | **553 facts** | **686 facts** |
-| Fact Clusters | **446 clusters** | **550 clusters** |
-| Comparison-Eligible Clusters ($\ge 2$ facts) | **72 clusters** | **91 clusters** |
-| Canonical Subjects | 344 subjects | 401 subjects |
-| Canonical Measures | 288 measures | 323 measures |
+| Stored Facts | **554 facts** | **688 facts** |
+| Fact Clusters | **446 clusters** | **549 clusters** |
+| Comparison-Eligible Clusters ($\ge 2$ facts) | **72 clusters** | **93 clusters** |
+| Canonical Subjects | 338 subjects | 401 subjects |
+| Canonical Measures | 252 measures | 316 measures |
 | Total Cross-Fact Relations | **15 relations** | **28 relations** |
 | ↳ `APPARENT_CONFLICT` | 13 | 17 |
 | ↳ `CONTRADICTS` | 1 | 8 |
@@ -666,7 +704,7 @@ Open **`http://localhost:8008`** in your browser. The compiled React application
    ```
 3. Watch the progress bar execute parse $\to$ triage $\to$ extract $\to$ verify $\to$ resolve $\to$ gate $\to$ adjudicate.
 4. Once completed, notice that:
-   - Fact count updates from 553 to 686.
+   - Fact count updates from 554 to 688.
    - 13 new relations form, activating the **`CORROBORATES`** and **`APPARENT_CONFLICT`** tabs.
 5. Inspect the newly formed `APPARENT_CONFLICT` relation between IMF (7.8%) and RBI (6.5%) to view the side-by-side evidence viewer and qualifier matrix.
 
@@ -752,6 +790,26 @@ A `Table.to_text_block()` format that explicitly labeled the header row and each
 
 ### 10. Two Real Frontend Bugs Found and Fixed While Building the Evidence UI
 Auditing the frontend for B2/B3 surfaced two pre-existing, silent bugs, both from a TypeScript type not matching what the backend actually returns: (1) `REASON_CODE_CAVEATS` (a relation-explanation lookup shown on the Overview, Relations, and Required-Cases pages) was keyed on invented codes like `LOW_OCR_CONFIDENCE` — on a system with no OCR at all — that never matched a real `reason_code` (`period_disjoint`, `forecast_disagreement`, `value_match_despite_*`, etc.), so every relation silently fell through to one generic sentence, on every page, for every relation, since the feature shipped. (2) `RejectedFact` declared top-level `raw_quote`/`page`/`subject`/`measure` fields that don't exist on the real `GET /rejected-facts` row shape (the real quote/subject/measure live nested under `raw_fact`) — the Required Cases page and the dedicated Rejected Facts page were both silently showing a hard-coded placeholder string and `Page 1` for every single rejected fact. Both are fixed: the caveat table now uses the real reason-code vocabulary (verified against `comparability.py`/`adjudicate.py`'s actual source, with the dynamic `value_match_despite_*` / `*_period_unverified` composites parsed rather than listed), and `RejectedFact` matches the real JSONL shape.
+
+### 11. Entity Resolution: Why Subjects Don't Get a Fuzzy Tier
+An audit of `resolve.py` for a dedicated entity-resolution pass found the module's own docstring already draws the distinction precisely: **measures** get all three tiers (deterministic, alias, fuzzy+capped-LLM) but **subjects only ever got tier 1** (`normalize_entity()`) — no alias table, no fuzzy matching, no LLM fallback existed for subjects at all before this pass. That asymmetry is deliberate, not an oversight: a subject participates in `Fact.cluster_key()` (`subject::measure`), so a false subject merge silently feeds two unrelated claims into comparability/adjudication and manufactures a false relationship — "don't maximize entity merging, maximize defensible entity identity."
+
+**What was added:** a small, curated `SUBJECT_ALIASES` table (Tier 2 — Known Alias), the same shape and trust level as the existing `ISSUER_ALIASES`/`MEASURE_ALIASES`: institution abbreviations (`RBI`, `IMF`, `GoI`) and unambiguous whole-economy phrasings (`"Indian economy"`, `"India's economy"`, `"Indian economic activity"` → `india`). Every entry is a human-vetted, unconditional identity, never a heuristic — sub-scoped phrases (`"India's banking sector"`, `"Indian firms"`, `"Delhivery Robotics LLC"` — all real, distinct subjects in this corpus) are deliberately absent, and negative tests in `tests/test_resolve.py` pin that they stay absent.
+
+**What was evaluated and rejected — with real-corpus evidence, not just hypotheticals:** a fuzzy/prefix tier for subjects (the same shape that already works for measures). This corpus's RBI annual-report tables contain `'Reserve Money (RM)'`, `'Reserve money (RM) growth'`, and `'Reserve money (RM) share of GDP'` as three genuinely distinct subjects — a level, a growth rate, and a ratio of the same named indicator — where the first string is a strict prefix of the other two. Any prefix- or ratio-based fuzzy tier would merge these, exactly the false-merge failure mode the assignment's design principle warns against. There is no cheap string-similarity signal that reliably tells "harmless restated decoration" apart from "the actual qualifier that makes these different things," so this tier was not implemented — not because no positive case exists anywhere, but because the one real ambiguous-looking case in this corpus is a genuine negative. A context-gated variant (e.g. "merge only if the measure also matches") was considered and rejected on principle, not just risk: entity identity should not depend on which measure happens to be reported alongside it (`"India"` + GDP growth and `"India"` + inflation are both legitimately India), so context-safety is achieved at alias-table *curation* time (never adding a sub-scoped phrase) rather than at *runtime* (gating a merge on qualifier agreement). An LLM fallback for subjects was likewise not added: the real corpus's ambiguous-subject tail is effectively zero once genuine naming variance is separated from the two extraction artifacts below, which no canonicalization tier — deterministic, alias, fuzzy, or LLM — can fix.
+
+**Real-corpus measurement (before → after, full 6-document ingest):**
+
+| Metric | Before | After |
+|---|---|---|
+| Total facts | 688 | 688 (unchanged) |
+| Canonical subjects | 401 | 401 (unchanged) |
+| Clusters (total / 2+ facts) | 550 / 92 | 550 / 92 (unchanged) |
+| Relations (total, by type) | 28 (`apparent_conflict`: 17, `contradicts`: 8, `corroborates`: 2, `aggregates_into`: 1) | identical |
+
+The alias table has **zero measured effect** on this specific corpus: no document phrases "Indian economy," "India's economy," IMF, or GoI as a bare *subject* (IMF/GoI already resolve correctly as *issuers*, a separate field, via the pre-existing `ISSUER_ALIASES`). The one alias that does fire — the IMF document's single bare `"RBI"` subject mention — had no sibling to merge into either; its canonical string simply changes from the lowercase slug `rbi` to `Reserve Bank of India` (matching `ISSUER_ALIASES`'s spelling), a rename of a singleton cluster, not a merge (`tests/test_store.py::test_subject_aliases_rename_the_real_rbi_bucket_without_merging_it`). **Decision: integrated anyway** — the addition is architecturally consistent with the two alias tables the codebase already trusts, is covered by both the positive cases it exists for and adversarial negative cases proving it doesn't overreach, and costs nothing (no regressions, no new ambiguity) even though this corpus doesn't yet contain a document that exercises it.
+
+**Two genuine near-misses were found and deliberately NOT "fixed" here:** the IMF document's `"India's real GDP"`, `"India's credit rating"`, and `"India's stock of inward FDI"` remain distinct subjects from `"india"` and from each other. These are not naming-convention variance — they are subject/measure conflation at *extraction* time (e.g. `"India's real GDP"` was extracted with `measure_raw="grew by"`, not a proper measure label), so merging the subject alone wouldn't even produce a matching `cluster_key()` with the properly-extracted GDP-growth facts elsewhere. Fixing this belongs in `extract.py`'s subject/measure separation, which is out of scope for a resolution-layer change ("do not rewrite extraction") — documented here rather than papered over with a resolution-layer heuristic that wouldn't actually work.
 
 ---
 
