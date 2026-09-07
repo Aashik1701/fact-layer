@@ -1,0 +1,19 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-20b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise financial data extractor. Extract row-wise numerical facts from the table below. Return ONLY a JSON array of fact objects.\n\nCRITICAL RULES:\n1. Emit RAW STRINGS ONLY \u2014 never compute, convert, scale, or normalise any value.\n2. value_raw must be the LITERAL number as written (e.g. '8,141.71', not 81417100).\n3. verbatim_quote must be an exact, contiguous substring from the input text.\n4. Skip page furniture, page numbers, table-of-contents entries, totals that just repeat summed rows, and any figure without both a subject and a measure.\n5. Target 5-12 meaningful facts. Precision over recall.\n6. modality: use 'asserted' for historical actuals, 'projected' for forecasts, 'estimated' for estimates, 'restated' for revised/restated figures."
+    },
+    {
+      "role": "user",
+      "content": "Extract facts from this table:\n\nScale context: in million\nDefault currency: INR\nDefault scale: million\n\nShares aggregating to aggregating to of share reservation among QIBs, Non-Institutional Investors and RIBs,\n\u20b940,000.00 million\n\u20b912,350.00 million see \u201cOffer Structure\u201d on page 588.\n*Subject to finalization of the Basis of Allotment\nDETAILS OF THE OFFER FOR SALE\nWeighted average cost of\nName of Selling\nShareholder\n\nShares aggregating to aggregating to of share reservation among QIBs, Non-Institutional Investors and RIBs,\n\u20b940,000.00 million\n\u20b912,350.00 million see \u201cOffer Structure\u201d on page 588.\n*Subject to finalization of the Basis of Allotment\nDETAILS OF THE OFFER FOR SALE\nWeighted average cost of\n[in million]\nNumber of shares offered/ amount\n(\u20b9 in million)"
+    },
+    {
+      "role": "user",
+      "content": "Respond with valid JSON only, matching this schema: [{\n  \"subject_raw\": \"string \u2014 as written in the document\",\n  \"measure_raw\": \"string \u2014 as written, e.g. 'Revenue from operations'\",\n  \"value_raw\": \"string \u2014 the literal, e.g. '8,141.71' or '6.5 per cent'\",\n  \"period_raw\": \"string \u2014 verbatim phrase, e.g. 'year ended March 31, 2024' \u2014 or null\",\n  \"scope_raw\": \"string \u2014 verbatim, e.g. 'Consolidated' \u2014 or null\",\n  \"issuer_raw\": \"string \u2014 if the text attributes the figure to a body \u2014 or null\",\n  \"modality\": \"string \u2014 asserted | estimated | projected | restated\",\n  \"verbatim_quote\": \"string \u2014 the exact contiguous span containing the value\"\n}]"
+    }
+  ],
+  "response": "[\n  {\n    \"subject_raw\": \"Shares aggregating to aggregating to of share reservation among QIBs, Non-Institutional Investors and RIBs,\",\n    \"measure_raw\": \"share reservation\",\n    \"value_raw\": \"\u20b940,000.00 million\",\n    \"period_raw\": null,\n    \"scope_raw\": null,\n    \"issuer_raw\": null,\n    \"modality\": \"asserted\",\n    \"verbatim_quote\": \"\u20b940,000.00 million\"\n  },\n  {\n    \"subject_raw\": \"Shares aggregating to aggregating to of share reservation among QIBs, Non-Institutional Investors and RIBs,\",\n    \"measure_raw\": \"share reservation\",\n    \"value_raw\": \"\u20b912,350.00 million\",\n    \"period_raw\": null,\n    \"scope_raw\": null,\n    \"issuer_raw\": null,\n    \"modality\": \"asserted\",\n    \"verbatim_quote\": \"\u20b912,350.00 million\"\n  }\n]"
+}

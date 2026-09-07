@@ -1,0 +1,19 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise document analyst. Extract narrative claims from the text: status changes, forecasts, policy statements, attributions, and key numerical assertions. Return ONLY a JSON array of fact objects.\n\nCRITICAL RULES:\n1. Emit RAW STRINGS ONLY \u2014 never compute, convert, scale, or normalise any value.\n2. value_raw must be the LITERAL number/phrase as written.\n3. verbatim_quote must be an exact, contiguous substring from the input text.\n4. Skip page furniture, page numbers, and table-of-contents entries.\n5. Target 5-12 meaningful facts. Precision over recall.\n6. For percentage growth rates, GDP figures, policy rates \u2014 capture them.\n7. modality: use 'asserted' for stated facts, 'projected' for forecasts, 'estimated' for estimates, 'restated' for revised figures."
+    },
+    {
+      "role": "user",
+      "content": "Extract factual claims from this text:\n\nDocument issuer: Delhivery Limited\nDefault period: Annual Report 2023-24\n\noutstanding options as on relevant record date (vested and unvested\n1 Mr. Suvir Suren Sujan ceased to be a Director with effect from August 24, 2023. options, including lapsed and forfeited options available for reissue) was proportionately adjusted and the number of options which are available for\ngrant and those already granted but not exercised as on relevant record date was appropriately adjusted.\n2 Mr. Donald Francis Colleran ceased to be a Director with effect from September 27, 2023.\n3 Includes amount accrued during the FY24 and paid in FY25.\n84 Delhivery Limited Annual Report 2023-24 85"
+    },
+    {
+      "role": "user",
+      "content": "Respond with valid JSON only, matching this schema: [{\n  \"subject_raw\": \"string \u2014 as written in the document\",\n  \"measure_raw\": \"string \u2014 as written, e.g. 'Revenue from operations'\",\n  \"value_raw\": \"string \u2014 the literal, e.g. '8,141.71' or '6.5 per cent'\",\n  \"period_raw\": \"string \u2014 verbatim phrase, e.g. 'year ended March 31, 2024' \u2014 or null\",\n  \"scope_raw\": \"string \u2014 verbatim, e.g. 'Consolidated' \u2014 or null\",\n  \"issuer_raw\": \"string \u2014 if the text attributes the figure to a body \u2014 or null\",\n  \"modality\": \"string \u2014 asserted | estimated | projected | restated\",\n  \"verbatim_quote\": \"string \u2014 the exact contiguous span containing the value\"\n}]"
+    }
+  ],
+  "response": "[\n  {\n    \"subject_raw\": \"Mr. Suvir Suren Sujan\",\n    \"measure_raw\": \"Director status\",\n    \"value_raw\": \"ceased to be a Director with effect from August 24, 2023\",\n    \"period_raw\": null,\n    \"scope_raw\": null,\n    \"issuer_raw\": \"Delhivery Limited\",\n    \"modality\": \"asserted\",\n    \"verbatim_quote\": \"Mr. Suvir Suren Sujan ceased to be a Director with effect from August 24, 2023.\"\n  },\n  {\n    \"subject_raw\": \"Mr. Donald Francis Colleran\",\n    \"measure_raw\": \"Director status\",\n    \"value_raw\": \"ceased to be a Director with effect from September 27, 2023\",\n    \"period_raw\": null,\n    \"scope_raw\": null,\n    \"issuer_raw\": \"Delhivery Limited\",\n    \"modality\": \"asserted\",\n    \"verbatim_quote\": \"Mr. Donald Francis Colleran ceased to be a Director with effect from September 27, 2023.\"\n  },\n  {\n    \"subject_raw\": \"Amount\",\n    \"measure_raw\": \"accrued and paid\",\n    \"value_raw\": \"accrued during the FY24 and paid in FY25\",\n    \"period_raw\": \"FY24\",\n    \"scope_raw\": null,\n    \"issuer_raw\": \"Delhivery Limited\",\n    \"modality\": \"asserted\",\n    \"verbatim_quote\": \"Includes amount accrued during the FY24 and paid in FY25.\"\n  }\n]"
+}

@@ -1,0 +1,19 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise financial data extractor. Extract row-wise numerical facts from the table below. Return ONLY a JSON array of fact objects.\n\nCRITICAL RULES:\n1. Emit RAW STRINGS ONLY \u2014 never compute, convert, scale, or normalise any value.\n2. value_raw must be the LITERAL number as written (e.g. '8,141.71', not 81417100).\n3. verbatim_quote must be an exact, contiguous substring from the input text.\n4. Skip page furniture, page numbers, table-of-contents entries, totals that just repeat summed rows, and any figure without both a subject and a measure.\n5. Target 5-12 meaningful facts. Precision over recall.\n6. modality: use 'asserted' for historical actuals, 'projected' for forecasts, 'estimated' for estimates, 'restated' for revised/restated figures."
+    },
+    {
+      "role": "user",
+      "content": "Extract facts from this table:\n\nDefault period: Annual Report 2023-24\n\nCorporate Overview | Statutory Reports | Financial Statements\n\n(DIN) status at the portal www.mca.gov.in) as considered necessary and explanations furnished to us by the Company & its untrue statement or omit any material fact or III. i nstances of significant fraud of which we have\nofficers, we hereby certify that none of the Directors on the Board of the Company as stated below for the Financial Year ending contain statements that might be misleading;\nbecome aware and the involvement therein, if\non 31st March, 2024 have been debarred or disqualified from being appointed or continuing as Directors of companies by the (ii) these statements together present a true and fair any, of the management or an employee having a\nSecurities and Exchange Board of India, Ministry of Corporate Affairs or any such other Statutory Authority. view of the Company\u2019s affairs and are in compliance significant role in the Company\u2019s internal control\nwith existing accounting standards, applicable laws\nSl.\nNo. | Name of Director | Director Identification Number (DIN) |  | Date of Appointment in Company"
+    },
+    {
+      "role": "user",
+      "content": "Respond with valid JSON only, matching this schema: [{\n  \"subject_raw\": \"string \u2014 as written in the document\",\n  \"measure_raw\": \"string \u2014 as written, e.g. 'Revenue from operations'\",\n  \"value_raw\": \"string \u2014 the literal, e.g. '8,141.71' or '6.5 per cent'\",\n  \"period_raw\": \"string \u2014 verbatim phrase, e.g. 'year ended March 31, 2024' \u2014 or null\",\n  \"scope_raw\": \"string \u2014 verbatim, e.g. 'Consolidated' \u2014 or null\",\n  \"issuer_raw\": \"string \u2014 if the text attributes the figure to a body \u2014 or null\",\n  \"modality\": \"string \u2014 asserted | estimated | projected | restated\",\n  \"verbatim_quote\": \"string \u2014 the exact contiguous span containing the value\"\n}]"
+    }
+  ],
+  "response": "[]"
+}

@@ -1,0 +1,19 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise financial/economic-data taxonomist. Decide whether two measure labels extracted from documents refer to the SAME underlying concept (e.g. 'Revenue from operations' and 'Total income from operations' are the same; 'Revenue' and 'Profit' are NOT, even though both are financial). Return ONLY valid JSON matching the schema."
+    },
+    {
+      "role": "user",
+      "content": "Measure A: 'Number of shares acquired'\nMeasure B: 'Number of shares offered'\n\nAre these the same underlying measure? Return JSON matching: {\"same_measure\": true or false, \"reason\": \"short string\"}"
+    },
+    {
+      "role": "user",
+      "content": "Respond with valid JSON only, matching this schema: {\"same_measure\": true or false, \"reason\": \"short string\"}"
+    }
+  ],
+  "response": "{\"same_measure\": false, \"reason\": \"Acquired shares are bought/received, offered shares are sold/issued\"}"
+}

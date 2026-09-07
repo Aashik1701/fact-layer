@@ -1,0 +1,19 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a financial-document analyst. Extract the DEFAULT REPORTING CONTEXT from the opening pages of a document. Return ONLY valid JSON matching the schema. Do NOT guess or fabricate information \u2014 use null for any field you cannot determine from the text."
+    },
+    {
+      "role": "user",
+      "content": "Extract the default reporting context from these opening pages:\n\n--- PAGE 1 ---\nDate: May 17, 2024\nBSE Limited National Stock Exchange of India Limited\nPhiroze Jeejeebhoy Towers, Exchange Plaza, C-1, Block G,\nDalal Street, Bandra Kurla Complex,\nMumbai \u2013 400 001 India Bandra (E), Mumbai \u2013 400 051 India\nScrip Code: 543529 Symbol: DELHIVERY\nSub: Investor Presentation for the \u2018Earnings Audio / Video (AV) Conference Call\u2019 scheduled to be held on\nMay 17, 2024, by Delhivery Limited (\u2018the Company\u2019).\nDear Sir/ Madam,\nIn furtherance to our earlier communication dated May 11, 2024 w.r.t. Earnings Audio / Video Conference Call and\npursuant to the provisions of Regulation 30 and 33 of the SEBI (Listing Obligations and Disclosure Requirements)\nRegulations, 2015, please find a copy of the Investor Presentation, on Audited Standalone and Consolidated\nFinancial Results of the Company for the quarter and financial year ended March 31, 2024, proposed to be presented\nat the upcoming Earnings Audio / Video (AV) Conference Call scheduled to be held today, i.e., Friday, May 17, 2024,\nat 06:00 P.M. (IST) by the Company.\nThis presentation will also be hosted on the Company\u2019s website at www.delhivery.com\nYou are requested to take the same on your record.\nThank you.\nYours sincerely,\nFor Delhivery Limited\nMadhulika Rawat\nCompany Secretary & Compliance Officer\nMembership No: F8765\nPlace: Goa\nEncl: As above\n\n--- PAGE 2 ---\nEarnings Presentation\nQ4 & FY24\n\nReturn JSON matching this schema:\n{\n  \"issuer\": \"string \u2014 who published this document\",\n  \"reporting_entity\": \"string \u2014 who the document is about (may equal issuer)\",\n  \"document_type\": \"string \u2014 prospectus | annual_report | earnings_presentation | policy_report | staff_report | economic_survey | ...\",\n  \"default_currency\": \"string \u2014 INR | USD | null\",\n  \"default_scale\": \"string \u2014 crore | lakh | million | billion | null\",\n  \"default_scope\": \"string \u2014 standalone | consolidated | unknown\",\n  \"default_period\": \"string \u2014 verbatim phrase or null\"\n}"
+    },
+    {
+      "role": "user",
+      "content": "Respond with valid JSON only, matching this schema: {\n  \"issuer\": \"string \u2014 who published this document\",\n  \"reporting_entity\": \"string \u2014 who the document is about (may equal issuer)\",\n  \"document_type\": \"string \u2014 prospectus | annual_report | earnings_presentation | policy_report | staff_report | economic_survey | ...\",\n  \"default_currency\": \"string \u2014 INR | USD | null\",\n  \"default_scale\": \"string \u2014 crore | lakh | million | billion | null\",\n  \"default_scope\": \"string \u2014 standalone | consolidated | unknown\",\n  \"default_period\": \"string \u2014 verbatim phrase or null\"\n}"
+    }
+  ],
+  "response": "{\n  \"issuer\": \"Delhivery Limited\",\n  \"reporting_entity\": \"Delhivery Limited\",\n  \"document_type\": \"earnings_presentation\",\n  \"default_currency\": null,\n  \"default_scale\": null,\n  \"default_scope\": \"unknown\",\n  \"default_period\": \"quarter and financial year ended March 31, 2024\"\n}"
+}
