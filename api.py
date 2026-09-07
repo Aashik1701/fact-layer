@@ -1,7 +1,7 @@
 """
 FastAPI layer over the fact_layer pipeline.
 
-Milestone 5, STEP 1 (CLAUDE.md build-order table). This file is deliberately
+Milestone 5, STEP 1 (project specification build-order table). This file is deliberately
 thin: it holds HTTP plumbing (routing, request parsing, JSON shaping) and
 zero domain logic. Every decision about what a fact IS, whether two facts are
 comparable, or how they relate was already made by fact_layer/{comparability,
@@ -23,8 +23,11 @@ from __future__ import annotations
 
 import glob
 import hashlib
+import logging
 import os
+import re
 import time
+import uuid
 from datetime import date
 from typing import Optional
 
@@ -41,6 +44,8 @@ from fact_layer.parse import _doc_id
 from fact_layer.resolve import write_resolution_log
 from fact_layer.store import Store, _STORE_PATH
 
+logger = logging.getLogger("fact_layer.api")
+
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.path.join(_REPO_ROOT, "data", "uploads")
 _PAGE_IMAGE_CACHE_DIR = os.path.join(_REPO_ROOT, "cache", "pages")
@@ -49,6 +54,92 @@ _FRONTEND_DIR = _DIST_DIR if os.path.isdir(_DIST_DIR) else os.path.join(_REPO_RO
 _RESOLUTION_LOG_PATH = os.path.join(_REPO_ROOT, "data", "resolution_log.json")
 _REJECTED_PATH = os.path.join(_REPO_ROOT, "data", "rejected_facts.jsonl")
 _PAGE_IMAGE_RESOLUTION = 110
+
+# --------------------------------------------------------------------------
+# Upload security (B1)
+#
+# PDF content — and the client-supplied filename that arrives alongside it —
+# is untrusted input. Two independent hardenings, both enforced before any
+# bytes are written to disk:
+#   1. the on-disk path is built from a SANITIZED basename, never the raw
+#      client filename, and is verified to still resolve inside
+#      _UPLOADS_DIR before it is ever opened for writing (belt + suspenders:
+#      the sanitizer alone already can't produce a traversal, the
+#      containment check catches it anyway if that ever stops being true);
+#   2. the body is read incrementally with a running size cap, so an
+#      oversized upload is rejected without ever materializing the whole
+#      thing in memory first.
+# --------------------------------------------------------------------------
+
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB — generous for a text-native
+                                        # financial-report PDF (this corpus's
+                                        # largest real file is ~4.3 MB), well
+                                        # short of what would indicate abuse
+                                        # for a local/demo deployment.
+_UPLOAD_READ_CHUNK = 1024 * 1024       # 1 MB per read() call
+_PDF_MAGIC = b"%PDF-"
+_UNSAFE_FILENAME_CHARS_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _sanitize_upload_filename(original: str) -> str:
+    """Never let a client-supplied filename control where a file is written.
+    Takes only the final path component (after normalising both '/' and
+    Windows-style '\\' separators), strips any residual '..' tokens and
+    unsafe characters, and guarantees a '.pdf' suffix. This alone defeats
+    every traversal shape this project's threat model calls out
+    ("../../evil.pdf", "/tmp/evil.pdf", "..\\..\\evil.pdf",
+    "foo/../../evil.pdf") because only the last segment survives; the
+    containment check in `_safe_upload_dest` is the independent second
+    layer, not a substitute for this one."""
+    base = (original or "upload").replace("\\", "/").split("/")[-1]
+    base = base.replace("..", "")
+    base = _UNSAFE_FILENAME_CHARS_RE.sub("_", base).strip("._") or "upload"
+    if not base.lower().endswith(".pdf"):
+        base += ".pdf"
+    return base
+
+
+def _safe_upload_dest(original_filename: str) -> str:
+    """Resolve a sanitized, collision-free destination path inside
+    _UPLOADS_DIR, verifying containment before returning it. Raises
+    HTTPException rather than ever handing back a path outside the
+    upload directory."""
+    os.makedirs(_UPLOADS_DIR, exist_ok=True)
+    base = _sanitize_upload_filename(original_filename)
+    dest = os.path.join(_UPLOADS_DIR, base)
+
+    real_uploads = os.path.realpath(_UPLOADS_DIR)
+    real_dest = os.path.realpath(dest)
+    if os.path.commonpath([real_uploads, real_dest]) != real_uploads:
+        # Should be unreachable given the sanitizer above; fail closed if
+        # it ever isn't, rather than trust the computed path.
+        raise HTTPException(400, "invalid filename")
+
+    if os.path.exists(dest):
+        # A different file with the same sanitized name — never silently
+        # overwrite an existing upload; give this one a distinct name.
+        stem, ext = os.path.splitext(base)
+        dest = os.path.join(_UPLOADS_DIR, f"{stem}_{uuid.uuid4().hex[:8]}{ext}")
+    return dest
+
+
+async def _read_upload_capped(file: UploadFile, max_bytes: int) -> bytes:
+    """Read an UploadFile incrementally, aborting as soon as the running
+    total exceeds `max_bytes` — never calls file.read() with no size limit,
+    so an oversized upload never gets fully materialized in memory."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_READ_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                413, f"file exceeds maximum upload size of {max_bytes // (1024 * 1024)} MB"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 app = FastAPI(title="Fact Knowledge Layer API")
 app.add_middleware(
@@ -119,7 +210,7 @@ def _find_doc_id_by_content(content_hash: str) -> Optional[str]:
 # --------------------------------------------------------------------------
 # JSON shaping — plain dicts, no pydantic response models (thin layer, small
 # surface; adding a parallel schema for every fact_layer dataclass would be
-# the kind of abstraction CLAUDE.md section 8 warns against).
+# the kind of abstraction the project specification (section 8) warns against).
 # --------------------------------------------------------------------------
 
 def _json_safe(v):
@@ -203,6 +294,13 @@ def _evidence_out(e) -> dict:
         "page_height": dims[1] if dims else None,
         "page_image_resolution": _PAGE_IMAGE_RESOLUTION,
         "extractor": e.extractor, "verified": e.verified,
+        # A8 — additive table-context fields; null when a fact's value
+        # wasn't confidently attributed to exactly one table cell.
+        "table_id": e.table_id,
+        "row_index": e.row_index, "column_index": e.column_index,
+        "cell_bbox": list(e.cell_bbox) if e.cell_bbox else None,
+        "row_label": e.row_label, "column_header": e.column_header,
+        "unit_context": e.unit_context or None,
     }
 
 
@@ -285,7 +383,21 @@ async def ingest(file: UploadFile = File(...)):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "only .pdf uploads are accepted")
 
-    body = await file.read()
+    # Fast, cheap rejection when the client declares an oversized body up
+    # front — Content-Length can be absent or wrong for chunked transfer,
+    # so this is a courtesy, not the enforcement: _read_upload_capped()
+    # below is what actually guarantees the cap regardless.
+    declared_length = file.size
+    if declared_length is not None and declared_length > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"file exceeds maximum upload size of {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+
+    body = await _read_upload_capped(file, _MAX_UPLOAD_BYTES)
+
+    if not body.startswith(_PDF_MAGIC):
+        # Extension alone is trivially spoofable; the magic bytes are the
+        # real check. Nothing is written to disk for an invalid upload.
+        raise HTTPException(400, "uploaded file is not a valid PDF")
+
     content_hash = hashlib.sha256(body).hexdigest()
     existing_doc_id = _find_doc_id_by_content(content_hash)
     if existing_doc_id is not None:
@@ -301,8 +413,11 @@ async def ingest(file: UploadFile = File(...)):
             "llm_calls_made": 0, "elapsed_seconds": 0.0,
         }
 
-    os.makedirs(_UPLOADS_DIR, exist_ok=True)
-    dest = os.path.join(_UPLOADS_DIR, file.filename)
+    # The on-disk path is built from a SANITIZED, containment-verified
+    # basename — never the raw client filename (B1.1). See
+    # _sanitize_upload_filename()'s docstring for the exact traversal
+    # shapes this defeats.
+    dest = _safe_upload_dest(file.filename)
     with open(dest, "wb") as fh:
         fh.write(body)
 
@@ -314,8 +429,21 @@ async def ingest(file: UploadFile = File(...)):
         # A genuinely new document that LLM_MODE=replay has no cached
         # response for (or a live-mode failure) — surface as a clean error
         # instead of an opaque 500, since the frontend's upload zone is a
-        # user-facing control that must degrade gracefully.
+        # user-facing control that must degrade gracefully. The file itself
+        # parsed fine (it's a real, valid PDF); it stays in data/uploads/ so
+        # a retry with a live key can pick it back up without re-uploading.
         raise HTTPException(502, f"extraction failed: {e}")
+
+    if result.skipped_reason and result.skipped_reason.startswith("parse error"):
+        # Not a usable document — clean up rather than leave a dead file
+        # behind (B1.4). Distinct from the LLMError case above: this file
+        # never actually parsed, so there is nothing to retry later.
+        try:
+            os.remove(dest)
+        except OSError:
+            logger.warning("failed to remove unparseable upload %s", dest)
+        raise HTTPException(400, f"could not parse uploaded PDF: {result.skipped_reason}")
+
     elapsed = time.time() - t0
     llm_calls_made = _llm._stats["calls"] - calls_before
 
@@ -349,6 +477,17 @@ async def ingest(file: UploadFile = File(...)):
 # GET /documents
 # --------------------------------------------------------------------------
 
+def _diagnostics_out(d) -> dict:
+    return {
+        "total_pages": d.total_pages, "text_pages": d.text_pages,
+        "image_only_pages": d.image_only_pages, "sparse_pages": d.sparse_pages,
+        "tables_detected": d.tables_detected, "pages_with_tables": d.pages_with_tables,
+        "repeated_header_candidates": d.repeated_header_candidates,
+        "repeated_footer_candidates": d.repeated_footer_candidates,
+        "warnings": d.warnings,
+    }
+
+
 @app.get("/documents")
 def list_documents():
     out = []
@@ -357,14 +496,18 @@ def list_documents():
         path = _resolve_doc_path(doc_id)
         n_pages = None
         table_strategy = None
+        diagnostics = None
         if path:
+            from fact_layer.diagnostics import compute_document_diagnostics
             from fact_layer.parse import parse_pdf
-            doc = parse_pdf(path)
+            doc = parse_pdf(path)   # served from cache/parsed/ — no re-parse
             n_pages = doc.n_pages
             table_strategy = doc.table_strategy
+            diagnostics = _diagnostics_out(compute_document_diagnostics(doc))
         out.append({
             "doc_id": doc_id, "filename": filename, "fact_count": fact_count,
             "n_pages": n_pages, "table_strategy": table_strategy,
+            "diagnostics": diagnostics,
         })
     return {"total": len(out), "documents": out}
 
@@ -582,8 +725,8 @@ def page_image(doc_id: str, page: int):
 
 # --------------------------------------------------------------------------
 # GET /rejected-facts — the Four Cases view's "extraction failure" case.
-# data/rejected_facts.jsonl is itself the deliverable (CLAUDE.md section
-# 3.1); this just reads it back as JSON instead of the frontend needing to
+# data/rejected_facts.jsonl is itself the deliverable (project specification
+# section 3.1); this just reads it back as JSON instead of the frontend needing to
 # fetch and parse a raw .jsonl file from the static mount.
 # --------------------------------------------------------------------------
 

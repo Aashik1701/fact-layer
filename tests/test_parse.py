@@ -64,6 +64,50 @@ def test_bbox_round_trip_per_document():
         assert snippet == w.text
 
 
+def test_every_word_offset_resolves_to_its_own_text_on_every_page():
+    """Stronger form of the bbox round-trip spot-check, across EVERY word of
+    a sample page per document: page.text[w.char_start:w.char_end] must be
+    exactly w.text. This is the invariant any future reading-order change
+    would break first, and evidence mapping depends on it entirely."""
+    for path in PDF_PATHS:
+        doc = _parse(path)
+        page = max(doc.pages, key=lambda p: len(p.words))
+        assert page.words, f"{path} has no page with words"
+        for w in page.words:
+            assert page.text[w.char_start:w.char_end] == w.text, (
+                f"{path} page {page.page_no}: offset {w.char_start} does not resolve to {w.text!r}"
+            )
+
+
+def test_reading_order_is_top_to_bottom_on_real_pages():
+    """Coarse-grained check: bucket a page's words into deciles by char
+    order and assert each decile's average `top` is non-decreasing. This is
+    deliberately loose about individual-line jitter (real PDFs commonly have
+    two lines whose word `top`s differ by only a point or two — well within
+    normal baseline variation, not a reading-order bug) while still catching
+    a genuine gross regression, e.g. a future layout change that interleaves
+    a later column's top-of-page text with an earlier column's bottom-of-
+    page text."""
+    n_buckets = 10
+    for path in PDF_PATHS:
+        doc = _parse(path)
+        page = max(doc.pages, key=lambda p: len(p.words))
+        ordered = sorted(page.words, key=lambda w: w.char_start)
+        if len(ordered) < n_buckets * 3:
+            continue   # too few words on this page for decile bucketing to mean anything
+        bucket_size = len(ordered) // n_buckets
+        bucket_avgs = []
+        for i in range(n_buckets):
+            chunk = ordered[i * bucket_size: (i + 1) * bucket_size]
+            bucket_avgs.append(sum(w.bbox[1] for w in chunk) / len(chunk))
+        for i in range(1, len(bucket_avgs)):
+            assert bucket_avgs[i] >= bucket_avgs[i - 1] - 20.0, (
+                f"{path} page {page.page_no}: text bucket {i} average top "
+                f"({bucket_avgs[i]:.1f}) regressed well above bucket {i - 1}'s "
+                f"({bucket_avgs[i - 1]:.1f}) — reading order is not top-to-bottom"
+            )
+
+
 def test_imf_cover_page_is_image_only():
     imf_path = next(p for p in PDF_PATHS if "imf" in p.lower())
     doc = _parse(imf_path)

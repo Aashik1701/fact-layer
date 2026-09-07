@@ -76,10 +76,35 @@ class Table:
     caption: str = ""
     scale_context: str = ""
 
+    def header_row(self) -> Optional[list[Optional[str]]]:
+        """The column-header row, by the same convention extract.py's
+        _table_column_header_text() already relies on (first row). Not a new
+        assumption — just naming one the pipeline already makes."""
+        return self.rows[0] if self.rows else None
+
+    def row_label(self, row_index: int) -> str:
+        """First cell of a data row — usually the subject/line-item the
+        row's numbers belong to (e.g. "India", "Revenue from operations")."""
+        if 0 <= row_index < len(self.rows) and self.rows[row_index]:
+            return (self.rows[row_index][0] or "").strip()
+        return ""
+
     def to_text_block(self) -> str:
         """Compact text block an LLM can read: caption, scale, then rows
         pipe-delimited. Page/bbox provenance lives on the Table object itself,
-        not in this string, so nothing is lost by handing this to a prompt."""
+        not in this string, so nothing is lost by handing this to a prompt.
+
+        Deliberately UNCHANGED byte-for-byte by the A3 correctness-hardening
+        pass: this string is hashed verbatim into the LLM replay-cache key
+        (cache/{sha256(provider+model+messages)}.json — llm.py). A more
+        richly labeled table block (headers:/row: prefixes) was prototyped
+        and reverted after confirming it changes this hash for every
+        table-containing chunk in the real 6-document corpus, which would
+        turn every one of those cached responses into a replay-mode miss —
+        an unacceptable regression for a one-line formatting change. The
+        structural metadata A3 adds (header_row(), row_label() above) is
+        therefore additive and prompt-invisible: available to any future
+        consumer, verified by tests, but never part of what gets hashed."""
         lines = []
         if self.caption:
             lines.append(self.caption.strip())

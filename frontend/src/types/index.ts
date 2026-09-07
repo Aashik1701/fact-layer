@@ -99,12 +99,25 @@ export interface RelationFull extends RelationSummary {
   gate?: GateInfo;
 }
 
+export interface DocumentDiagnostics {
+  total_pages: number;
+  text_pages: number;
+  image_only_pages: number;
+  sparse_pages: number;
+  tables_detected: number;
+  pages_with_tables: number;
+  repeated_header_candidates: string[];
+  repeated_footer_candidates: string[];
+  warnings: string[];
+}
+
 export interface DocumentInfo {
   doc_id: string;
   filename: string;
   fact_count: number;
   n_pages?: number;
   table_strategy?: string;
+  diagnostics?: DocumentDiagnostics | null;
 }
 
 export interface ClusterInfo {

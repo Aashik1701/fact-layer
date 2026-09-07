@@ -3,7 +3,7 @@ import { fetchDocuments } from '@/lib/api';
 import { DocumentInfo, IngestResponse } from '@/types';
 import { DocumentUploadZone } from './DocumentUploadZone';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
-import { FileText, RefreshCw } from 'lucide-react';
+import { FileText, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
@@ -105,6 +105,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onNavigateToFacts 
                   <th className="py-3 px-4">Extracted Facts</th>
                   <th className="py-3 px-4">Pages</th>
                   <th className="py-3 px-4">Table Strategy</th>
+                  <th className="py-3 px-4">Health</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -162,6 +163,39 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onNavigateToFacts 
                       >
                         {doc.table_strategy || 'hybrid'}
                       </span>
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      {doc.diagnostics ? (
+                        (() => {
+                          const d = doc.diagnostics!;
+                          const clean = d.warnings.length === 0;
+                          const tooltip = [
+                            `${d.total_pages} pages`,
+                            `${d.text_pages} text pages`,
+                            `${d.image_only_pages} image-only pages`,
+                            `${d.sparse_pages} sparse pages`,
+                            `${d.tables_detected} tables detected`,
+                            ...(d.warnings.length ? ['Warnings:', ...d.warnings.map((w) => `• ${w}`)] : []),
+                          ].join('\n');
+                          return (
+                            <span
+                              title={tooltip}
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded border font-mono text-[11px] cursor-help',
+                                clean
+                                  ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20'
+                                  : 'text-amber-500 bg-amber-500/10 border-amber-500/20'
+                              )}
+                            >
+                              {clean ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                              {clean ? 'Clean' : `${d.warnings.length} warning${d.warnings.length > 1 ? 's' : ''}`}
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className={cn('font-mono text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>—</span>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
