@@ -1,0 +1,44 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# Node / React / Vite
+node_modules/
+dist/
+.vite/
+
+# Runtime-generated uploads
+data/uploads/
+
+# Generated PDF/cache artifacts
+cache/parsed/
+cache/pages/
+
+# IDE / editor files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# NOTE:
+# cache/llm/ is intentionally NOT ignored.
+# It is the replay cache used by LLM_MODE=replay,
+# allowing the pipeline to run offline without an API key.
+# It must be committed to the repository.
