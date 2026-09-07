@@ -6,6 +6,7 @@ import { FactSummary, FactFull, EvidenceItem } from '@/types';
 import { Quote, FileText, CheckCircle2, AlertCircle, Clock, MapPin } from 'lucide-react';
 import { ConfidencePill } from '@/components/common/ConfidencePill';
 import { formatIssuer, cn } from '@/lib/utils';
+import { getValueVerificationExplanation } from '@/lib/constants';
 import { useTheme } from '@/context/ThemeContext';
 
 interface EvidenceModalProps {
@@ -133,8 +134,8 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({
             </div>
 
             {fact?.value_verification && (
-              <div className="flex items-center justify-end mb-2 -mt-1">
-                {fact.value_verification === 'verified' ? (
+              <div className="flex items-center justify-end gap-1.5 mb-2 -mt-1">
+                {fact.value_verification === 'verified' || fact.value_verification === 'verified_with_context' ? (
                   <div
                     title={fact.value_verification_reason || undefined}
                     className="flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"
@@ -150,6 +151,49 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({
                     <AlertCircle className="w-3 h-3" />
                     Value Unverified
                   </div>
+                )}
+                {fact.value_verification === 'verified_with_context' && (
+                  <div
+                    title="A table cell confidently confirms the row, column and unit this value belongs to."
+                    className="flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Context Verified
+                  </div>
+                )}
+              </div>
+            )}
+
+            {fact?.value_verification && fact.value_verification !== 'verified'
+              && fact.value_verification !== 'verified_with_context' && (
+              <div
+                className={cn(
+                  'mb-3 p-2.5 rounded-lg border text-[11px] leading-relaxed',
+                  isDark ? 'bg-amber-500/5 border-amber-500/20 text-slate-300' : 'bg-amber-50 border-amber-200 text-slate-700'
+                )}
+              >
+                {getValueVerificationExplanation(fact.value_verification_reason || '')}
+              </div>
+            )}
+
+            {(activeEvidence?.row_label || activeEvidence?.column_header || activeEvidence?.unit_context) && (
+              <div
+                className={cn(
+                  'mb-3 p-2.5 rounded-lg border text-[11px] font-mono grid grid-cols-2 gap-x-3 gap-y-1',
+                  isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-600'
+                )}
+              >
+                <div className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-sky-500 mb-0.5">
+                  Source Context
+                </div>
+                {activeEvidence?.row_label && (
+                  <div><span className="opacity-60">Row:</span> {activeEvidence.row_label}</div>
+                )}
+                {activeEvidence?.column_header && (
+                  <div><span className="opacity-60">Column:</span> {activeEvidence.column_header}</div>
+                )}
+                {activeEvidence?.unit_context && (
+                  <div className="col-span-2"><span className="opacity-60">Unit:</span> {activeEvidence.unit_context}</div>
                 )}
               </div>
             )}

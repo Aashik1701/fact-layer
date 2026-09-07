@@ -35,7 +35,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    # Deferred: table_structure.py imports _candidate_quantities from this
+    # module, so an eager import here would be circular. The annotation
+    # below is a string (via `from __future__ import annotations`), so this
+    # import is only ever needed by type checkers, never at runtime.
+    from .table_structure import CellContext
 
 from .adjudicate import _values_agree
 from .models import Quantity
@@ -67,7 +74,9 @@ _BARE_FY_RE = re.compile(r"\bf\.?y\.?\s*[:\-]?\s*\d{2,4}\b", re.I)
 
 
 class ValueVerificationStatus(str, Enum):
-    VERIFIED = "verified"       # value_raw's number is the sole number the quote supports
+    VERIFIED = "verified"                             # value_raw's number is the sole number the quote supports
+    VERIFIED_WITH_CONTEXT = "verified_with_context"    # VERIFIED, and a table cell confidently
+                                                        # confirms row/column/unit context too (A7)
     UNVERIFIED = "unverified"   # quote doesn't let us deterministically confirm OR deny it
     MISMATCH = "mismatch"       # quote unambiguously supports a DIFFERENT number
 
@@ -78,6 +87,12 @@ class ValueVerification:
     reason: str                        # machine-readable code, for audit/API
     extracted: Optional[str] = None    # value_raw's own parsed value (canonical, base units)
     evidence: Optional[str] = None     # the quote-derived value(s) it was checked against
+    # A7 additive fields — populated only for VERIFIED_WITH_CONTEXT, from a
+    # single confidently-attributed, non-ambiguous table cell. Never set by
+    # inventing structure the source doesn't clearly show (A7.3).
+    row_label: Optional[str] = None
+    column_header: Optional[str] = None
+    unit_context: Optional[str] = None
 
 
 def _mask_period_phrases(text: str) -> str:
@@ -156,6 +171,7 @@ def verify_value(
     quote: str,
     quantity: Optional[Quantity],
     context: str = "",
+    cell_context: Optional["CellContext"] = None,
 ) -> ValueVerification:
     """Check whether `quantity` (already parsed from `value_raw` by the real
     pipeline) is the value the span-verified `quote` actually supports.
@@ -164,6 +180,15 @@ def verify_value(
     deterministic numeric check to run; they are UNVERIFIED, never VERIFIED
     by this function, and never MISMATCH — there is nothing here that could
     safely prove disagreement either.
+
+    `cell_context` (A7, optional) is a fact_layer.table_structure.CellContext
+    that has already been confidently, unambiguously attributed to this
+    exact value (see table_structure.find_cells_matching_value — a caller
+    passes this only when that returned exactly one match). It can only ever
+    UPGRADE an already-VERIFIED result to VERIFIED_WITH_CONTEXT; it is never
+    consulted for any other branch, so it can never resolve an ambiguity the
+    quote-level check alone could not (A6.6/A7.3 — table structure adds
+    confidence, it never manufactures agreement).
     """
     if quantity is None:
         return ValueVerification(
@@ -218,6 +243,35 @@ def verify_value(
 
     agree, _diff = _values_agree(quantity, candidate)
     if agree:
+        # Defense in depth: don't just trust a caller-supplied cell_context —
+        # independently re-derive it and require it to still agree. This
+        # re-parses `value_raw` under the CELL's own unit (table.scale_context),
+        # not `quantity` (parsed under `effective_context`, e.g. table/doc-
+        # level context that may be less specific than the cell's own table) —
+        # comparing across those two different scales would produce a false
+        # non-agreement whenever the table supplies a scale effective_context
+        # didn't have, the same asymmetric-context failure mode already
+        # handled above for quote-vs-value. A cell_context from the wrong
+        # cell (a caller bug, or a future consumer that doesn't route through
+        # table_structure.find_cells_matching_value) must never be able to
+        # attach a fabricated row/column label to this value.
+        cell_confirms = False
+        if cell_context is not None and not cell_context.ambiguous:
+            value_at_cell_scale = parse_quantity(value_raw, cell_context.unit)
+            cell_candidates = _candidate_quantities(cell_context.text, cell_context.unit)
+            if value_at_cell_scale is not None and len(cell_candidates) == 1:
+                same_currency = (cell_candidates[0].currency == value_at_cell_scale.currency
+                                  or not (cell_candidates[0].currency and value_at_cell_scale.currency))
+                cell_confirms = same_currency and _values_agree(value_at_cell_scale, cell_candidates[0])[0]
+        if cell_confirms and (cell_context.row_label or cell_context.column_header):
+            return ValueVerification(
+                ValueVerificationStatus.VERIFIED_WITH_CONTEXT,
+                "value_matches_quote_and_confident_table_cell",
+                extracted, evidence,
+                row_label=cell_context.row_label,
+                column_header=cell_context.column_header,
+                unit_context=cell_context.unit or None,
+            )
         return ValueVerification(
             ValueVerificationStatus.VERIFIED,
             "value_matches_sole_quote_number", extracted, evidence,

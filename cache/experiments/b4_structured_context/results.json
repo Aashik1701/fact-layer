@@ -1,0 +1,238 @@
+{
+  "baseline": {
+    "4": {
+      "proposed": 8,
+      "accepted": 8,
+      "with_period": 8,
+      "verified_with_context": 0,
+      "value_verified_total": 8,
+      "facts": [
+        {
+          "subject": "ICnAve Sswtoirf tS Ienlvliensgtm Sehnatrse holders",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "46,131,800",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "ICnAve Sswtoirf tS Ienlvliensgtm Sehnatrse holders",
+          "measure": "Percentage of the pre-Offer paid-up Equity Share capital (%)",
+          "value": "quantity",
+          "raw_value": "7.18",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Deli CMF Pte. Ltd.",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "6,879,000",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Deli CMF Pte. Ltd.",
+          "measure": "Percentage of the pre-Offer paid-up Equity Share capital (%)",
+          "value": "quantity",
+          "raw_value": "1.07",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "SVF Doorbell (Cayman) Ltd",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "141,593,300",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "SVF Doorbell (Cayman) Ltd",
+          "measure": "Percentage of the pre-Offer paid-up Equity Share capital (%)",
+          "value": "quantity",
+          "raw_value": "22.04",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Times Internet Limited",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "31,703,900",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Times Internet Limited",
+          "measure": "Percentage of the pre-Offer paid-up Equity Share capital (%)",
+          "value": "quantity",
+          "raw_value": "4.94",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        }
+      ]
+    },
+    "5": {
+      "proposed": 0,
+      "accepted": 0,
+      "with_period": 0,
+      "verified_with_context": 0,
+      "value_verified_total": 0,
+      "facts": []
+    },
+    "9": {
+      "proposed": 1,
+      "accepted": 1,
+      "with_period": 1,
+      "verified_with_context": 0,
+      "value_verified_total": 1,
+      "facts": [
+        {
+          "subject": "investment",
+          "measure": "investment",
+          "value": "quantity",
+          "raw_value": "3.81",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        }
+      ]
+    }
+  },
+  "structured": {
+    "4": {
+      "proposed": 8,
+      "accepted": 8,
+      "with_period": 8,
+      "verified_with_context": 0,
+      "value_verified_total": 8,
+      "facts": [
+        {
+          "subject": "ICnAve Sswtoirf tS Ienlvliensgtm Sehnatrse holders",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "46,131,800",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "ICnAve Sswtoirf tS Ienlvliensgtm Sehnatrse holders",
+          "measure": "Percentage of the pre-Offer paid-up",
+          "value": "quantity",
+          "raw_value": "7.18",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Deli CMF Pte. Ltd.",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "6,879,000",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Deli CMF Pte. Ltd.",
+          "measure": "Percentage of the pre-Offer paid-up",
+          "value": "quantity",
+          "raw_value": "1.07",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "SVF Doorbell (Cayman) Ltd",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "141,593,300",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "SVF Doorbell (Cayman) Ltd",
+          "measure": "Percentage of the pre-Offer paid-up",
+          "value": "quantity",
+          "raw_value": "22.04",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Times Internet Limited",
+          "measure": "Number of Equity Shares held",
+          "value": "quantity",
+          "raw_value": "31,703,900",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        },
+        {
+          "subject": "Times Internet Limited",
+          "measure": "Percentage of the pre-Offer paid-up",
+          "value": "quantity",
+          "raw_value": "4.94",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        }
+      ]
+    },
+    "5": {
+      "proposed": 0,
+      "accepted": 0,
+      "with_period": 0,
+      "verified_with_context": 0,
+      "value_verified_total": 0,
+      "facts": []
+    },
+    "9": {
+      "proposed": 1,
+      "accepted": 1,
+      "with_period": 1,
+      "verified_with_context": 0,
+      "value_verified_total": 1,
+      "facts": [
+        {
+          "subject": "investment",
+          "measure": "investment",
+          "value": "quantity",
+          "raw_value": "3.81",
+          "period": "May 14, 2022",
+          "row_label": null,
+          "column_header": null,
+          "value_verification": "verified"
+        }
+      ]
+    }
+  }
+}

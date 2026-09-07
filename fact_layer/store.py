@@ -381,6 +381,10 @@ def _evidence_to_dict(e: Evidence) -> dict:
         "verbatim_quote": e.verbatim_quote,
         "bbox": list(e.bbox) if e.bbox else None,
         "extractor": e.extractor, "verified": e.verified,
+        "table_id": e.table_id, "row_index": e.row_index, "column_index": e.column_index,
+        "cell_bbox": list(e.cell_bbox) if e.cell_bbox else None,
+        "row_label": e.row_label, "column_header": e.column_header,
+        "unit_context": e.unit_context,
     }
 
 
@@ -390,6 +394,10 @@ def _evidence_from_dict(d: dict) -> Evidence:
         verbatim_quote=d["verbatim_quote"],
         bbox=tuple(d["bbox"]) if d.get("bbox") else None,
         extractor=d.get("extractor", "llm"), verified=d.get("verified", False),
+        table_id=d.get("table_id"), row_index=d.get("row_index"), column_index=d.get("column_index"),
+        cell_bbox=tuple(d["cell_bbox"]) if d.get("cell_bbox") else None,
+        row_label=d.get("row_label"), column_header=d.get("column_header"),
+        unit_context=d.get("unit_context", ""),
     )
 
 

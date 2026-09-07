@@ -43,6 +43,8 @@ from .normalize import (
     parse_quantity,
 )
 from .parse import Document, Page, Table, detect_scale_context, parse_pdf
+from .table_structure import locate_cell
+from .table_structure import table_id as _table_id
 from .value_verify import ValueVerificationStatus, verify_value
 from .triage import (
     UNLIMITED_BUDGET,
@@ -713,6 +715,7 @@ def verify_and_build_fact(
     doc_defaults: dict,
     scale_context: str = "",
     rejected_path: str = _REJECTED_PATH,
+    tables: Optional[list[Table]] = None,
 ) -> Optional[Fact]:
     """Verify a raw LLM-emitted fact against the source page(s) for the call
     that produced it, and build a Fact. `pages` is every page the originating
@@ -794,6 +797,15 @@ def verify_and_build_fact(
             return None
         is_text_claim = True
 
+    # --- table-cell attribution (A6/A8) ---
+    # bbox is needed both here (to test table containment) and later for
+    # the Evidence object — computed once, reused for both.
+    bbox = page.bbox_for_span(char_start, char_end)
+    table_attribution = None
+    if not is_text_claim and tables:
+        table_attribution = locate_cell(tables, page.page_no, bbox, value_raw)
+    cell_context = table_attribution[1] if table_attribution else None
+
     # --- deterministic value verification ---
     # Span verification proves verbatim_quote occurs in the PDF; it says
     # nothing about whether value_raw is the number that quote actually
@@ -801,9 +813,12 @@ def verify_and_build_fact(
     # cross-check today). This is a pure Python re-derivation from the
     # already-verified quote — no LLM call — using the identical
     # parse_quantity() context as value_raw's own parse, so both sides are
-    # compared on the same normalised basis.
+    # compared on the same normalised basis. cell_context (A7), when a
+    # single non-ambiguous table cell was confidently attributed above, can
+    # only ever upgrade an already-agreeing result to VERIFIED_WITH_CONTEXT.
     value_verification = verify_value(
         value_raw, verbatim_quote, None if is_text_claim else quantity, effective_context,
+        cell_context=cell_context,
     )
     if value_verification.status is ValueVerificationStatus.MISMATCH:
         _append_rejected(RejectedFact(
@@ -850,7 +865,8 @@ def verify_and_build_fact(
     subject = normalize_entity(subject_raw) if subject_raw else subject_raw
 
     # --- build evidence ---
-    bbox = page.bbox_for_span(char_start, char_end)
+    # bbox and table_attribution were already computed above (needed there
+    # for cell_context); reused here rather than recomputed.
     confidence = 1.0
     if bbox is None:
         confidence = 0.8   # page-level grounding only
@@ -859,6 +875,18 @@ def verify_and_build_fact(
     qualifier_poor = period is None
     if qualifier_poor:
         confidence *= 0.9
+
+    table_id = row_index = column_index = cell_bbox = row_label = column_header = None
+    unit_context = ""
+    if table_attribution is not None:
+        attributed_table, attributed_cell = table_attribution
+        table_id = _table_id(doc_id, attributed_table)
+        row_index = attributed_cell.row_index
+        column_index = attributed_cell.column_index
+        cell_bbox = attributed_cell.bbox
+        row_label = attributed_cell.row_label
+        column_header = attributed_cell.column_header
+        unit_context = attributed_cell.unit
 
     evidence = Evidence(
         doc_id=doc_id,
@@ -869,6 +897,9 @@ def verify_and_build_fact(
         bbox=bbox,
         extractor="llm",
         verified=verified,
+        table_id=table_id, row_index=row_index, column_index=column_index,
+        cell_bbox=cell_bbox, row_label=row_label, column_header=column_header,
+        unit_context=unit_context,
     )
 
     # --- build the Fact ---
@@ -981,6 +1012,7 @@ def extract_document(
                 fact = verify_and_build_fact(
                     raw_fact, chunk.pages, doc.doc_id, doc.filename,
                     doc_defaults, parse_context, rejected_path,
+                    tables=chunk.tables,
                 )
                 if fact is not None:
                     all_facts.append(fact)

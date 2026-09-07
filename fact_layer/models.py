@@ -141,10 +141,26 @@ class Evidence:
     page: int                       # 1-indexed
     char_start: int
     char_end: int
-    verbatim_quote: str             # MUST occur in the page text; enforced
+    verbatim_quote: str             # MUST occur in the page text; enforced — canonical, never
+                                     # replaced by reconstructed/structured text (A8.1)
     bbox: Optional[tuple[float, float, float, float]] = None
     extractor: str = "llm"          # "llm" | "table" | "regex"
     verified: bool = False          # set True only by the span verifier
+    # Additive, table-context fields (A8) — set by extract.py ONLY when a
+    # fact's value was attributed to exactly one non-ambiguous table cell
+    # (fact_layer.table_structure.find_cells_matching_value returning a
+    # single match); left at their defaults otherwise. None/"" means
+    # "not established", never a guess — same principle as
+    # value_verification's "" vs "unverified" distinction. A record
+    # persisted before these fields existed deserializes with these
+    # defaults (store.py's _evidence_from_dict uses .get()).
+    table_id: Optional[str] = None
+    row_index: Optional[int] = None
+    column_index: Optional[int] = None
+    cell_bbox: Optional[tuple[float, float, float, float]] = None
+    row_label: Optional[str] = None
+    column_header: Optional[str] = None
+    unit_context: str = ""
 
 
 # --------------------------------------------------------------------------

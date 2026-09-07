@@ -127,6 +127,16 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
                     Trigger: {relation.reason_code}
                   </div>
                 )}
+                {relation.gate && relation.gate.verdict !== 'comparable' && (
+                  <div
+                    className={cn('text-[11px] font-mono mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}
+                    title="The comparability gate's own raw verdict, independent of how adjudication ultimately classified the relationship"
+                  >
+                    Comparability Gate:{' '}
+                    <span className="uppercase font-semibold text-indigo-400">{relation.gate.verdict}</span>
+                    {relation.gate.cross_issuer && ' (cross-issuer)'}
+                  </div>
+                )}
               </div>
             </div>
 

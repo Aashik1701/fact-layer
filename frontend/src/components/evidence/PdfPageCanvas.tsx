@@ -30,25 +30,24 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const handleResetZoom = () => setZoom(1);
 
   // Compute bbox overlay percentages
-  let bboxStyle: React.CSSProperties | null = null;
-  if (evidence && evidence.bbox && evidence.page_width && evidence.page_height) {
-    const [x0, top, x1, bottom] = evidence.bbox;
-    const pw = evidence.page_width;
-    const ph = evidence.page_height;
-
-    // Add slight padding around the bounding box
+  const bboxAsPct = (bbox: [number, number, number, number]): React.CSSProperties => {
+    const [x0, top, x1, bottom] = bbox;
+    const pw = evidence!.page_width!;
+    const ph = evidence!.page_height!;
     const leftPct = Math.max(0, (x0 / pw) * 100);
     const topPct = Math.max(0, (top / ph) * 100);
     const widthPct = Math.min(100 - leftPct, ((x1 - x0) / pw) * 100);
     const heightPct = Math.min(100 - topPct, ((bottom - top) / ph) * 100);
+    return { left: `${leftPct}%`, top: `${topPct}%`, width: `${widthPct}%`, height: `${heightPct}%` };
+  };
 
-    bboxStyle = {
-      left: `${leftPct}%`,
-      top: `${topPct}%`,
-      width: `${widthPct}%`,
-      height: `${heightPct}%`,
-    };
-  }
+  const canOverlay = !!(evidence && evidence.page_width && evidence.page_height);
+  const bboxStyle = canOverlay && evidence!.bbox ? bboxAsPct(evidence!.bbox) : null;
+  // A8: when this fact's value was confidently attributed to a specific
+  // table cell, the stored cell_bbox is a second, independent region —
+  // drawn only when it's genuinely present, never synthesized from row/
+  // column labels (there is no stored row-bbox or column-bbox to draw).
+  const cellBboxStyle = canOverlay && evidence!.cell_bbox ? bboxAsPct(evidence!.cell_bbox) : null;
 
   return (
     <div
@@ -168,6 +167,20 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
                 setHasError(true);
               }}
             />
+
+            {/* Table Cell Highlight Overlay (A8) — drawn first/underneath so
+                the span anchor's own highlight stays visually primary */}
+            {cellBboxStyle && (
+              <div
+                style={cellBboxStyle}
+                className="absolute pointer-events-none rounded border-2 border-sky-400 bg-sky-400/15 ring-2 ring-sky-400/20"
+                title="Table cell this value was attributed to"
+              >
+                <span className="absolute -bottom-5 left-0 px-1.5 py-0.5 rounded bg-sky-500 text-[10px] font-mono font-bold text-slate-950 shadow whitespace-nowrap">
+                  TARGET CELL
+                </span>
+              </div>
+            )}
 
             {/* Bounding Box Highlight Overlay */}
             {bboxStyle && (

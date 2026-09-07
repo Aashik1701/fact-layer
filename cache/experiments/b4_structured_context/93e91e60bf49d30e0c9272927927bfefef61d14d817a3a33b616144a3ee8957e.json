@@ -1,0 +1,19 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a precise financial data extractor. Extract row-wise numerical facts from the table below. Return ONLY a JSON array of fact objects.\n\nCRITICAL RULES:\n1. Emit RAW STRINGS ONLY \u2014 never compute, convert, scale, or normalise any value.\n2. value_raw must be the LITERAL number as written (e.g. '8,141.71', not 81417100).\n3. verbatim_quote must be an exact, contiguous substring from the input text.\n4. Skip page furniture, page numbers, table-of-contents entries, totals that just repeat summed rows, and any figure without both a subject and a measure.\n5. Target 5-12 meaningful facts. Precision over recall.\n6. modality: use 'asserted' for historical actuals, 'projected' for forecasts, 'estimated' for estimates, 'restated' for revised/restated figures."
+    },
+    {
+      "role": "user",
+      "content": "Extract facts from this table:\n\nScale context: in \u20b9 million\nDefault currency: INR\nDefault scale: million\nDefault period: May 14, 2022\n\n(in \u20b9 million, unless otherwise specified)\n[unit: in \u20b9 million]\ncolumns: Particulars | (unlabeled) | As at and for | (unlabeled) | (unlabeled) | As at and for | (unlabeled) | As at and for\nthe Financial\nYear ended\nMarch 31,\n2021 | As at and | (unlabeled) | As at and for\nthe Financial\nYear ended\nMarch 31,\n2019\nrow 0: As at and for = the nine; As at and for = the nine; As at and = for the\nrow 1: As at and for = months period; As at and for = months period; As at and = Financial\nrow 2: As at and for = ended; As at and for = ended; As at and = Year ended\nrow 3: As at and for = December 31,; As at and for = December 31,; As at and = March 31,\nrow 4: As at and for = 2021; As at and for = 2020; As at and = 2020\n\n(in \u20b9 million, unless otherwise specified)\nAs at and for As at and for As at and\n[unit: in \u20b9 million]\ncolumns: As at and for\n\n(in \u20b9 million, unless otherwise specified)\nAs at and for As at and for As at and\n[unit: in \u20b9 million]\ncolumns: As at and for\n\nSummary of outstanding litigation\nA summary of outstanding litigation proceedings involving our Company, our Subsidiaries and our Directors, as\non the date of this Prospectus is provided below:\ncolumns: Name of | Criminal | Tax | Statutory or | Disciplinary actions | Material | Aggregate\nrow \"Entity\": Criminal = Proceedings; Tax = Proceedings; Statutory or = Regulatory; Disciplinary actions = by the SEBI or Stock; Material = Civil; Aggregate = amount\nrow 1: Statutory or = Proceedings; Disciplinary actions = Exchange against our; Material = Litigations; Aggregate = involved (in \u20b9\nrow 2: Disciplinary actions = Promoters; Aggregate = million)*"
+    },
+    {
+      "role": "user",
+      "content": "Respond with valid JSON only, matching this schema: [{\n  \"subject_raw\": \"string \u2014 as written in the document\",\n  \"measure_raw\": \"string \u2014 as written, e.g. 'Revenue from operations'\",\n  \"value_raw\": \"string \u2014 the literal, e.g. '8,141.71' or '6.5 per cent'\",\n  \"period_raw\": \"string \u2014 verbatim phrase, e.g. 'year ended March 31, 2024' \u2014 or null\",\n  \"scope_raw\": \"string \u2014 verbatim, e.g. 'Consolidated' \u2014 or null\",\n  \"issuer_raw\": \"string \u2014 if the text attributes the figure to a body \u2014 or null\",\n  \"modality\": \"string \u2014 asserted | estimated | projected | restated\",\n  \"verbatim_quote\": \"string \u2014 the exact contiguous span containing the value\"\n}]"
+    }
+  ],
+  "response": "[]"
+}

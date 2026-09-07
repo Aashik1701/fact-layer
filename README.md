@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-145%20passed-success.svg)](#test-suite--validation)
+[![Tests](https://img.shields.io/badge/tests-244%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
 > **Core Thesis: Comparability Before Comparison**  
@@ -301,6 +301,9 @@ frontend/
 1. **Production Mode (Zero-Config)**: The React app is compiled to static assets (`frontend/dist/`). FastAPI mounts these assets directly at `/` via `StaticFiles(html=True)`. Graders run `uvicorn api:app` and access the production application immediately.
 2. **Development Mode (HMR)**: Running `npm run dev` in `frontend/` launches Vite on `http://localhost:5173` with Hot Module Replacement (HMR) and an internal proxy routing backend requests to port 8008.
 
+### Evidence-First Presentation
+A reviewer opening a fact moves through the same hierarchy the backend actually computes, never a flattened summary: **fact → value → verification → source context → source evidence → comparability/relationship.** Concretely: `FactDetailDrawer` shows the canonical value and its qualifiers; `EvidenceModal` shows exactly the verification badges the backend state supports — `Span Verified` always, `Value Verified` for `verified`/`verified_with_context`, and an additional `Context Verified` badge *only* for `verified_with_context` (never shown speculatively) — followed by a Source Context box (row/column/unit, each line shown only when that field is actually populated) and the PDF page image with the evidence bbox highlighted; when a value was attributed to a specific table cell, a second, distinctly-colored overlay (`TARGET CELL`) is drawn from the real stored `cell_bbox` — never a synthesized region. An `unverified` fact gets a plain-language explanation drawn from the real `value_verification_reason` (e.g. "Multiple numeric candidates exist in the cited source region... No value was guessed.") rather than a bare warning icon. `RelationInspectorModal` extends the same chain one level further: the relation's own `reason_code`, a human explanation mapped from the real backend vocabulary (`getCaveatExplanation` — see Honest Limitations #10 for a real bug this replaced), and — when the comparability gate's raw verdict differs from how adjudication classified the relationship (e.g. gate says `INCOMPARABLE_ISSUER`, relation type is `CORROBORATES`) — that distinction is shown explicitly rather than hidden behind the friendlier label.
+
 ---
 
 ## 6. Pipeline Stages Walkthrough
@@ -309,6 +312,14 @@ frontend/
 Uses `pdfplumber` to extract plain text and structural geometry:
 - **Character Offsets**: Pointers map every character in extracted strings back to coordinate bounding boxes $[x_0, \text{top}, x_1, \text{bottom}]$ on the rendered page canvas.
 - **Dual Table Extraction**: Real filings mix borderless statistical tables with bordered financial statements. The parser first attempts a line-based strategy (`intersection_x_tolerance=3`). If extracted table density is abnormally low (as in IMF statistical annexes), it falls back to a text-clustering strategy (`snap_tolerance=3`), recovering tables that would otherwise be missed.
+- **Parsing diagnostics (`diagnostics.py`)**: computed entirely from already-parsed `Page`/`Document` objects, no re-parsing. `PageDiagnostics` reports word/text/table counts and per-page warnings (e.g. sparse text); `DocumentDiagnostics` aggregates those and adds conservative repeated-header/footer detection (a top/bottom line recurring, after whitespace/case/digit-run normalization, across at least 30% of a document's text pages, minimum 3) — the digit-run collapse is what lets a paginated footer like "Page 47" / "Page 48" register as one recurring pattern rather than 100 different lines. A page's existing `image_only` flag (parse.py, unchanged: zero extractable text) is never conflated with the new, separate "sparse" warning (nonzero but low word count) — a warning is visibility, not a rejection; `extract.py`'s accept/reject decisions never read this module.
+
+#### Deterministic Document Structure Layer (`layout.py`, `table_structure.py`)
+
+Two further additive modules sit between parsing and extraction, both pure functions of the already-parsed `Page`/`Table` objects — no PDF re-reads, no LLM calls, and neither ever changes `Page.text`, `Word` offsets, or `Table.to_text_block()` (the string hashed into the LLM replay-cache key, deliberately left untouched — see the Honest Limitations entry on why a richer, cache-breaking prompt format was tried and reverted).
+
+- **Layout reconstruction (`layout.py`)** groups words into lines, lines into blocks (`paragraph` / `heading` / `table_adjacent` / `list` / `unknown` — "unknown" is an accepted, honest outcome, not a bug), and only ever flags a page as multi-column when **several independent spatial signals agree**: a wide word gap, present on a clear majority of multi-word lines, recurring at a stable x-position across them, with table-overlapping and table-of-contents-style dot-leader lines excluded first. This bar was set empirically: a naive "one wide gap = two columns" rule was measured against the real corpus and found to fire on 25.9% of long lines (4,902/18,902) — almost entirely table-adjacent prose, not real column layout. The stricter, multi-signal rule brings that down to a single page across the whole 511-page corpus (a financial-statement table pdfplumber's lattice/text strategies didn't catch as a `Table`), and — crucially — is a **diagnostic flag only**: no page's actual reading order is ever changed by it, so even that one residual false positive has zero effect on evidence.
+- **Semantic table structure (`table_structure.py`)** turns a `Table`'s flat `rows`/`cell_bboxes` into a cell-level `StructuredTable`: column headers (with narrow, evidence-gated support for genuine two-level headers — e.g. `"2024"` spanning `"Actual"`/`"Forecast"` sub-columns), row labels, table-local units, and per-column period recognition (via `normalize.parse_period()`, never a bespoke rule). Ambiguity is explicit and load-bearing, not a fallback: a cell is marked ambiguous when it itself packs more than one numeric candidate (the real ESOPs-row shape — `"676,000 - 250,000"` in one cell) or when the table's first column is itself numeric (so treating it as a row label would misattribute every value in the row) — `find_cells_matching_value()` then excludes ambiguous cells entirely rather than guessing among them.
 
 ### Stage 2: Deterministic Page Triage (`triage.py`)
 Processing every page of a 511-page corpus through an LLM is cost-prohibitive. Fact Layer scores each page using the domain-specific information density formula:
@@ -352,6 +363,8 @@ Before entering the store, the proposed `verbatim_quote` is tested against raw p
 5. Non-numeric (text/entity) facts have no deterministic numeric check to run and are always `unverified` — never falsely marked `verified` by numeric logic.
 
 `value_verification` and `value_verification_reason` are additive fields on `Fact` (excluded from `compute_id()` — see Stage 8 note below) and are surfaced on `GET /facts` and `GET /facts/{id}` for the frontend's evidence panel to display alongside span-verification status.
+
+**Context-aware upgrade (`verified_with_context`).** When a fact's evidence bbox falls inside exactly one table on its page, `table_structure.locate_cell()` looks for exactly one non-ambiguous cell in that table whose own text agrees with `value_raw`. If found, that cell's row label, column header, and unit are attached to the fact's `Evidence` (A8: `row_label`, `column_header`, `unit_context`, `table_id`, `row_index`, `column_index`, `cell_bbox` — all `None`/empty when attribution isn't confident, never guessed) — the frontend's evidence panel shows these as "Source Context" alongside the highlighted quote. This can only ever **upgrade** an already-`verified` result to `verified_with_context`; a defensive re-check inside `verify_value()` independently re-derives the cell's own value (under the cell's own unit, not reused from `effective_context`, to avoid a false disagreement between two correctly-scaled-differently numbers) before trusting it, so a mismatched or stale `cell_context` can never attach a fabricated row/column label. It never resolves an ambiguity the quote-level check alone could not — the ESOPs-style multi-number case stays `unverified` regardless of table structure, because `find_cells_matching_value()` excludes ambiguous cells before a `cell_context` is ever built.
 
 ### Stage 5: Locale-Aware Normalization (`normalize.py`)
 Converts raw strings into structured dataclasses using deterministic Python:
@@ -520,6 +533,24 @@ All metrics are transcribed from single-run audit logs (`data/extraction_report.
 | Fuzzy Coordinates Snapped ($\ge 92\%$) | **48 facts** | `data/extraction_report.json` |
 | Facts Rejected & Logged | **129 facts** (111 `quote_not_found`, 18 `no_measure`) | `data/rejected_facts.jsonl` |
 | **Span Verification Pass Rate** | **84.25%** | `data/extraction_report.json` |
+
+### Deterministic Parser/Verification Benchmark (`fact_layer/benchmark.py`, A9/A10)
+
+30 small, hand-built fixtures (`python -m fact_layer.benchmark`) covering numeric parsing, table structure, unit/period context, ambiguity handling, layout, diagnostics, and evidence mapping — a **regression signal**, not a statistically meaningful accuracy claim (30 fixtures cannot support one). Every fixture asserts something Python computes deterministically; none encodes an expected LLM output.
+
+| Category | Result |
+|---|---|
+| Overall | **30/30** |
+| Numeric parsing | 7/7 |
+| Unit context | 4/4 |
+| Period context | 2/2 |
+| Table structure | 6/6 |
+| Ambiguity | 3/3 |
+| Diagnostics | 4/4 |
+| Layout | 3/3 |
+| Evidence | 1/1 |
+
+30/30 is the current state of these 30 specific cases, not a claim about PDFs in general — two of the categories these fixtures cover (multi-level table headers, multi-column layout) were tightened *after* real false positives were found and measured against the full 6-document corpus, documented in Honest Limitations #6 and #7 below.
 | Estimated Ingestion Input Tokens | **31,953 tokens** | `data/extraction_report.json` |
 
 ### Multi-Tier Resolution Decisions
@@ -626,7 +657,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (145 tests):
+Execute the full offline test suite (244 tests):
 ```bash
 pytest
 ```
@@ -639,16 +670,26 @@ All endpoints return structured JSON. When mounted in production, static web ass
 
 | Method | Endpoint | Query / Body Parameters | Response Summary |
 |---|---|---|---|
-| `POST` | `/ingest` | `file`: Multipart PDF upload | `IngestResponse`: Status, new fact count, new relation count, touched clusters. |
-| `GET` | `/documents` | None | Array of ingested documents with IDs, filenames, and fact counts. |
+| `POST` | `/ingest` | `file`: Multipart PDF upload (50 MB cap, PDF magic-byte validated, filename sanitized — see §14 Upload Security) | `IngestResponse`: Status, new fact count, new relation count, touched clusters. |
+| `GET` | `/documents` | None | Array of ingested documents with IDs, filenames, fact counts, and a `diagnostics` object (page/table counts, image-only/sparse-page counts, repeated header/footer candidates, warnings). |
 | `GET` | `/facts` | `doc_id`, `subject`, `measure`, `min_confidence`, `limit`, `offset` | Paginated array of extracted facts, each including `value_verification` (`"verified"` \| `"unverified"` \| `null`) and `value_verification_reason`. |
-| `GET` | `/facts/{fact_id}` | `fact_id` (path) | Full `FactFull` object including all evidence anchors, coordinates, and value-verification status. |
+| `GET` | `/facts/{fact_id}` | `fact_id` (path) | Full `FactFull` object including all evidence anchors, coordinates, value-verification status (now including `verified_with_context`), and — when a value was confidently attributed to a table cell — `table_id`/`row_label`/`column_header`/`unit_context`/`cell_bbox` on each evidence span. |
 | `GET` | `/clusters` | `min_size` (default: 2), `limit`, `offset` | Fact clusters grouped by canonical `subject::measure`. |
 | `GET` | `/relations` | `type`, `min_confidence`, `doc_id`, `limit`, `offset` | Cross-fact relations sorted by confidence. |
 | `GET` | `/relations/{relation_id}` | `relation_id` (path) | Full `RelationFull` object with Gate evaluation and qualifier differences. |
-| `GET` | `/stats` | None | Global counts, relation breakdowns, coverage ratios, and OCR pass rates. |
+| `GET` | `/stats` | None | Global counts, relation breakdowns, coverage ratios, and the span-verification pass rate (this system does no OCR — there is nothing to report a pass rate for there). |
 | `GET` | `/page-image/{doc_id}/{page}` | `doc_id`, `page` (path) | Rendered PNG raster image of the source PDF page. |
 | `GET` | `/rejected-facts` | `reason`, `doc_id`, `limit`, `offset` | Array of facts rejected during mechanical span verification. |
+
+### Upload Security (`POST /ingest`)
+
+PDF content — and the client-supplied filename that arrives with it — is untrusted input. Three independent checks run before any bytes are trusted, in order:
+
+1. **Path traversal.** The on-disk destination is built from a sanitized basename (`_sanitize_upload_filename`), never the raw client filename: only the final path component survives (after normalizing both `/` and Windows-style `\` separators), so `"../../evil.pdf"`, `"/tmp/evil.pdf"`, `"..\\..\\evil.pdf"`, and `"foo/../../evil.pdf"` all resolve to a plain `"evil.pdf"` inside `data/uploads/`. A second, independent check (`os.path.commonpath`) verifies the resolved absolute path is still inside the uploads directory before it is ever opened for writing — belt and suspenders, not either alone.
+2. **Size limit.** The body is read incrementally in 1 MB chunks with a running total, aborting with `413` the moment it exceeds 50 MB — chosen because this corpus's largest real file is ~4.3 MB, and it never materializes an oversized body in full before rejecting it. (FastAPI's own multipart parser buffers the file part before invoking the endpoint at all, so this cannot claim to prevent buffering at the ASGI layer — it prevents *this application's* code from ever holding more than the cap, and rejects before the extraction pipeline sees anything.)
+3. **PDF validation.** The file extension alone is never trusted — the body must start with the `%PDF-` magic bytes, checked before anything is written to disk. A file that has the magic bytes but still fails to parse (a corrupt/malformed PDF) is written, attempted, and then removed if `Store.ingest()` reports a parse error — no dead files accumulate in `data/uploads/`. A file that parses successfully but hits a genuine extraction failure (e.g. a real new document `LLM_MODE=replay` has no cached response for) is left in place, since it *is* a valid document that could be retried with live API access.
+
+21 regression tests (`tests/test_security.py`) cover all five traversal shapes above, the size cap, magic-byte rejection, unparseable-PDF cleanup, and a normal-upload regression guard — all designed to be rejected (or to fail cleanly with `LLMError`, before any `Store` mutation) so none of them can pollute the real `data/store.json`, the in-memory `Store` singleton, or `data/uploads/`.
 
 ---
 
@@ -673,6 +714,21 @@ Earlier tests ran extraction against `data/rejected_facts.jsonl` without directo
 ### 5. What Deterministic Value Verification Does Not Prove
 `value_verification: "verified"` means the verified quote supports exactly one numeric reading and it agrees with `value_raw` within stated precision — it does **not** mean the figure is factually correct, only that the extraction is internally consistent with its own cited evidence. It cannot resolve genuine ambiguity: a quote is only ever compared against numbers it itself supports, so a table row reporting several distinct figures with no column/position information in the evidence model is honestly `"unverified"`, not silently resolved by guessing. It also cannot validate arithmetic: this pipeline has no derived-value mechanism (the LLM never computes, per the Stage 3 raw-string contract), so a hypothetical invented calculation the quote's own numbers don't state directly is `"unverified"`, never blessed as `"verified"`. Finally, non-numeric (text/entity) facts have no deterministic numeric check at all — they are always `"unverified"`, which is an honest "not checked", not a quality signal to be read as a red flag.
 
+### 6. Multi-Column Reading Order — Detected Conservatively, Never Corrected
+A naive gap-based heuristic (flag a line as "possibly two columns" whenever adjacent words are separated by an unusually wide horizontal gap) was measured against the real corpus before writing any detection code: **25.9% of all lines with 5+ words** (4,902 of 18,902) have a gap wider than 100pt, almost all of it table-adjacent content already captured by `parse.py`'s separate `Table` extraction, not genuine multi-column layout. `layout.py`'s `_detect_confident_columns()` instead requires three independent signals to agree — a wide gap, on a clear majority of multi-word lines, recurring at a stable x-position — with table-overlapping and dot-leader (table-of-contents) lines excluded first; that brings real-corpus false positives down to a single page (an under-detected borderless financial table, still not a genuine column layout). Even that residual case is harmless: `PageLayout.multi_column_detected` is a **diagnostic flag only** — `parse.py`'s actual top-to-bottom, left-to-right-per-line reading order (the one evidence offsets depend on) is never changed by it, and is separately pinned down by two regression tests (`test_every_word_offset_resolves_to_its_own_text_on_every_page`, `test_reading_order_is_top_to_bottom_on_real_pages`).
+
+### 7. Multi-Level Table Headers — a Real, Deliberately Narrow Detector
+The first version of `table_structure._detect_header_row_count()` (row 0 has a gap, row 1 is fully populated with short non-numeric labels) was checked against every one of the corpus's 1,224 real tables and produced **3 false positives, 0 true positives** — every one was a chart title or table caption sitting on top of an ordinary single-level header (e.g. `"Chart IV.14: Household consumption is lower than the production"` over `"Onion"`/`"Tomato"` columns), not a genuine hierarchical grouping. The detector was tightened to require **at least two distinct, short group labels** in row 0 (a real `"2024"`/`"2025"` grouping has two; a caption has exactly one) — re-run against the same 1,224 tables, this correctly finds zero multi-level headers in this corpus (it has none) while a synthetic test confirms the mechanism still fires correctly when the shape genuinely appears. An honest result, not a tuned one: this corpus simply doesn't contain the pattern.
+
+### 8. What Table-Context Verification (`verified_with_context`) Does Not Prove
+`verified_with_context` adds one more independent, deterministic confirmation (a specific table cell's row/column/unit) on top of an already-`verified` quote-level match — it does not mean the row/column labels are semantically exhaustive (a table can have footnote-modified headers, merged cells beyond the narrow two-level case detected, or units stated only in surrounding prose the table-local `scale_context` doesn't capture), and it is never granted when the table's own structure is ambiguous (a numeric first column, or a cell packing more than one number) — those stay at plain `verified` or `unverified`, exactly as before this pass.
+
+### 9. Table Context Was Tested Against the LLM Prompt, and Measurably Did Not Help
+A `Table.to_text_block()` format that explicitly labeled the header row and each data row (`headers: ...` / `row: ...`) was built and reverted early on: that string is hashed verbatim into the LLM replay-cache key, and the labeled format changed the hash for every table-containing chunk in the real corpus, turning every cached response into a replay-mode miss. Rather than leave the question unanswered, a controlled, isolated experiment (`scripts/experiment_b4_structured_context.py`, its own cache directory, never touching `cache/llm/`) ran the SAME real pages through the real extraction prompt twice — once with `Table.to_text_block()` unchanged (baseline), once with an explicit per-cell row-label/column-header/period/unit rendering built from `table_structure.StructuredTable` (structured) — against the live Groq API (6 real calls, 3 real pages of the Delhivery prospectus chosen for unit-in-heading, period-in-column-header, row-label, and ambiguous-table coverage). **Result: identical extracted facts on every page** — same subjects, same measures, same values, same periods, zero difference in acceptance/rejection. Setting up the experiment also surfaced that these particular tables have badly fragmented, multi-line-wrapped headers (pdfplumber splits one wrapped header phrase across several near-empty table rows), which the structured renderer inherits faithfully rather than papering over — a second reason a hand-crafted structured format isn't a clear win on this corpus's real table quality. Per the project's own decision rule ("no meaningful improvement → keep structured context internal, do not increase complexity merely because it exists"), production `to_text_block()` remains untouched. `Table.header_row()`/`row_label()`/`StructuredTable` stay additive, internal infrastructure — used for A7's context-aware verification and A8's evidence regions, not fed to the LLM.
+
+### 10. Two Real Frontend Bugs Found and Fixed While Building the Evidence UI
+Auditing the frontend for B2/B3 surfaced two pre-existing, silent bugs, both from a TypeScript type not matching what the backend actually returns: (1) `REASON_CODE_CAVEATS` (a relation-explanation lookup shown on the Overview, Relations, and Required-Cases pages) was keyed on invented codes like `LOW_OCR_CONFIDENCE` — on a system with no OCR at all — that never matched a real `reason_code` (`period_disjoint`, `forecast_disagreement`, `value_match_despite_*`, etc.), so every relation silently fell through to one generic sentence, on every page, for every relation, since the feature shipped. (2) `RejectedFact` declared top-level `raw_quote`/`page`/`subject`/`measure` fields that don't exist on the real `GET /rejected-facts` row shape (the real quote/subject/measure live nested under `raw_fact`) — the Required Cases page and the dedicated Rejected Facts page were both silently showing a hard-coded placeholder string and `Page 1` for every single rejected fact. Both are fixed: the caveat table now uses the real reason-code vocabulary (verified against `comparability.py`/`adjudicate.py`'s actual source, with the dynamic `value_match_despite_*` / `*_period_unverified` composites parsed rather than listed), and `RejectedFact` matches the real JSONL shape.
+
 ---
 
 ## 14. Developer Submission Checklist
@@ -682,4 +738,4 @@ Earlier tests ran extraction against `data/rejected_facts.jsonl` without directo
 - [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: 145 unit and integration tests passing cleanly via `pytest` (113 pre-existing + 32 added for deterministic value verification and the `Fact.compute_id()` collision fix).
+- [x] **Comprehensive Test Suite**: 244 unit and integration tests passing cleanly via `pytest` (145 pre-existing + 74 added for deterministic layout reconstruction, semantic table structure, context-aware verification, region-level evidence, and the parser benchmark suite).

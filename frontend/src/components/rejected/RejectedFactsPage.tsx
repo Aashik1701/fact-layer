@@ -38,10 +38,10 @@ export const RejectedFactsPage: React.FC = () => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
-      (rf.raw_quote && rf.raw_quote.toLowerCase().includes(query)) ||
+      (rf.raw_fact?.verbatim_quote && rf.raw_fact.verbatim_quote.toLowerCase().includes(query)) ||
       (rf.reason && rf.reason.toLowerCase().includes(query)) ||
       (rf.doc_id && rf.doc_id.toLowerCase().includes(query)) ||
-      (rf.subject && rf.subject.toLowerCase().includes(query))
+      (rf.raw_fact?.subject_raw && rf.raw_fact.subject_raw.toLowerCase().includes(query))
     );
   });
 
@@ -62,7 +62,7 @@ export const RejectedFactsPage: React.FC = () => {
             Quality Control &amp; Rejected Facts
           </h2>
           <p className={cn('text-xs mt-1', isDark ? 'text-slate-400' : 'text-slate-500')}>
-            Ungrounded candidate extractions strictly eliminated by the span verification gate ({total} recorded in rejected_facts.jsonl)
+            Candidate extractions the pipeline refused to admit into the trusted store ({total} recorded in rejected_facts.jsonl)
           </p>
         </div>
 
@@ -92,9 +92,9 @@ export const RejectedFactsPage: React.FC = () => {
         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
           <span className={cn('font-semibold', isDark ? 'text-slate-100' : 'text-slate-800')}>
-            Zero Hallucination Guarantee:
+            The system refused to guess:
           </span>{' '}
-          Every fact accepted into the knowledge layer must pass exact character span verification against the PDF. Candidates rejected due to hallucinated quotes, OCR misalignments, or missing textual grounding are preserved here for full auditability.
+          Every fact accepted into the knowledge layer must pass exact character span verification against the PDF, and its numeric value must be independently confirmed against that same verified quote. A candidate with a quote that isn't actually in the source text, a missing subject/measure, an unparseable value, or a value that disagrees with its own cited evidence is rejected here rather than admitted — logged for full auditability, not hidden.
         </p>
       </div>
 
@@ -128,9 +128,11 @@ export const RejectedFactsPage: React.FC = () => {
             )}
           >
             <option value="ALL">All Rejection Reasons</option>
-            <option value="quote_not_in_page_text">quote_not_in_page_text</option>
-            <option value="span_verification_failed">span_verification_failed</option>
-            <option value="missing_evidence">missing_evidence</option>
+            <option value="quote_not_found">quote_not_found</option>
+            <option value="no_subject">no_subject</option>
+            <option value="no_measure">no_measure</option>
+            <option value="unparseable_value">unparseable_value</option>
+            <option value="value_mismatch">value_mismatch</option>
           </select>
         </div>
       </div>
@@ -193,28 +195,30 @@ export const RejectedFactsPage: React.FC = () => {
                           : 'text-rose-600 bg-rose-50/60 border-rose-200'
                       )}
                     >
-                      "{rf.raw_quote || 'N/A'}"
+                      "{rf.raw_fact?.verbatim_quote || rf.detail || 'no quote proposed'}"
                     </blockquote>
                   </td>
 
                   <td className="py-3.5 px-4 font-mono text-[11px]">
                     <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 whitespace-nowrap">
-                      {rf.reason || 'quote_not_in_page_text'}
+                      {rf.reason || 'unknown'}
                     </span>
                   </td>
 
                   <td className={cn('py-3.5 px-4 font-mono', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                    Page {rf.page ?? 1}
+                    {rf.page_no != null ? `Page ${rf.page_no}` : '—'}
                   </td>
 
                   <td className="py-3.5 px-4">
                     <div className="flex flex-col font-mono text-[11px]">
                       <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
-                        {rf.subject ? `${rf.subject}::${rf.measure || ''}` : '—'}
+                        {rf.raw_fact?.subject_raw
+                          ? `${rf.raw_fact.subject_raw}::${rf.raw_fact.measure_raw || ''}`
+                          : '—'}
                       </span>
-                      {rf.raw_value && (
+                      {rf.raw_fact?.value_raw && (
                         <span className={isDark ? 'text-slate-500 text-[10px]' : 'text-slate-400 text-[10px]'}>
-                          Raw: {rf.raw_value}
+                          Raw: {rf.raw_fact.value_raw}
                         </span>
                       )}
                     </div>

@@ -12,6 +12,15 @@ export interface EvidenceItem {
   page_image_resolution: number;
   extractor: string;
   verified: boolean;
+  // A8 — additive table-context fields; null when the fact's value wasn't
+  // confidently attributed to exactly one table cell.
+  table_id?: string | null;
+  row_index?: number | null;
+  column_index?: number | null;
+  cell_bbox?: [number, number, number, number] | null;
+  row_label?: string | null;
+  column_header?: string | null;
+  unit_context?: string | null;
 }
 
 export interface FactValue {
@@ -55,7 +64,7 @@ export interface FactSummary {
   // Deterministic check that value_raw is the number the verified quote
   // actually supports — distinct from (and stronger than) span/quote
   // verification. null/undefined on facts persisted before this existed.
-  value_verification?: 'verified' | 'unverified' | 'mismatch' | null;
+  value_verification?: 'verified' | 'verified_with_context' | 'unverified' | 'mismatch' | null;
   value_verification_reason?: string | null;
 }
 
@@ -169,15 +178,25 @@ export interface StatsResponse {
   llm_this_process?: Record<string, any>;
 }
 
+// Matches the real JSONL row shape written by extract.py's _append_rejected()
+// and served verbatim by GET /rejected-facts — a previous version of this
+// type declared top-level `raw_quote`/`page`/`subject`/`measure` fields that
+// don't exist on the actual record (the real quote/subject/measure live
+// nested under `raw_fact`), so every rejected-fact card silently fell back
+// to a hard-coded placeholder string instead of the real quote.
 export interface RejectedFact {
-  raw_quote?: string;
-  page?: number;
-  reason?: string;
+  raw_fact?: {
+    subject_raw?: string;
+    measure_raw?: string;
+    value_raw?: string;
+    verbatim_quote?: string;
+    period_raw?: string | null;
+    [key: string]: any;
+  };
+  page_no?: number;
   doc_id?: string;
-  filename?: string;
-  subject?: string;
-  measure?: string;
-  raw_value?: string;
+  doc_filename?: string;
+  reason?: string;
   detail?: string;
   [key: string]: any;
 }

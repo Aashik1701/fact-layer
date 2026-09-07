@@ -59,16 +59,82 @@ export const RELATION_CONFIG: Record<
   },
 };
 
+// Keyed on the ACTUAL reason_code strings fact_layer/comparability.py and
+// fact_layer/adjudicate.py produce (verified against the real backend
+// source, not guessed) — a previous version of this table used invented,
+// never-matching codes (e.g. "LOW_OCR_CONFIDENCE", on a system with no OCR
+// at all), so every relation silently fell through to a generic fallback
+// with no user-visible error. Two of adjudicate.py's reason codes are
+// DYNAMIC, not literal, and are handled separately in getCaveatExplanation:
+//   "value_match_despite_<gate_reason_code>" — a corroboration whose gate
+//     verdict was actually incomparable for some reason, composited in;
+//   "<reason_code>_period_unverified" — appended whenever at least one side
+//     has no parsed period, so the like-for-like check itself is unverified.
 export const REASON_CODE_CAVEATS: Record<string, string> = {
-  PERIOD_MISMATCH: 'Reported values apply to different timeframes or fiscal years (e.g. FY24 vs FY25).',
-  MODALITY_MISMATCH: 'One source reports a realized POINT value while the other reports a PROJECTION or ESTIMATE.',
-  SCOPE_MISMATCH: 'Geographical or institutional boundaries differ (e.g., General Government vs Central Government).',
-  METHODOLOGY_MISMATCH: 'Underlying calculation methodologies or statistical baselines differ (e.g. Constant vs Current prices).',
-  SUBGROUP_MISMATCH: 'Data isolates a specific sub-population rather than the headline aggregate.',
-  UNGROUNDED_QUOTE: 'Extracted quote could not be strictly verified against raw PDF characters.',
-  LOW_OCR_CONFIDENCE: 'Source PDF text layer quality was below strict verification thresholds.',
+  comparable: 'Same subject, measure, scope, unit and period — a direct like-for-like comparison.',
+  value_match: 'Both sources state the same value on a like-for-like basis.',
+  value_mismatch: 'Same subject, measure, scope and period, but the reported values genuinely differ.',
+  restated_unchanged: 'A later point-in-time statement restates the same value as an earlier one.',
+  temporal_succession: 'These are point-in-time claims made at different dates; the later statement updates rather than contradicts the earlier one.',
+  period_disjoint: 'Reported periods do not overlap at all (e.g. FY24 vs FY25) — the figures measure different windows of time.',
+  period_overlap: 'Reported periods partially overlap, so the figures are not on a strictly like-for-like basis.',
+  period_subsumption: 'One period contains the other (e.g. a quarter within its fiscal year) — the smaller figure is expected to be a component, not equal to it.',
+  scope_mismatch: 'Reported on different bases (e.g. standalone vs consolidated) — both figures can be correct for the same period.',
+  segment_mismatch: 'The figures refer to different business or product segments.',
+  unit_mismatch: 'Units or currencies differ, and no exchange rate is stated in either source — never silently converted.',
+  basis_mismatch: 'One figure is audited and the other unaudited — a revision is expected, not a contradiction.',
+  value_kind_mismatch: 'One side is a quantity and the other a different kind of claim entirely — not numerically comparable.',
+  forecast_disagreement: 'Different institutions project different values for the same period — a forecast disagreement between sources, not a factual error.',
 };
 
+const _GENERIC_FALLBACK = 'Contextual qualifier difference detected by the comparability gate.';
+
 export function getCaveatExplanation(reasonCode: string): string {
-  return REASON_CODE_CAVEATS[reasonCode] || 'Contextual qualifier difference detected by the comparability gate.';
+  if (!reasonCode) return _GENERIC_FALLBACK;
+  if (reasonCode in REASON_CODE_CAVEATS) return REASON_CODE_CAVEATS[reasonCode];
+
+  if (reasonCode.startsWith('value_match_despite_')) {
+    const inner = reasonCode.slice('value_match_despite_'.length);
+    const innerCaveat = REASON_CODE_CAVEATS[inner];
+    return innerCaveat
+      ? `Values agree even though: ${innerCaveat}`
+      : 'Values agree despite a contextual difference the gate flagged.';
+  }
+  if (reasonCode.endsWith('_period_unverified')) {
+    const inner = reasonCode.slice(0, -'_period_unverified'.length);
+    const innerCaveat = REASON_CODE_CAVEATS[inner];
+    const base = innerCaveat || _GENERIC_FALLBACK;
+    return `${base} Confidence is reduced because at least one source states no reporting period, so this comparison could not be fully verified.`;
+  }
+  return _GENERIC_FALLBACK;
+}
+
+// Keyed on the ACTUAL reason strings fact_layer/value_verify.py's
+// ValueVerification.reason produces (verified against the real backend
+// source). "No value was guessed" is the operative product principle this
+// whole table exists to make visible: every one of these explanations
+// describes what the pipeline deliberately did NOT do, not a failure being
+// smoothed over.
+const VALUE_VERIFICATION_EXPLANATIONS: Record<string, string> = {
+  non_numeric_value_no_deterministic_verifier:
+    'This is a text/entity claim, not a number — there is no deterministic numeric check to run against it. Unverified here means "not checked", not a quality warning.',
+  quote_contains_no_numeric_literal:
+    'The cited source region contains no numeric value at all to check the extracted figure against.',
+  multiple_numeric_candidates_in_quote_ambiguous:
+    'Multiple numeric candidates exist in the cited source region, and the available document structure is insufficient to determine which value represents the fact. No value was guessed.',
+  percent_vs_non_percent_ambiguous:
+    'The source expresses this figure differently as a percentage on one side and a plain number on the other — treating them as the same value would require an assumption the source does not state.',
+  incomplete_currency_context_magnitude_differs:
+    'The extracted value and the cited source disagree in magnitude, and currency information is only available on one side — this could be a real disagreement or an incomplete read, so it is not resolved either way.',
+  scale_context_asymmetry_same_digits_different_scale:
+    'The same digits appear on both sides but a scale word (e.g. "million") is only available in one context — resolved as unverified rather than assuming which scale applies.',
+};
+
+export function getValueVerificationExplanation(reason: string): string {
+  if (!reason) return 'The available document structure was insufficient to confirm this value deterministically. No value was guessed.';
+  if (reason in VALUE_VERIFICATION_EXPLANATIONS) return VALUE_VERIFICATION_EXPLANATIONS[reason];
+  if (reason.startsWith('currency_mismatch_no_fx_conversion')) {
+    return 'The cited source states a different currency than the extracted value, and this system never applies an exchange rate the source itself does not state.';
+  }
+  return 'The available document structure was insufficient to confirm this value deterministically. No value was guessed.';
 }
