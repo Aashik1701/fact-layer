@@ -2,7 +2,7 @@ import React from 'react';
 import { RelationSummary } from '@/types';
 import { GateVerdictBadge } from './GateVerdictBadge';
 import { ConfidencePill } from '@/components/common/ConfidencePill';
-import { ArrowRight, ChevronRight, Cpu } from 'lucide-react';
+import { ArrowRight, ChevronRight, Cpu, Search } from 'lucide-react';
 import { getCaveatExplanation } from '@/lib/constants';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
@@ -80,6 +80,16 @@ export const RelationCard: React.FC<RelationCardProps> = ({ relation, onClick })
           </span>
         </span>
         <span>ID: {relation.relation_id.slice(0, 8)}</span>
+      </div>
+
+      <div
+        className={cn(
+          'flex items-center justify-center gap-1.5 pt-1 text-[11px] font-mono font-semibold transition-colors',
+          isDark ? 'text-sky-400 group-hover:text-sky-300' : 'text-sky-600 group-hover:text-sky-500'
+        )}
+      >
+        <Search className="w-3 h-3" />
+        Explain This Conclusion
       </div>
     </div>
   );

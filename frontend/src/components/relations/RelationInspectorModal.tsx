@@ -11,6 +11,7 @@ import {
   Cpu,
   Info,
   Layers,
+  Quote,
 } from 'lucide-react';
 import { formatIssuer, cn } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
@@ -65,7 +66,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className={cn('text-base font-bold', isDark ? 'text-slate-100' : 'text-slate-900')}>
-                Cross-Fact Relation Inspector
+                Why This Relation Exists
               </h3>
               {relation && (
                 <span
@@ -81,7 +82,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
               )}
             </div>
             <p className={cn('text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Deterministic comparability gate evaluation and qualifier alignment chain
+              The full deterministic reasoning chain: evidence, comparability gate, and adjudication rule — nothing here is a second, unexplained AI label.
             </p>
           </div>
         </div>
@@ -134,6 +135,9 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
                   >
                     {relation.gate.verdict.replace(/_/g, ' ')}
                   </span>
+                  <div className={cn('text-[11px] font-mono', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Gate reason: <span className="text-indigo-500 font-semibold">{relation.gate.reason_code}</span>
+                  </div>
                   {relation.gate.cross_issuer && (
                     <div className="text-[11px] font-mono text-amber-500 font-medium">Cross-issuer comparison</div>
                   )}
@@ -186,9 +190,26 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
                 isDark ? 'bg-slate-800/40 border-slate-800 text-slate-300' : 'bg-sky-50/50 border-sky-100 text-slate-700'
               )}
             >
-              <div className="flex items-center gap-1.5 text-sky-500 font-semibold uppercase tracking-wider text-[11px]">
-                <Info className="w-3.5 h-3.5" />
-                Deterministic Adjudication Explanation
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 text-sky-500 font-semibold uppercase tracking-wider text-[11px]">
+                  <Info className="w-3.5 h-3.5" />
+                  Explanation
+                </div>
+                <span
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wide border',
+                    relation.decided_by === 'rule'
+                      ? isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-300'
+                  )}
+                  title={
+                    relation.decided_by === 'rule'
+                      ? 'Produced by fact_layer/adjudicate.py — deterministic Python, not a model call.'
+                      : 'This relation was decided with model assistance, not pure rule logic.'
+                  }
+                >
+                  {relation.decided_by === 'rule' ? 'Deterministic — rule-based' : `Decided by: ${relation.decided_by}`}
+                </span>
               </div>
               <p className={cn('font-sans', isDark ? 'text-slate-200' : 'text-slate-800')}>{relation.explanation}</p>
               {relation.reason_code && (
@@ -366,6 +387,28 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
             )}
           </div>
 
+          {/* What was actually compared. Subject/measure are NOT a gate
+              check — they define which facts are even eligible to be
+              compared (this relation only exists inside one subject::measure
+              cluster, fact_layer/models.py's Fact.cluster_key()). Stating
+              that plainly here, rather than as a fabricated "matched" row in
+              the table below, keeps the distinction between "what makes two
+              facts comparable candidates" and "what the gate then checks"
+              honest. */}
+          {relation.source_fact && relation.target_fact && (
+            <div
+              className={cn(
+                'p-3 rounded-lg border text-[11px] font-mono',
+                isDark ? 'bg-slate-900/50 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+              )}
+            >
+              Both facts share subject <span className="text-sky-500 font-semibold">{relation.source_fact.subject}</span> and
+              measure <span className="text-sky-500 font-semibold">{relation.source_fact.measure}</span> — that is what put them in
+              the same comparison cluster. The gate below never checks subject/measure equality itself; it checks whether the
+              qualifiers make the two claims like-for-like.
+            </div>
+          )}
+
           {/* Qualifier Diff Matrix */}
           {relation.source_fact && relation.target_fact && (
             <div className="space-y-2">
@@ -384,6 +427,72 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
                 qualifierDiff={relation.gate?.qualifier_diff || relation.qualifier_diff}
                 gate={relation.gate}
               />
+            </div>
+          )}
+
+          {/* Dedicated Evidence section — the same evidence already surfaced
+              inside each fact card above, repeated here as its own labeled
+              section (verbatim quote, page, source) per the audit-report
+              structure this inspector is meant to read as. */}
+          {(relation.source_fact || relation.target_fact) && (
+            <div className="space-y-2">
+              <span className={cn('text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                <Quote className="w-3.5 h-3.5 text-sky-500" />
+                Evidence
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {([
+                  { fact: relation.source_fact, label: 'Evidence for Fact A', accent: 'sky' as const },
+                  { fact: relation.target_fact, label: 'Evidence for Fact B', accent: 'indigo' as const },
+                ]).map(({ fact, label, accent }) => {
+                  if (!fact) return null;
+                  const ev = fact.evidence && fact.evidence.length > 0 ? fact.evidence[0] : null;
+                  return (
+                    <div
+                      key={label}
+                      className={cn(
+                        'p-3.5 rounded-xl border space-y-2',
+                        isDark ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200'
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={cn('text-[11px] font-mono font-bold uppercase', accent === 'sky' ? 'text-sky-500' : 'text-indigo-500')}>
+                          {label}
+                        </span>
+                        <span className={cn('text-[10px] font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                          {ev ? `${fact.doc_id || ev.doc_id} · Page ${ev.page}` : 'No evidence record'}
+                        </span>
+                      </div>
+                      {ev ? (
+                        <blockquote
+                          className={cn(
+                            'text-[11px] italic font-mono leading-relaxed border-l-2 pl-2',
+                            isDark ? 'border-slate-700 text-slate-300' : 'border-slate-300 text-slate-700'
+                          )}
+                        >
+                          "{ev.verbatim_quote}"
+                        </blockquote>
+                      ) : (
+                        <p className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                          No verbatim quote recorded for this fact.
+                        </p>
+                      )}
+                      <button
+                        onClick={() => onOpenEvidence(fact)}
+                        className={cn(
+                          'w-full py-1.5 px-3 rounded-lg border text-[11px] font-mono font-medium flex items-center justify-center gap-1.5 transition-colors',
+                          accent === 'sky'
+                            ? isDark ? 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border-sky-500/20' : 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200'
+                            : isDark ? 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
+                        )}
+                      >
+                        <FileSearch className="w-3 h-3" />
+                        View
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

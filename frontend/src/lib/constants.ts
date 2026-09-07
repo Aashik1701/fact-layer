@@ -138,3 +138,23 @@ export function getValueVerificationExplanation(reason: string): string {
   }
   return 'The available document structure was insufficient to confirm this value deterministically. No value was guessed.';
 }
+
+// Keyed on the ACTUAL reason strings fact_layer/extract.py's
+// _append_rejected() call sites produce (verified against the real backend
+// source: "no_subject", "no_measure", "quote_not_found", "unparseable_value",
+// "value_mismatch" — the complete set, no others exist). Every one of these
+// is a candidate the pipeline extracted and then deliberately refused to
+// admit into the trusted store, rather than a system failure being hidden.
+const REJECTION_REASON_EXPLANATIONS: Record<string, string> = {
+  no_subject: 'The extracted candidate had no subject at all — there is nothing to anchor this claim to, so it was never admitted.',
+  no_measure: 'The extracted candidate had no measure at all — a value with no named attribute is not a usable fact.',
+  quote_not_found: 'The quote this candidate claims to be grounded in could not be matched back to the source PDF text with sufficient confidence — the fact would have had no verifiable evidence span.',
+  unparseable_value: 'The stated value could not be parsed into a number by the same deterministic parser every accepted fact uses — accepting it would have meant guessing what it means.',
+  value_mismatch: 'The value disagreed with the sole number the verified source quote actually supports — the candidate was not admitted rather than trusted against its own cited evidence.',
+};
+
+export function getRejectionReasonExplanation(reason: string): string {
+  if (!reason) return 'The candidate did not meet this system’s evidence-grounding requirements and was not admitted to the trusted store.';
+  return REJECTION_REASON_EXPLANATIONS[reason] ||
+    'The candidate did not meet this system’s evidence-grounding requirements and was not admitted to the trusted store.';
+}

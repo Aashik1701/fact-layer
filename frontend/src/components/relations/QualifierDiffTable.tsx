@@ -50,7 +50,36 @@ export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
     unknown: 'At least one side states no reporting period — unverifiable, not confirmed aligned',
   };
 
+  // Unit compatibility isn't in Qualifiers.diff() — it's checked by
+  // comparability.gate()'s own _unit_compatible() step, and that step only
+  // RUNS if nothing earlier in gate()'s fixed sequence (value_kind -> scope
+  // -> issuer/forecast -> segment -> UNIT -> period -> basis -> comparable)
+  // already short-circuited. So the verdict alone tells us, honestly,
+  // whether the unit check ran: reaching any of these verdicts requires
+  // having passed it; INCOMPARABLE_UNIT is the check itself failing;
+  // anything earlier in the sequence means the gate never got there —
+  // "aligned" would be a guess, not something the backend established.
+  const UNIT_CHECK_PASSED_VERDICTS = new Set([
+    'temporal_succession', 'incomparable_period', 'aggregation_candidate', 'incomparable_basis', 'comparable',
+  ]);
+  const unitLabel = (f: FactFull | FactSummary) =>
+    f.value?.unit ? `${f.value.unit}${f.value.currency ? ` (${f.value.currency})` : ''}` : 'not stated';
+  const unitDiff = gate ? gate.verdict === 'incomparable_unit' : false;
+  const unitUnverifiable = gate ? !unitDiff && !UNIT_CHECK_PASSED_VERDICTS.has(gate.verdict) : true;
+
   const rows: Array<{ dimension: string; sourceA: string; sourceB: string; isDiff: boolean; unverifiable?: boolean; note: string }> = [
+    {
+      dimension: 'Unit',
+      sourceA: unitLabel(factA),
+      sourceB: unitLabel(factB),
+      isDiff: unitDiff,
+      unverifiable: unitUnverifiable,
+      note: unitDiff
+        ? 'Units or currencies differ — no exchange rate is stated in either source, so this is never silently converted'
+        : unitUnverifiable
+          ? 'The gate stopped on an earlier check before it ever compared units'
+          : 'Gate confirms compatible units',
+    },
     {
       dimension: 'Reporting Period',
       sourceA: periodLabel(factA),
