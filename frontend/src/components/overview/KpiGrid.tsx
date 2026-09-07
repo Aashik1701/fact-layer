@@ -23,7 +23,7 @@ export const KpiGrid: React.FC<KpiGridProps> = ({ stats, loading }) => {
     {
       label: 'Verified Grounded Facts',
       value: stats.facts.total.toLocaleString(),
-      subvalue: `${passRatePct} OCR Pass Rate (${stats.span_verification.rejected} ungrounded rejected)`,
+      subvalue: `${passRatePct} span verification pass rate (${stats.span_verification.rejected} ungrounded rejected)`,
       icon: Database,
       iconBg: isDark
         ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'

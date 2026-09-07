@@ -70,7 +70,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { stage: 'STAGE 1', title: 'Grounding & OCR', desc: 'Extracts facts and anchors verbatim quotes to pixel-exact PDF bounding boxes. Ungrounded quotes are rejected.' },
+              { stage: 'STAGE 1', title: 'Grounding & Span Verification', desc: 'Extracts facts and anchors verbatim quotes to pixel-exact PDF bounding boxes. Ungrounded quotes are rejected.' },
               { stage: 'STAGE 2', title: 'Normalization', desc: 'Standardizes units, fiscal periods, and assigns modality (POINT, PROJECTION, ESTIMATE, RANGE).' },
               { stage: 'STAGE 3', title: 'Comparability Gate', desc: 'Deterministic rule engine tests alignment across period, scope, methodology, and modality before comparison.' },
               { stage: 'STAGE 4', title: 'Adjudication', desc: 'Classifies relations, generates audit caveats, and halves confidence (to 0.50) on true contradictions.' },

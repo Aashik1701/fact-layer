@@ -8,7 +8,7 @@ export const ArchitecturePipeline: React.FC = () => {
 
   const steps = [
     {
-      num: '01', title: 'Grounding & OCR', badge: 'Pixel Verification',
+      num: '01', title: 'Grounding & Span Verification', badge: 'Pixel Verification',
       desc: 'Anchor candidate quotes to exact PDF character coordinates; reject hallucinated text.',
       icon: FileSearch, color: isDark ? 'text-sky-400' : 'text-sky-600',
     },

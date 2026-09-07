@@ -26,19 +26,21 @@ import hashlib
 import logging
 import os
 import re
+import threading
 import time
 import uuid
 from datetime import date
 from typing import Optional
 
 import pdfplumber
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from fact_layer import llm as _llm
 from fact_layer.comparability import gate
+from fact_layer.jobs import Job, JobStage, JobStatus, JobStore
 from fact_layer.models import Fact, Qualifiers, Quantity, Relation
 from fact_layer.parse import _doc_id
 from fact_layer.resolve import write_resolution_log
@@ -153,6 +155,106 @@ app.add_middleware(
 # Loaded once at import time — the store already reflects every prior
 # `python -m fact_layer.store` / POST /ingest run; startup must not re-ingest.
 STORE = Store.load(_STORE_PATH)
+
+# --------------------------------------------------------------------------
+# Ingestion jobs (single-process, in-memory — see fact_layer/jobs.py and
+# README's "Ingestion Job Model" section for the honest scope of what this
+# does and doesn't guarantee across restarts / multiple instances).
+#
+# _INGEST_LOCK serializes actual pipeline processing: STORE is one shared,
+# JSON-persisted, in-memory object, and FastAPI's BackgroundTasks runs sync
+# callables in a worker thread, so two uploads landing close together could
+# otherwise race on Store.facts/Store.clusters/Store.relations or interleave
+# writes to data/store.json. Holding this lock for the whole of
+# process_document() means jobs process one at a time — simple, correct,
+# and honest about not providing any cross-process/distributed guarantee.
+# --------------------------------------------------------------------------
+
+JOBS = JobStore()
+_INGEST_LOCK = threading.Lock()
+
+
+def _sanitize_job_error(exc: Exception) -> str:
+    """Never let an internal exception reach a client verbatim — no stack
+    traces, no local filesystem paths, no provider response bodies beyond a
+    short, already-user-facing prefix. LLMError/parse-error messages in this
+    codebase are already written to be human-readable (see llm.py), so they
+    are kept, just capped and stripped of the local repo path; anything
+    else collapses to a generic message (the real exception is still
+    logged server-side via logger.exception)."""
+    msg = str(exc).replace(_REPO_ROOT, "<repo>")
+    return msg if len(msg) <= 300 else msg[:300] + "..."
+
+
+def process_document(job_id: str, dest: str, filename: str) -> None:
+    """The actual ingestion pipeline, reusable and independently testable —
+    called from a background task in production, and directly (synchronously)
+    in tests that want to assert on pipeline behavior without going through
+    HTTP at all. Never duplicates Store.ingest()'s logic: this function is
+    orchestration (job bookkeeping, error sanitization, persistence) around
+    one call to it, exactly as api.py's original inline /ingest body was,
+    just extracted so it has a name and can run off the request thread.
+    """
+    with _INGEST_LOCK:
+        try:
+            calls_before = _llm._stats["calls"]
+            t0 = time.time()
+            result = STORE.ingest(
+                dest, rejected_path=_REJECTED_PATH,
+                on_stage=lambda s: JOBS.set_stage(job_id, JobStage(s)),
+            )
+        except _llm.LLMError as e:
+            # A genuinely new document that LLM_MODE=replay has no cached
+            # response for (or a live-mode failure). The file itself parsed
+            # fine (it's a real, valid PDF); it stays in data/uploads/ so a
+            # retry with live API access can pick it back up.
+            JOBS.fail(job_id, f"extraction failed: {_sanitize_job_error(e)}")
+            return
+        except Exception:
+            logger.exception("unexpected error processing job %s (file=%s)", job_id, filename)
+            JOBS.fail(job_id, "internal processing error")
+            return
+
+        if result.skipped_reason and result.skipped_reason.startswith("parse error"):
+            # Not a usable document — clean up rather than leave a dead file
+            # behind (B1.4 cleanup behavior, preserved unchanged). Distinct
+            # from the LLMError case above: this file never actually parsed.
+            try:
+                os.remove(dest)
+            except OSError:
+                logger.warning("failed to remove unparseable upload %s", dest)
+            JOBS.fail(job_id, f"could not parse uploaded PDF: {result.skipped_reason}")
+            return
+
+        elapsed = time.time() - t0
+        llm_calls_made = _llm._stats["calls"] - calls_before
+
+        response = {
+            "doc_id": result.doc_id,
+            "filename": result.filename,
+            "already_ingested": result.skipped_reason == "already ingested",
+            "skipped_reason": result.skipped_reason,
+            "counts": {
+                "pages": result.pages,
+                "pages_selected": result.pages_selected,
+                "facts_proposed": result.facts_extracted,
+                "facts_verified": result.facts_verified,
+                "facts_rejected": result.facts_rejected,
+            },
+            "new_facts": [_fact_summary(f) for f in result.new_facts],
+            "new_relations": [_relation_summary(r) for r in result.new_relations],
+            "clusters_touched": len(result.touched_clusters),
+            "llm_calls_made": llm_calls_made,
+            "elapsed_seconds": round(elapsed, 3),
+        }
+
+        if result.skipped_reason is None:
+            JOBS.set_stage(job_id, JobStage.STORING)
+            STORE.save(_STORE_PATH)
+            write_resolution_log(STORE.resolver, _RESOLUTION_LOG_PATH)
+
+        JOBS.complete(job_id, result.doc_id, response,
+                      already_ingested=(result.skipped_reason == "already ingested"))
 
 
 # --------------------------------------------------------------------------
@@ -378,8 +480,16 @@ def _relation_full(rel: Relation) -> dict:
 # POST /ingest
 # --------------------------------------------------------------------------
 
-@app.post("/ingest")
-async def ingest(file: UploadFile = File(...)):
+@app.post("/ingest", status_code=202)
+async def ingest(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+    """Validates and safely stores the upload synchronously (fast, and the
+    part that must reject a bad request before anything is trusted), then
+    hands the actual pipeline run to a background task and returns
+    immediately with a job to poll — see GET /jobs/{job_id}. The response
+    shape is deliberately uniform for every accepted upload, including the
+    already-ingested short-circuit (instant, but still job-shaped): a
+    client only ever needs one code path — create, then poll until
+    COMPLETED/FAILED."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "only .pdf uploads are accepted")
 
@@ -401,17 +511,21 @@ async def ingest(file: UploadFile = File(...)):
     content_hash = hashlib.sha256(body).hexdigest()
     existing_doc_id = _find_doc_id_by_content(content_hash)
     if existing_doc_id is not None:
-        return {
+        # Identical content already in the store — nothing to process, so
+        # the job is created already COMPLETED rather than faking an async
+        # round-trip for work that doesn't need to happen.
+        job = JOBS.create(file.filename)
+        JOBS.complete(job.job_id, existing_doc_id, {
             "doc_id": existing_doc_id,
             "filename": STORE.ingested_docs.get(existing_doc_id, file.filename),
-            "already_ingested": True,
             "skipped_reason": "identical content already ingested",
             "counts": {"pages": None, "pages_selected": None,
                        "facts_proposed": 0, "facts_verified": 0, "facts_rejected": 0},
             "new_facts": [], "new_relations": [],
             "clusters_touched": 0,
             "llm_calls_made": 0, "elapsed_seconds": 0.0,
-        }
+        }, already_ingested=True)
+        return {"job_id": job.job_id, "status": job.status.value, "stage": job.stage.value}
 
     # The on-disk path is built from a SANITIZED, containment-verified
     # basename — never the raw client filename (B1.1). See
@@ -421,56 +535,21 @@ async def ingest(file: UploadFile = File(...)):
     with open(dest, "wb") as fh:
         fh.write(body)
 
-    calls_before = _llm._stats["calls"]
-    t0 = time.time()
-    try:
-        result = STORE.ingest(dest)
-    except _llm.LLMError as e:
-        # A genuinely new document that LLM_MODE=replay has no cached
-        # response for (or a live-mode failure) — surface as a clean error
-        # instead of an opaque 500, since the frontend's upload zone is a
-        # user-facing control that must degrade gracefully. The file itself
-        # parsed fine (it's a real, valid PDF); it stays in data/uploads/ so
-        # a retry with a live key can pick it back up without re-uploading.
-        raise HTTPException(502, f"extraction failed: {e}")
+    job = JOBS.create(file.filename)
+    background_tasks.add_task(process_document, job.job_id, dest, file.filename)
+    return {"job_id": job.job_id, "status": job.status.value, "stage": job.stage.value}
 
-    if result.skipped_reason and result.skipped_reason.startswith("parse error"):
-        # Not a usable document — clean up rather than leave a dead file
-        # behind (B1.4). Distinct from the LLMError case above: this file
-        # never actually parsed, so there is nothing to retry later.
-        try:
-            os.remove(dest)
-        except OSError:
-            logger.warning("failed to remove unparseable upload %s", dest)
-        raise HTTPException(400, f"could not parse uploaded PDF: {result.skipped_reason}")
 
-    elapsed = time.time() - t0
-    llm_calls_made = _llm._stats["calls"] - calls_before
+# --------------------------------------------------------------------------
+# GET /jobs/{job_id}
+# --------------------------------------------------------------------------
 
-    response = {
-        "doc_id": result.doc_id,
-        "filename": result.filename,
-        "already_ingested": result.skipped_reason == "already ingested",
-        "skipped_reason": result.skipped_reason,
-        "counts": {
-            "pages": result.pages,
-            "pages_selected": result.pages_selected,
-            "facts_proposed": result.facts_extracted,
-            "facts_verified": result.facts_verified,
-            "facts_rejected": result.facts_rejected,
-        },
-        "new_facts": [_fact_summary(f) for f in result.new_facts],
-        "new_relations": [_relation_summary(r) for r in result.new_relations],
-        "clusters_touched": len(result.touched_clusters),
-        "llm_calls_made": llm_calls_made,
-        "elapsed_seconds": round(elapsed, 3),
-    }
-
-    if result.skipped_reason is None:
-        STORE.save(_STORE_PATH)
-        write_resolution_log(STORE.resolver, _RESOLUTION_LOG_PATH)
-
-    return response
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str):
+    job = JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(404, "unknown job_id")
+    return job.to_dict()
 
 
 # --------------------------------------------------------------------------

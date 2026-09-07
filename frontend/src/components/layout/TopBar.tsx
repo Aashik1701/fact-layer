@@ -139,7 +139,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenAbout, onSelectRelationTyp
               )}
             >
               <span className="text-amber-500 font-bold">{passRate}</span>
-              <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>OCR Pass</span>
+              <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>Span Verified</span>
             </div>
           </div>
         )}

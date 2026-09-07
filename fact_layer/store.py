@@ -26,7 +26,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from .adjudicate import adjudicate, adjudicate_cluster
 from .extract import _REJECTED_PATH as _DEFAULT_REJECTED_PATH
@@ -187,12 +187,31 @@ class Store:
     # ---- ingest -----------------------------------------------------------
 
     def ingest(self, path: str, budget: Optional[int] = None,
-               rejected_path: Optional[str] = None) -> IngestResult:
+               rejected_path: Optional[str] = None,
+               on_stage: Optional[Callable[[str], None]] = None) -> IngestResult:
         """`rejected_path` defaults to extract.py's real data/rejected_facts.jsonl
         (unchanged behaviour for real usage — api.py, run_full_ingest()). It
         exists as a parameter so tests that ingest the real corpus can redirect
         it to a temp file instead of appending to the actual graded deliverable
-        every time the suite runs."""
+        every time the suite runs.
+
+        `on_stage` (optional, additive — every existing caller passes
+        nothing and is unaffected) is invoked at each real, observable
+        boundary inside this method: "parsing", "extracting", "resolving",
+        "adjudicating". There is deliberately no separate "verifying"
+        callback: span verification and deterministic value verification
+        happen fact-by-fact, inline inside extract_document() as each raw
+        candidate is produced, not as a discrete pass afterward — reporting
+        a "verifying" stage transition here would assert a boundary that
+        doesn't actually exist in this architecture. Callers that want a job
+        model with a "storing" stage add it themselves around the JSON
+        persistence step (Store.save()), which happens outside this method.
+        """
+        def _stage(name: str) -> None:
+            if on_stage is not None:
+                on_stage(name)
+
+        _stage("parsing")
         doc = parse_pdf(path)
         if doc.error:
             return IngestResult(doc_id=doc.doc_id, filename=doc.filename, skipped_reason=f"parse error: {doc.error}")
@@ -201,12 +220,14 @@ class Store:
                                 skipped_reason="already ingested")
 
         filename = doc.filename
+        _stage("extracting")
         defaults = extract_document_defaults(doc)
         eff_budget = budget if budget is not None else (_DEMO_BUDGETS.get(filename) or default_budget(doc.n_pages))
         selected = select_pages(doc, eff_budget)
         raw_facts, stats = extract_document(doc, selected, defaults,
                                              rejected_path=rejected_path or _DEFAULT_REJECTED_PATH)
 
+        _stage("resolving")
         deduped, extra = dedupe_within_document(raw_facts)
         resolved, self.resolver = resolve_facts(deduped, self.resolver)
 
@@ -223,6 +244,7 @@ class Store:
                 bucket.append(f.fact_id)
             touched_clusters.add(ck)
 
+        _stage("adjudicating")
         new_relations: list[Relation] = []
         for ck in touched_clusters:
             fact_ids = self.clusters[ck]

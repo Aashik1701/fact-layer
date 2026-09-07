@@ -90,6 +90,18 @@ def client():
     return TestClient(api.app)
 
 
+def _completed_job(client, r):
+    """POST /ingest now returns 202 + a job to poll. TestClient runs
+    FastAPI BackgroundTasks synchronously within client.post() itself (a
+    background task scheduled during a request has fully run by the time
+    the call returns — confirmed empirically before relying on it here),
+    so a single immediate GET already reflects the job's final state; no
+    sleep/retry loop is needed in these tests."""
+    assert r.status_code == 202
+    job_id = r.json()["job_id"]
+    return client.get(f"/jobs/{job_id}").json()
+
+
 @pytest.fixture
 def uploads_dir_snapshot():
     """Record data/uploads/ contents before a test and remove anything the
@@ -146,10 +158,12 @@ def test_ingest_with_malicious_filename_writes_only_inside_uploads_dir(
     client, malicious, uploads_dir_snapshot
 ):
     r = client.post("/ingest", files={"file": (malicious, _MINIMAL_TEXT_PDF, "application/pdf")})
-    # A genuinely new document has no replay-cache entry, so this legitimately
-    # 502s at the metadata LLM call — the security property under test is
-    # WHERE the file landed before that, not whether extraction succeeded.
-    assert r.status_code == 502
+    # A genuinely new document has no replay-cache entry, so the job
+    # legitimately reaches FAILED at the metadata LLM call — the security
+    # property under test is WHERE the file landed before that, not
+    # whether extraction succeeded.
+    job = _completed_job(client, r)
+    assert job["status"] == "failed"
 
     uploads_dir = uploads_dir_snapshot
     real_uploads = os.path.realpath(uploads_dir)
@@ -182,7 +196,7 @@ def test_upload_within_size_limit_is_not_rejected_for_size(client, monkeypatch, 
     monkeypatch.setattr(api, "_MAX_UPLOAD_BYTES", 10_000)
     assert len(_MINIMAL_TEXT_PDF) < 10_000
     r = client.post("/ingest", files={"file": ("small.pdf", _MINIMAL_TEXT_PDF, "application/pdf")})
-    assert r.status_code != 413
+    assert r.status_code == 202   # accepted for processing — not rejected for size
 
 
 # --------------------------------------------------------------------------
@@ -207,7 +221,9 @@ def test_existing_non_pdf_extension_rejection_still_works(client):
 
 def test_unparseable_pdf_is_rejected_and_cleaned_up(client, uploads_dir_snapshot):
     r = client.post("/ingest", files={"file": ("garbage.pdf", _GARBAGE_WITH_PDF_MAGIC, "application/pdf")})
-    assert r.status_code == 400
+    job = _completed_job(client, r)
+    assert job["status"] == "failed"
+    assert "could not parse" in job["error"]
     assert not any("garbage" in n for n in os.listdir(uploads_dir_snapshot)), \
         "an unparseable upload must not be left behind in data/uploads/"
 
@@ -217,13 +233,17 @@ def test_unparseable_pdf_is_rejected_and_cleaned_up(client, uploads_dir_snapshot
 # --------------------------------------------------------------------------
 
 def test_normal_valid_pdf_upload_passes_validation(client, uploads_dir_snapshot):
-    """A genuinely new, valid, well-formed PDF passes every security check
-    and reaches Store.ingest(), where it fails cleanly with 502 (no
-    replay-cache entry exists for content nobody has ever seen). 502, not
-    400/413, is what proves it got PAST validation rather than rejected by
-    it — and the file is left in data/uploads/ (it parsed fine; only
-    genuinely unparseable uploads are cleaned up)."""
+    """A genuinely new, valid, well-formed PDF passes every security check,
+    is accepted as a job (202), and reaches Store.ingest() in the
+    background, where it fails cleanly with a FAILED job (no replay-cache
+    entry exists for content nobody has ever seen). A FAILED job with an
+    "extraction failed" error — not a validation rejection — is what
+    proves it got PAST validation rather than rejected by it, and the file
+    is left in data/uploads/ (it parsed fine; only genuinely unparseable
+    uploads are cleaned up)."""
     r = client.post("/ingest", files={"file": ("brand_new_document.pdf", _MINIMAL_TEXT_PDF, "application/pdf")})
-    assert r.status_code == 502
-    assert "extraction failed" in r.json()["detail"]
+    assert r.status_code == 202
+    job = _completed_job(client, r)
+    assert job["status"] == "failed"
+    assert "extraction failed" in job["error"]
     assert any("brand_new_document" in n for n in os.listdir(uploads_dir_snapshot))

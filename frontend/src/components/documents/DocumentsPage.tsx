@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchDocuments } from '@/lib/api';
-import { DocumentInfo, IngestResponse } from '@/types';
+import { DocumentInfo, IngestJob } from '@/types';
 import { DocumentUploadZone } from './DocumentUploadZone';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { FileText, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
@@ -33,7 +33,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onNavigateToFacts 
 
   useEffect(() => { loadDocuments(); }, []);
 
-  const handleIngestSuccess = (_result: IngestResponse) => { loadDocuments(); };
+  const handleIngestSuccess = (_result: IngestJob) => { loadDocuments(); };
 
   return (
     <div className="space-y-8">

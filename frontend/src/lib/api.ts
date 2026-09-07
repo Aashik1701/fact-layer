@@ -7,7 +7,8 @@ import {
   ClusterInfo,
   StatsResponse,
   RejectedFact,
-  IngestResponse,
+  IngestAcceptedResponse,
+  IngestJob,
 } from '@/types';
 
 const API_BASE = '';
@@ -108,7 +109,10 @@ export async function fetchRejectedFacts(limit: number = 200, reason?: string): 
   return res.json();
 }
 
-export async function ingestDocument(file: File): Promise<IngestResponse> {
+// Starts ingestion and returns immediately with a job to poll (202
+// Accepted) — this never waits for the pipeline to finish. Use fetchJob()
+// to follow progress; see DocumentUploadZone.tsx for the polling loop.
+export async function ingestDocument(file: File): Promise<IngestAcceptedResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -120,6 +124,15 @@ export async function ingestDocument(file: File): Promise<IngestResponse> {
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(errData.detail || `Upload failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchJob(jobId: string): Promise<IngestJob> {
+  const res = await fetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(errData.detail || `Failed to fetch job ${jobId}: ${res.statusText}`);
   }
   return res.json();
 }

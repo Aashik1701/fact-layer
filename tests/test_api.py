@@ -264,6 +264,9 @@ def test_page_image_404_on_page_out_of_range(client, store):
 # --------------------------------------------------------------------------
 
 def test_ingest_already_ingested_doc_is_idempotent_not_double_counted(client, store):
+    """Identical content is detected before a job would need to do any real
+    work, so the job this returns is created already COMPLETED — no
+    background processing, no polling needed for this specific case."""
     path = os.path.join(ROOT, "starter-datasets", "delhivery",
                          "01-delhivery-prospectus-2022-excerpt.pdf")
     facts_before = len(store.facts)
@@ -272,12 +275,16 @@ def test_ingest_already_ingested_doc_is_idempotent_not_double_counted(client, st
     with open(path, "rb") as fh:
         r = client.post("/ingest", files={"file": ("01-delhivery-prospectus-2022-excerpt.pdf", fh, "application/pdf")})
 
-    assert r.status_code == 200
-    body = r.json()
-    assert body["already_ingested"] is True
-    assert body["new_facts"] == []
-    assert body["new_relations"] == []
-    assert body["llm_calls_made"] == 0
+    assert r.status_code == 202
+    job_id = r.json()["job_id"]
+
+    job_body = client.get(f"/jobs/{job_id}").json()
+    assert job_body["status"] == "completed"
+    assert job_body["stage"] == "completed"
+    assert job_body["already_ingested"] is True
+    assert job_body["result"]["new_facts"] == []
+    assert job_body["result"]["new_relations"] == []
+    assert job_body["result"]["llm_calls_made"] == 0
     assert len(store.facts) == facts_before
     assert len(store.relations) == relations_before
 

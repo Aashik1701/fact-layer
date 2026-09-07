@@ -204,11 +204,51 @@ export interface RejectedFact {
   [key: string]: any;
 }
 
-export interface IngestResponse {
-  status: 'indexed' | 'already_indexed' | 'failed' | string;
-  doc_id: string;
+// POST /ingest's immediate response — a job to poll, not the ingest result
+// itself. The result (facts/relations/counts) only exists once the job
+// reaches "completed"; see IngestJob.result below.
+export interface IngestAcceptedResponse {
+  job_id: string;
+  status: JobStatus;
+  stage: JobStage;
+}
+
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+// Mirrors fact_layer/jobs.py's JobStage exactly — only stages the backend
+// can honestly report a real, observable pipeline boundary for. There is
+// deliberately no separate "verifying" value: span/value verification
+// happen fact-by-fact, inline inside "extracting", not as a discrete pass
+// the backend could report a transition for.
+export type JobStage =
+  | 'queued' | 'parsing' | 'extracting' | 'resolving'
+  | 'adjudicating' | 'storing' | 'completed' | 'failed';
+
+export interface IngestJobResult {
+  doc_id: string | null;
   filename: string;
-  facts_extracted: number;
-  relations_formed?: number;
-  message?: string;
+  already_ingested?: boolean;
+  skipped_reason?: string | null;
+  counts?: {
+    pages: number | null; pages_selected: number | null;
+    facts_proposed: number; facts_verified: number; facts_rejected: number;
+  };
+  new_facts?: FactSummary[];
+  new_relations?: RelationSummary[];
+  clusters_touched?: number;
+  llm_calls_made?: number;
+  elapsed_seconds?: number;
+}
+
+export interface IngestJob {
+  job_id: string;
+  filename: string;
+  status: JobStatus;
+  stage: JobStage;
+  doc_id: string | null;
+  already_ingested: boolean;
+  error: string | null;
+  result: IngestJobResult | null;
+  created_at: string;
+  updated_at: string;
 }

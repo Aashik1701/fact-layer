@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-265%20passed-success.svg)](#test-suite--validation)
+[![Tests](https://img.shields.io/badge/tests-283%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
 > **Core Thesis: Comparability Before Comparison**  
@@ -202,35 +202,49 @@ flowchart TD
 
 ### 4.2 Ingest Request Lifecycle
 
+`POST /ingest` returns as soon as the upload is validated and safely stored — it never blocks on the pipeline itself (a full extraction pass can take minutes). The actual processing runs as a background task; the client polls `GET /jobs/{job_id}` for stage/status until it reaches `completed` or `failed`.
+
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
     participant UI as React 18 SPA (Vite)
     participant API as FastAPI (api.py)
+    participant Jobs as Job Registry (in-memory)
     participant Store as Fact Store (store.py)
     participant Pipeline as Pipeline Stages
     participant LLM as Groq / Replay Cache
 
     User->>UI: Drop PDF onto DocumentUploadZone
     UI->>API: POST /ingest (multipart/form-data)
+    API->>API: Validate size (50MB cap), magic bytes, sanitize filename
     API->>API: Compute SHA-256 content hash
     alt Content Already Ingested
-        API-->>UI: 200 OK (already_ingested=True, 0 calls)
+        API->>Jobs: create() then complete() — nothing to process
+        API-->>UI: 202 Accepted {job_id, status: completed}
     else New Unique Document
-        API->>Store: Store.ingest(filepath)
+        API->>API: Save file to data/uploads/ (sanitized path)
+        API->>Jobs: create() — status: queued
+        API-->>UI: 202 Accepted {job_id, status: queued}
+        Note over API,Jobs: response returned; processing continues in a background task
+        API->>Store: process_document() acquires the ingest lock, calls Store.ingest()
+        Store->>Jobs: on_stage("parsing")
         Store->>Pipeline: parse_pdf() & select_pages()
-        Store->>LLM: extract_document() (Raw strings)
-        LLM-->>Store: Fact proposals with verbatim quotes
-        Store->>Pipeline: verify_span() against page text
-        note over Pipeline: 129 real failures logged to rejected_facts.jsonl
-        Store->>Pipeline: normalize_fact() & resolve_entities()
-        Store->>Store: dedupe_within_document()
-        Store->>Store: cluster_by_subject_measure()
+        Store->>Jobs: on_stage("extracting")
+        Store->>LLM: extract_document() (raw strings, span + value verification inline)
+        LLM-->>Store: Verified facts + rejected_facts.jsonl entries
+        Store->>Jobs: on_stage("resolving")
+        Store->>Pipeline: resolve_entities() & dedupe_within_document()
+        Store->>Jobs: on_stage("adjudicating")
         Store->>Pipeline: gate() & adjudicate() across cluster pairs
-        Store->>Store: Persist updated data/store.json
-        Store-->>API: IngestSummary (facts, relations, touched clusters)
-        API-->>UI: 200 OK (IngestResponse JSON)
+        Store-->>API: IngestResult (facts, relations, touched clusters)
+        API->>Jobs: on_stage("storing")
+        API->>Store: Persist data/store.json
+        API->>Jobs: complete(doc_id, result)
+    end
+    loop every 1.2s until completed/failed
+        UI->>API: GET /jobs/{job_id}
+        API-->>UI: {status, stage, ...}
     end
     UI->>UI: Reactive state update (Cards, breakdown charts, tables)
     User->>UI: Click "View PDF Evidence"
@@ -238,6 +252,15 @@ sequenceDiagram
     API-->>UI: Fact JSON with coordinates & Rendered PNG raster
     UI->>UI: Render canvas with highlighted bounding box
 ```
+
+### 4.3 Ingestion Job Model — Honest Scope
+
+`fact_layer/jobs.py`'s `JobStore` is an **in-memory, single-process, best-effort** registry — deliberately not Celery/Redis/RabbitMQ/Kafka, which this assignment's scale and "locally runnable, easy to demo" goal don't warrant. What that choice actually means:
+
+- **Stages are real, not fabricated.** `QUEUED → PARSING → EXTRACTING → RESOLVING → ADJUDICATING → STORING → COMPLETED` map to actual boundaries inside `Store.ingest()` (via an additive, optional `on_stage` callback) and `api.py`'s persistence step. There is deliberately **no separate "verifying" stage**: span verification and deterministic value verification happen fact-by-fact, inline inside `EXTRACTING`, as each raw candidate is produced — not as a discrete pass afterward. Reporting a stage transition for a boundary that doesn't exist would be exactly the fake-progress this project's diagnostics elsewhere refuse to manufacture. There is no percentage anywhere in this model.
+- **A restart loses job records, not ingested data.** A job's own bookkeeping (its `job_id`, timestamps, in-flight stage) lives only in process memory — restarting `uvicorn` clears every job, in-flight or completed. This does **not** lose any fact/relation/document: by the time a job reaches `COMPLETED`, its output was already written to `data/store.json`, which is what `api.py` reloads on the next startup. Only the "job" as a UI-facing progress ticket is ephemeral, not the pipeline's actual output.
+- **Concurrency is handled by serialization, not parallelism.** `Store` is one shared, JSON-persisted Python object; a single `threading.Lock` (`api._INGEST_LOCK`) is held for the whole of `process_document()`, so two uploads landing close together process **one at a time**, never interleaved. This is correct and simple, but it is not a throughput feature — a second upload's job sits in `QUEUED`/`PROCESSING` until the first's lock is released, exactly like it would with a single-worker queue. Verified in `tests/test_jobs.py::test_ingest_lock_serializes_concurrent_processing`, which proves two concurrent background tasks never overlap their critical sections.
+- **What would change for multi-instance deployment:** the `JobStore` would need to move to a shared backend (Redis, a database table) so every instance's `GET /jobs/{id}` sees the same state, and the `_INGEST_LOCK` would need to become a distributed lock (or the JSON-backed `Store` would need to become a real database) so concurrent instances don't race on `data/store.json`. None of that exists today — this is a single-process, single-instance design, stated plainly rather than described as more than it is.
 
 ---
 
@@ -657,7 +680,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (265 tests):
+Execute the full offline test suite (283 tests):
 ```bash
 pytest
 ```
@@ -670,7 +693,8 @@ All endpoints return structured JSON. When mounted in production, static web ass
 
 | Method | Endpoint | Query / Body Parameters | Response Summary |
 |---|---|---|---|
-| `POST` | `/ingest` | `file`: Multipart PDF upload (50 MB cap, PDF magic-byte validated, filename sanitized — see §14 Upload Security) | `IngestResponse`: Status, new fact count, new relation count, touched clusters. |
+| `POST` | `/ingest` | `file`: Multipart PDF upload (50 MB cap, PDF magic-byte validated, filename sanitized — see §14 Upload Security) | **202 Accepted**: `{job_id, status, stage}` — validation happens synchronously; processing happens in the background. See §4.3 and `GET /jobs/{job_id}`. |
+| `GET` | `/jobs/{job_id}` | `job_id` (path) | Job status/stage/`doc_id`/`error`/`result`/timestamps. `404` for an unknown id (including one from before a server restart — jobs are in-memory, see §4.3). |
 | `GET` | `/documents` | None | Array of ingested documents with IDs, filenames, fact counts, and a `diagnostics` object (page/table counts, image-only/sparse-page counts, repeated header/footer candidates, warnings). |
 | `GET` | `/facts` | `doc_id`, `subject`, `measure`, `min_confidence`, `limit`, `offset` | Paginated array of extracted facts, each including `value_verification` (`"verified"` \| `"unverified"` \| `null`) and `value_verification_reason`. |
 | `GET` | `/facts/{fact_id}` | `fact_id` (path) | Full `FactFull` object including all evidence anchors, coordinates, value-verification status (now including `verified_with_context`), and — when a value was confidently attributed to a table cell — `table_id`/`row_label`/`column_header`/`unit_context`/`cell_bbox` on each evidence span. |
@@ -738,4 +762,4 @@ Auditing the frontend for B2/B3 surfaced two pre-existing, silent bugs, both fro
 - [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: 265 unit and integration tests passing cleanly via `pytest` (244 pre-existing + 21 added for upload-security hardening — path traversal, size limits, PDF magic-byte validation, and cleanup).
+- [x] **Comprehensive Test Suite**: 283 unit and integration tests passing cleanly via `pytest` (265 pre-existing + 16 added for the ingestion job model — creation, stage transitions, completion, failure, error sanitization, and lock-serialized concurrency; note the pre-existing count also grew by 2 independently of this phase's own additions).
