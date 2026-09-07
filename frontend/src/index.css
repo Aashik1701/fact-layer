@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ─── DARK MODE (default) ─── */
+  :root,
+  html.dark {
+    --bg-base:       222 47% 7%;
+    --bg-surface:    222 47% 11%;
+    --bg-elevated:   217 33% 15%;
+    --bg-card:       217 33% 17%;
+    --border-subtle: 217 33% 22%;
+    --text-primary:  210 40% 96%;
+    --text-secondary:215 20% 65%;
+    --text-muted:    215 20% 45%;
+    --ring:          199 89% 48%;
+  }
+
+  /* ─── LIGHT MODE ─── */
+  html.light {
+    --bg-base:       210 40% 98%;
+    --bg-surface:    210 40% 95%;
+    --bg-elevated:   210 40% 91%;
+    --bg-card:       0 0% 100%;
+    --border-subtle: 220 13% 86%;
+    --text-primary:  222 47% 10%;
+    --text-secondary:222 20% 38%;
+    --text-muted:    222 15% 58%;
+    --ring:          199 89% 40%;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-color: hsl(var(--bg-base));
+    color: hsl(var(--text-primary));
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(56, 189, 248, 0.25);
+    color: hsl(var(--text-primary));
+  }
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+html.dark ::-webkit-scrollbar-track { background: #070c16; }
+html.light ::-webkit-scrollbar-track { background: #e2e8f0; }
+html.dark ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+html.light ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #334155; }
+html.light ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* ─── Theme-aware Glassmorphism ─── */
+html.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.80);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.45);
+}
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+html.dark .glass-card {
+  background: rgba(17, 24, 39, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(51, 65, 85, 0.55);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+}
+html.light .glass-card {
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(148, 163, 184, 0.40);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06);
+}
+
+.glass-card-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+html.dark .glass-card-hover:hover {
+  border-color: rgba(56, 189, 248, 0.40);
+  box-shadow: 0 8px 30px -4px rgba(56, 189, 248, 0.15);
+  transform: translateY(-1px);
+}
+html.light .glass-card-hover:hover {
+  border-color: rgba(14, 165, 233, 0.50);
+  box-shadow: 0 8px 30px -4px rgba(14, 165, 233, 0.12);
+  transform: translateY(-1px);
+}
+
+/* ─── Theme-aware semantic utilities ─── */
+.th-bg-base    { background-color: hsl(var(--bg-base)); }
+.th-bg-surface { background-color: hsl(var(--bg-surface)); }
+.th-bg-card    { background-color: hsl(var(--bg-card)); }
+.th-border     { border-color: hsl(var(--border-subtle)); }
+.th-text       { color: hsl(var(--text-primary)); }
+.th-text-muted { color: hsl(var(--text-secondary)); }
+
+/* ─── Smooth theme transition on all elements ─── */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 0.18s;
+  transition-timing-function: ease;
+}
+/* Don't animate transforms/opacity via global rule (causes jank) */
+[class*="animate-"],
+[class*="transition-"],
+.glass-card-hover {
+  transition-property: all;
+}

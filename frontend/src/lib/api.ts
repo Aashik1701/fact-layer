@@ -1,0 +1,127 @@
+import {
+  FactSummary,
+  FactFull,
+  RelationSummary,
+  RelationFull,
+  DocumentInfo,
+  ClusterInfo,
+  StatsResponse,
+  RejectedFact,
+  IngestResponse,
+} from '@/types';
+
+const API_BASE = '';
+
+export async function fetchStats(): Promise<StatsResponse> {
+  const res = await fetch(`${API_BASE}/stats`);
+  if (!res.ok) throw new Error(`Failed to fetch stats: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchDocuments(): Promise<{ documents: DocumentInfo[]; total: number }> {
+  const res = await fetch(`${API_BASE}/documents`);
+  if (!res.ok) throw new Error(`Failed to fetch documents: ${res.statusText}`);
+  return res.json();
+}
+
+export interface FactFilterParams {
+  doc_id?: string;
+  subject?: string;
+  measure?: string;
+  min_confidence?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export async function fetchFacts(params?: FactFilterParams): Promise<{
+  facts: FactSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+}> {
+  const query = new URLSearchParams();
+  if (params?.doc_id) query.set('doc_id', params.doc_id);
+  if (params?.subject) query.set('subject', params.subject);
+  if (params?.measure) query.set('measure', params.measure);
+  if (params?.min_confidence !== undefined) query.set('min_confidence', params.min_confidence.toString());
+  if (params?.limit !== undefined) query.set('limit', params.limit.toString());
+  if (params?.offset !== undefined) query.set('offset', params.offset.toString());
+
+  const res = await fetch(`${API_BASE}/facts?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch facts: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchFact(factId: string): Promise<FactFull> {
+  const res = await fetch(`${API_BASE}/facts/${encodeURIComponent(factId)}`);
+  if (!res.ok) throw new Error(`Failed to fetch fact ${factId}: ${res.statusText}`);
+  return res.json();
+}
+
+export interface RelationFilterParams {
+  type?: string;
+  min_confidence?: number;
+  doc_id?: string;
+}
+
+export async function fetchRelations(params?: RelationFilterParams): Promise<{
+  relations: RelationSummary[];
+  total: number;
+}> {
+  const query = new URLSearchParams();
+  if (params?.type) query.set('type', params.type);
+  if (params?.min_confidence !== undefined) query.set('min_confidence', params.min_confidence.toString());
+  if (params?.doc_id) query.set('doc_id', params.doc_id);
+
+  const res = await fetch(`${API_BASE}/relations?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch relations: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchRelation(relationId: string): Promise<RelationFull> {
+  const res = await fetch(`${API_BASE}/relations/${encodeURIComponent(relationId)}`);
+  if (!res.ok) throw new Error(`Failed to fetch relation ${relationId}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchClusters(min_size: number = 1): Promise<{
+  clusters: ClusterInfo[];
+  total: number;
+}> {
+  const res = await fetch(`${API_BASE}/clusters?min_size=${min_size}`);
+  if (!res.ok) throw new Error(`Failed to fetch clusters: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchRejectedFacts(limit: number = 200, reason?: string): Promise<{
+  rejected_facts: RejectedFact[];
+  total: number;
+}> {
+  const query = new URLSearchParams();
+  query.set('limit', limit.toString());
+  if (reason) query.set('reason', reason);
+
+  const res = await fetch(`${API_BASE}/rejected-facts?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch rejected facts: ${res.statusText}`);
+  return res.json();
+}
+
+export async function ingestDocument(file: File): Promise<IngestResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/ingest`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(errData.detail || `Upload failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export function getPageImageUrl(docId: string, page: number): string {
+  return `${API_BASE}/page-image/${encodeURIComponent(docId)}/${page}`;
+}
