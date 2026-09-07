@@ -1,0 +1,326 @@
+{
+  "summary": {
+    "facts_proposed": 819,
+    "facts_verified": 690,
+    "fuzzy_snapped": 48,
+    "rejected_total": 129,
+    "rejected_by_reason": {
+      "quote_not_found": 111,
+      "no_measure": 18
+    },
+    "SPAN_VERIFICATION_PASS_RATE": 0.8425,
+    "pages_split": 20,
+    "llm_calls": 105,
+    "metadata_calls": 6,
+    "llm_cache_hits": 86,
+    "estimated_input_tokens": 31953
+  },
+  "per_document": [
+    {
+      "doc_id": "c2a4a8255dce2ff5",
+      "filename": "01-delhivery-prospectus-2022-excerpt.pdf",
+      "facts_proposed": 182,
+      "facts_verified": 162,
+      "fuzzy_snapped": 5,
+      "pages_split": 2,
+      "pass_rate": 0.8901,
+      "top_10_measures": [
+        {
+          "measure": "amount",
+          "count": 30
+        },
+        {
+          "measure": "Investment in equity",
+          "count": 8
+        },
+        {
+          "measure": "estimated amount (in \u20b9 million)",
+          "count": 6
+        },
+        {
+          "measure": "Number of shares acquired",
+          "count": 6
+        },
+        {
+          "measure": "Total income",
+          "count": 5
+        },
+        {
+          "measure": "Number of equity shares acquired",
+          "count": 5
+        },
+        {
+          "measure": "Price per equity share (in \u20b9)",
+          "count": 5
+        },
+        {
+          "measure": "Aggregate amount",
+          "count": 4
+        },
+        {
+          "measure": "Weighted average cost per Equity Share",
+          "count": 4
+        },
+        {
+          "measure": "Date",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "doc_id": "4c5a0e94d84aeb42",
+      "filename": "02-delhivery-annual-report-fy24-excerpt.pdf",
+      "facts_proposed": 243,
+      "facts_verified": 207,
+      "fuzzy_snapped": 10,
+      "pages_split": 10,
+      "pass_rate": 0.8519,
+      "top_10_measures": [
+        {
+          "measure": "Amount (million)",
+          "count": 10
+        },
+        {
+          "measure": "Date of Appointment",
+          "count": 9
+        },
+        {
+          "measure": "recognised expense",
+          "count": 5
+        },
+        {
+          "measure": "No. of equity shares allotted",
+          "count": 4
+        },
+        {
+          "measure": "Employee Stock Options Shares allotted",
+          "count": 4
+        },
+        {
+          "measure": "Remuneration (in K)",
+          "count": 4
+        },
+        {
+          "measure": "Decrease in Depreciation",
+          "count": 4
+        },
+        {
+          "measure": "Number of shares",
+          "count": 4
+        },
+        {
+          "measure": "% increase/(decrease) in remuneration",
+          "count": 3
+        },
+        {
+          "measure": "Ceased to be a Director",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "doc_id": "cd521b3849e8bcf1",
+      "filename": "03-delhivery-q4-fy24-earnings-presentation.pdf",
+      "facts_proposed": 39,
+      "facts_verified": 28,
+      "fuzzy_snapped": 6,
+      "pages_split": 0,
+      "pass_rate": 0.7179,
+      "top_10_measures": [
+        {
+          "measure": "\u20b9 Cr",
+          "count": 15
+        },
+        {
+          "measure": "Revenue",
+          "count": 1
+        },
+        {
+          "measure": "EBITDA",
+          "count": 1
+        },
+        {
+          "measure": "EBITDA margin",
+          "count": 1
+        },
+        {
+          "measure": "Adj. EBITDA",
+          "count": 1
+        },
+        {
+          "measure": "Adj. EBITDA margin",
+          "count": 1
+        },
+        {
+          "measure": "Shipments",
+          "count": 1
+        },
+        {
+          "measure": "Freight tonnage",
+          "count": 1
+        },
+        {
+          "measure": "Number of pin-codes reached",
+          "count": 1
+        },
+        {
+          "measure": "Active Customers",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "doc_id": "e03255fdaf2e025c",
+      "filename": "01-india-economic-survey-2024-25-excerpt.pdf",
+      "facts_proposed": 70,
+      "facts_verified": 70,
+      "fuzzy_snapped": 3,
+      "pages_split": 0,
+      "pass_rate": 1.0,
+      "top_10_measures": [
+        {
+          "measure": "growth",
+          "count": 9
+        },
+        {
+          "measure": "USD",
+          "count": 6
+        },
+        {
+          "measure": "days",
+          "count": 5
+        },
+        {
+          "measure": "value",
+          "count": 4
+        },
+        {
+          "measure": "USD billion",
+          "count": 4
+        },
+        {
+          "measure": "World consumption of major textile fibres (tnec)",
+          "count": 3
+        },
+        {
+          "measure": "unemployment rate",
+          "count": 2
+        },
+        {
+          "measure": "urban unemployment rate",
+          "count": 2
+        },
+        {
+          "measure": "subscriptions",
+          "count": 2
+        },
+        {
+          "measure": "% of GDP",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "doc_id": "80f993da9c93fbf9",
+      "filename": "02-rbi-annual-report-2024-25-excerpt.pdf",
+      "facts_proposed": 113,
+      "facts_verified": 87,
+      "fuzzy_snapped": 10,
+      "pages_split": 0,
+      "pass_rate": 0.7699,
+      "top_10_measures": [
+        {
+          "measure": "per cent of GDP",
+          "count": 15
+        },
+        {
+          "measure": "Outstanding as on March 21, 2025 (\u20b9 lakh crore)",
+          "count": 7
+        },
+        {
+          "measure": "% change",
+          "count": 6
+        },
+        {
+          "measure": "2024-25",
+          "count": 5
+        },
+        {
+          "measure": "All India",
+          "count": 4
+        },
+        {
+          "measure": "per cent",
+          "count": 4
+        },
+        {
+          "measure": "Growth Rate 2022-23 (per cent, y\u2011o\u2011y)",
+          "count": 3
+        },
+        {
+          "measure": "Annual value (US$ billion)",
+          "count": 3
+        },
+        {
+          "measure": "Million Tonnes",
+          "count": 3
+        },
+        {
+          "measure": "improve to",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "doc_id": "c60ecf78cea819f9",
+      "filename": "03-imf-india-2025-article-iv-excerpt.pdf",
+      "facts_proposed": 172,
+      "facts_verified": 136,
+      "fuzzy_snapped": 14,
+      "pages_split": 8,
+      "pass_rate": 0.7907,
+      "top_10_measures": [
+        {
+          "measure": "percent of GDP",
+          "count": 28
+        },
+        {
+          "measure": "percent",
+          "count": 7
+        },
+        {
+          "measure": "real GDP growth",
+          "count": 4
+        },
+        {
+          "measure": "percent y/y",
+          "count": 4
+        },
+        {
+          "measure": "dollar amount",
+          "count": 4
+        },
+        {
+          "measure": "share of GSDP",
+          "count": 3
+        },
+        {
+          "measure": "growth of",
+          "count": 2
+        },
+        {
+          "measure": "Percent (poverty lines based on 2021 PPP prices)",
+          "count": 2
+        },
+        {
+          "measure": "share of population",
+          "count": 2
+        },
+        {
+          "measure": "headline inflation",
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

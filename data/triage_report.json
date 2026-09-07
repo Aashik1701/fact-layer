@@ -1,0 +1,3491 @@
+{
+  "documents": [
+    {
+      "doc_id": "c2a4a8255dce2ff5",
+      "filename": "01-delhivery-prospectus-2022-excerpt.pdf",
+      "n_pages": 100,
+      "table_strategy": "lines",
+      "budget": 15,
+      "char_budget": 6000,
+      "pages_selected": [
+        {
+          "page_no": 1,
+          "score": 37.826,
+          "periods": 5,
+          "quants": 154,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 4,
+          "score": 33.665,
+          "periods": 5,
+          "quants": 88,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 5,
+          "score": 34.233,
+          "periods": 5,
+          "quants": 95,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 6,
+          "score": 29.917,
+          "periods": 5,
+          "quants": 53,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 8,
+          "score": 36.507,
+          "periods": 5,
+          "quants": 129,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 10,
+          "score": 31.192,
+          "periods": 5,
+          "quants": 63,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 11,
+          "score": 23.811,
+          "periods": 5,
+          "quants": 116,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 12,
+          "score": 26.991,
+          "periods": 8,
+          "quants": 220,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 44,
+          "score": 22.443,
+          "periods": 7,
+          "quants": 88,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 45,
+          "score": 37.874,
+          "periods": 6,
+          "quants": 155,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 46,
+          "score": 22.499,
+          "periods": 6,
+          "quants": 89,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 56,
+          "score": 25.881,
+          "periods": 5,
+          "quants": 176,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 70,
+          "score": 22.663,
+          "periods": 6,
+          "quants": 92,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 73,
+          "score": 26.591,
+          "periods": 13,
+          "quants": 203,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 89,
+          "score": 28.876,
+          "periods": 8,
+          "quants": 46,
+          "has_scale_context": true
+        }
+      ],
+      "pages_rejected": [
+        {
+          "page_no": 2,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 3,
+          "reason": "over_budget",
+          "score": 20.037,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 7,
+          "reason": "over_budget",
+          "score": 7.242,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 9,
+          "reason": "over_budget",
+          "score": 19.719,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 13,
+          "reason": "over_budget",
+          "score": 4.771,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 14,
+          "reason": "over_budget",
+          "score": 7.275,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 15,
+          "reason": "over_budget",
+          "score": 14.803,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 16,
+          "reason": "over_budget",
+          "score": 13.904,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 17,
+          "reason": "over_budget",
+          "score": 7.254,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 18,
+          "reason": "over_budget",
+          "score": 6.215,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 19,
+          "reason": "over_budget",
+          "score": 15.425,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 20,
+          "reason": "over_budget",
+          "score": 15.407,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 21,
+          "reason": "over_budget",
+          "score": 15.052,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 22,
+          "reason": "over_budget",
+          "score": 6.476,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 23,
+          "reason": "over_budget",
+          "score": 5.57,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 24,
+          "reason": "over_budget",
+          "score": 5.151,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 25,
+          "reason": "over_budget",
+          "score": 6.877,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 26,
+          "reason": "over_budget",
+          "score": 6.699,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 27,
+          "reason": "over_budget",
+          "score": 21.834,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 28,
+          "reason": "over_budget",
+          "score": 20.856,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 29,
+          "reason": "over_budget",
+          "score": 19.605,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 30,
+          "reason": "over_budget",
+          "score": 16.443,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 31,
+          "reason": "over_budget",
+          "score": 7.111,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 32,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 33,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 34,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 35,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 36,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 37,
+          "reason": "over_budget",
+          "score": 7.222,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 38,
+          "reason": "over_budget",
+          "score": 18.444,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 39,
+          "reason": "over_budget",
+          "score": 5.13,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 40,
+          "reason": "over_budget",
+          "score": 6.065,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 41,
+          "reason": "over_budget",
+          "score": 1.792,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 42,
+          "reason": "over_budget",
+          "score": 17.17,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 43,
+          "reason": "over_budget",
+          "score": 16.479,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 47,
+          "reason": "over_budget",
+          "score": 18.568,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 48,
+          "reason": "over_budget",
+          "score": 10.991,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 49,
+          "reason": "over_budget",
+          "score": 13.986,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 50,
+          "reason": "over_budget",
+          "score": 19.459,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 51,
+          "reason": "over_budget",
+          "score": 13.469,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 52,
+          "reason": "over_budget",
+          "score": 3.258,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 53,
+          "reason": "over_budget",
+          "score": 1.792,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 54,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 55,
+          "reason": "over_budget",
+          "score": 19.459,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 57,
+          "reason": "over_budget",
+          "score": 13.54,
+          "bare_year_ratio": 0.21
+        },
+        {
+          "page_no": 58,
+          "reason": "over_budget",
+          "score": 17.006,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 59,
+          "reason": "over_budget",
+          "score": 21.52,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 60,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 61,
+          "reason": "not_candidate",
+          "score": 1.099,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 62,
+          "reason": "over_budget",
+          "score": 2.485,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 63,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 64,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.14
+        },
+        {
+          "page_no": 65,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 66,
+          "reason": "over_budget",
+          "score": 2.303,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 67,
+          "reason": "over_budget",
+          "score": 3.434,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 68,
+          "reason": "over_budget",
+          "score": 13.736,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 69,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 71,
+          "reason": "over_budget",
+          "score": 12.178,
+          "bare_year_ratio": 0.15
+        },
+        {
+          "page_no": 72,
+          "reason": "over_budget",
+          "score": 21.784,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 74,
+          "reason": "over_budget",
+          "score": 7.784,
+          "bare_year_ratio": 0.56
+        },
+        {
+          "page_no": 75,
+          "reason": "over_budget",
+          "score": 8.671,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 76,
+          "reason": "over_budget",
+          "score": 15.677,
+          "bare_year_ratio": 0.32
+        },
+        {
+          "page_no": 77,
+          "reason": "over_budget",
+          "score": 4.605,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 78,
+          "reason": "over_budget",
+          "score": 11.333,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 79,
+          "reason": "over_budget",
+          "score": 5.889,
+          "bare_year_ratio": 0.22
+        },
+        {
+          "page_no": 80,
+          "reason": "over_budget",
+          "score": 16.509,
+          "bare_year_ratio": 0.15
+        },
+        {
+          "page_no": 81,
+          "reason": "over_budget",
+          "score": 15.805,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 82,
+          "reason": "over_budget",
+          "score": 10.991,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 83,
+          "reason": "over_budget",
+          "score": 7.275,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 84,
+          "reason": "over_budget",
+          "score": 19.56,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 85,
+          "reason": "over_budget",
+          "score": 19.56,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 86,
+          "reason": "over_budget",
+          "score": 20.215,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 87,
+          "reason": "over_budget",
+          "score": 8.318,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 88,
+          "reason": "over_budget",
+          "score": 16.479,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 90,
+          "reason": "over_budget",
+          "score": 4.394,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 91,
+          "reason": "over_budget",
+          "score": 21.171,
+          "bare_year_ratio": 0.32
+        },
+        {
+          "page_no": 92,
+          "reason": "over_budget",
+          "score": 15.89,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 93,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 94,
+          "reason": "over_budget",
+          "score": 1.792,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 95,
+          "reason": "over_budget",
+          "score": 2.303,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 96,
+          "reason": "over_budget",
+          "score": 2.197,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 97,
+          "reason": "over_budget",
+          "score": 17.632,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 98,
+          "reason": "over_budget",
+          "score": 17.17,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 99,
+          "reason": "over_budget",
+          "score": 19.56,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 100,
+          "reason": "over_budget",
+          "score": 14.979,
+          "bare_year_ratio": 0.47
+        }
+      ],
+      "bare_year_dropped_pages": 0,
+      "batches": [
+        [
+          1
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ],
+        [
+          8
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          44
+        ],
+        [
+          45
+        ],
+        [
+          46
+        ],
+        [
+          56
+        ],
+        [
+          70
+        ],
+        [
+          73
+        ],
+        [
+          89
+        ]
+      ],
+      "projected_calls": 15
+    },
+    {
+      "doc_id": "4c5a0e94d84aeb42",
+      "filename": "02-delhivery-annual-report-fy24-excerpt.pdf",
+      "n_pages": 100,
+      "table_strategy": "lines",
+      "budget": 20,
+      "char_budget": 6000,
+      "pages_selected": [
+        {
+          "page_no": 23,
+          "score": 37.969,
+          "periods": 18,
+          "quants": 157,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 31,
+          "score": 23.548,
+          "periods": 17,
+          "quants": 110,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 33,
+          "score": 35.906,
+          "periods": 9,
+          "quants": 119,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 40,
+          "score": 24.636,
+          "periods": 9,
+          "quants": 137,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 43,
+          "score": 37.274,
+          "periods": 12,
+          "quants": 143,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 44,
+          "score": 23.457,
+          "periods": 12,
+          "quants": 108,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 50,
+          "score": 23.27,
+          "periods": 11,
+          "quants": 104,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 68,
+          "score": 24.587,
+          "periods": 3,
+          "quants": 235,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 69,
+          "score": 23.393,
+          "periods": 3,
+          "quants": 180,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 79,
+          "score": 35.25,
+          "periods": 4,
+          "quants": 355,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 81,
+          "score": 24.332,
+          "periods": 3,
+          "quants": 222,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 83,
+          "score": 33.008,
+          "periods": 4,
+          "quants": 244,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 87,
+          "score": 30.815,
+          "periods": 4,
+          "quants": 169,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 90,
+          "score": 31.638,
+          "periods": 4,
+          "quants": 194,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 91,
+          "score": 35.906,
+          "periods": 18,
+          "quants": 119,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 92,
+          "score": 23.82,
+          "periods": 3,
+          "quants": 198,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 96,
+          "score": 37.969,
+          "periods": 11,
+          "quants": 157,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 97,
+          "score": 26.688,
+          "periods": 6,
+          "quants": 207,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 98,
+          "score": 25.086,
+          "periods": 6,
+          "quants": 150,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 99,
+          "score": 24.918,
+          "periods": 5,
+          "quants": 145,
+          "has_scale_context": false
+        }
+      ],
+      "pages_rejected": [
+        {
+          "page_no": 1,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 2,
+          "reason": "over_budget",
+          "score": 7.275,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 3,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 4,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 5,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.33
+        },
+        {
+          "page_no": 6,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 7,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 8,
+          "reason": "over_budget",
+          "score": 3.892,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 9,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 10,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 11,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 12,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 13,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 14,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 15,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 16,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 17,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 18,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 19,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 20,
+          "reason": "over_budget",
+          "score": 3.466,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 21,
+          "reason": "over_budget",
+          "score": 2.079,
+          "bare_year_ratio": 0.14
+        },
+        {
+          "page_no": 22,
+          "reason": "over_budget",
+          "score": 21.655,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 24,
+          "reason": "over_budget",
+          "score": 22.154,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 25,
+          "reason": "over_budget",
+          "score": 12.381,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 26,
+          "reason": "over_budget",
+          "score": 8.764,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 27,
+          "reason": "over_budget",
+          "score": 10.49,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 28,
+          "reason": "over_budget",
+          "score": 21.501,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 29,
+          "reason": "over_budget",
+          "score": 7.222,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 30,
+          "reason": "over_budget",
+          "score": 4.22,
+          "bare_year_ratio": 0.37
+        },
+        {
+          "page_no": 32,
+          "reason": "over_budget",
+          "score": 6.476,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 34,
+          "reason": "over_budget",
+          "score": 13.398,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 35,
+          "reason": "over_budget",
+          "score": 3.584,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 36,
+          "reason": "over_budget",
+          "score": 15.819,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 37,
+          "reason": "over_budget",
+          "score": 13.933,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 38,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 39,
+          "reason": "over_budget",
+          "score": 6.664,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 41,
+          "reason": "over_budget",
+          "score": 20.127,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 42,
+          "reason": "over_budget",
+          "score": 22.094,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 45,
+          "reason": "over_budget",
+          "score": 8.581,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 46,
+          "reason": "over_budget",
+          "score": 19.651,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 47,
+          "reason": "over_budget",
+          "score": 15.645,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 48,
+          "reason": "over_budget",
+          "score": 8.155,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 49,
+          "reason": "over_budget",
+          "score": 16.698,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 51,
+          "reason": "over_budget",
+          "score": 20.682,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 52,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 53,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 54,
+          "reason": "over_budget",
+          "score": 5.081,
+          "bare_year_ratio": 0.24
+        },
+        {
+          "page_no": 55,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 56,
+          "reason": "over_budget",
+          "score": 5.257,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 57,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 58,
+          "reason": "over_budget",
+          "score": 3.892,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 59,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 60,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 61,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 62,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 63,
+          "reason": "over_budget",
+          "score": 4.143,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 64,
+          "reason": "over_budget",
+          "score": 11.675,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 65,
+          "reason": "over_budget",
+          "score": 3.497,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 66,
+          "reason": "over_budget",
+          "score": 12.181,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 67,
+          "reason": "over_budget",
+          "score": 6.664,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 70,
+          "reason": "over_budget",
+          "score": 5.231,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 71,
+          "reason": "over_budget",
+          "score": 11.284,
+          "bare_year_ratio": 0.21
+        },
+        {
+          "page_no": 72,
+          "reason": "over_budget",
+          "score": 2.833,
+          "bare_year_ratio": 0.31
+        },
+        {
+          "page_no": 73,
+          "reason": "over_budget",
+          "score": 3.664,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 74,
+          "reason": "over_budget",
+          "score": 2.833,
+          "bare_year_ratio": 0.31
+        },
+        {
+          "page_no": 75,
+          "reason": "over_budget",
+          "score": 2.773,
+          "bare_year_ratio": 0.33
+        },
+        {
+          "page_no": 76,
+          "reason": "over_budget",
+          "score": 2.773,
+          "bare_year_ratio": 0.33
+        },
+        {
+          "page_no": 77,
+          "reason": "over_budget",
+          "score": 3.045,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 78,
+          "reason": "over_budget",
+          "score": 9.888,
+          "bare_year_ratio": 0.27
+        },
+        {
+          "page_no": 80,
+          "reason": "over_budget",
+          "score": 16.784,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 82,
+          "reason": "over_budget",
+          "score": 17.101,
+          "bare_year_ratio": 0.14
+        },
+        {
+          "page_no": 84,
+          "reason": "over_budget",
+          "score": 23.058,
+          "bare_year_ratio": 0.22
+        },
+        {
+          "page_no": 85,
+          "reason": "over_budget",
+          "score": 16.34,
+          "bare_year_ratio": 0.15
+        },
+        {
+          "page_no": 86,
+          "reason": "over_budget",
+          "score": 16.126,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 88,
+          "reason": "over_budget",
+          "score": 9.087,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 89,
+          "reason": "over_budget",
+          "score": 8.661,
+          "bare_year_ratio": 0.21
+        },
+        {
+          "page_no": 93,
+          "reason": "over_budget",
+          "score": 23.174,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 94,
+          "reason": "over_budget",
+          "score": 10.341,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 95,
+          "reason": "over_budget",
+          "score": 20.199,
+          "bare_year_ratio": 0.14
+        },
+        {
+          "page_no": 100,
+          "reason": "over_budget",
+          "score": 8.576,
+          "bare_year_ratio": 0.02
+        }
+      ],
+      "bare_year_dropped_pages": 0,
+      "batches": [
+        [
+          23
+        ],
+        [
+          31
+        ],
+        [
+          33
+        ],
+        [
+          40
+        ],
+        [
+          43
+        ],
+        [
+          44
+        ],
+        [
+          50
+        ],
+        [
+          68
+        ],
+        [
+          69
+        ],
+        [
+          79
+        ],
+        [
+          81
+        ],
+        [
+          83
+        ],
+        [
+          87
+        ],
+        [
+          90
+        ],
+        [
+          91
+        ],
+        [
+          92
+        ],
+        [
+          96
+        ],
+        [
+          97
+        ],
+        [
+          98
+        ],
+        [
+          99
+        ]
+      ],
+      "projected_calls": 20
+    },
+    {
+      "doc_id": "cd521b3849e8bcf1",
+      "filename": "03-delhivery-q4-fy24-earnings-presentation.pdf",
+      "n_pages": 27,
+      "table_strategy": "lines",
+      "budget": -1,
+      "char_budget": 6000,
+      "pages_selected": [
+        {
+          "page_no": 1,
+          "score": 9.406,
+          "periods": 3,
+          "quants": 22,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 5,
+          "score": 3.296,
+          "periods": 1,
+          "quants": 26,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 7,
+          "score": 13.398,
+          "periods": 3,
+          "quants": 86,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 8,
+          "score": 19.183,
+          "periods": 4,
+          "quants": 120,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 11,
+          "score": 14.046,
+          "periods": 3,
+          "quants": 107,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 12,
+          "score": 13.183,
+          "periods": 3,
+          "quants": 80,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 13,
+          "score": 18.444,
+          "periods": 8,
+          "quants": 39,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 14,
+          "score": 25.992,
+          "periods": 8,
+          "quants": 180,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 15,
+          "score": 29.403,
+          "periods": 8,
+          "quants": 357,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 17,
+          "score": 16.861,
+          "periods": 3,
+          "quants": 275,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 23,
+          "score": 13.108,
+          "periods": 3,
+          "quants": 78,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 24,
+          "score": 22.423,
+          "periods": 4,
+          "quants": 271,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 25,
+          "score": 3.761,
+          "periods": 1,
+          "quants": 42,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 26,
+          "score": 6.238,
+          "periods": 3,
+          "quants": 7,
+          "has_scale_context": false
+        }
+      ],
+      "pages_rejected": [
+        {
+          "page_no": 2,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 3,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 4,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 6,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 9,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 10,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 16,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 18,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 19,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 20,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 21,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 22,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 27,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        }
+      ],
+      "bare_year_dropped_pages": 0,
+      "batches": [
+        [
+          1,
+          5,
+          7,
+          8
+        ],
+        [
+          11,
+          12,
+          13,
+          14
+        ],
+        [
+          15,
+          17
+        ],
+        [
+          23,
+          24,
+          25
+        ],
+        [
+          26
+        ]
+      ],
+      "projected_calls": 5
+    },
+    {
+      "doc_id": "e03255fdaf2e025c",
+      "filename": "01-india-economic-survey-2024-25-excerpt.pdf",
+      "n_pages": 89,
+      "table_strategy": "lines",
+      "budget": 12,
+      "char_budget": 6000,
+      "pages_selected": [
+        {
+          "page_no": 15,
+          "score": 11.284,
+          "periods": 3,
+          "quants": 42,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 17,
+          "score": 12.992,
+          "periods": 3,
+          "quants": 75,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 19,
+          "score": 19.083,
+          "periods": 4,
+          "quants": 117,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 21,
+          "score": 11.106,
+          "periods": 2,
+          "quants": 257,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 34,
+          "score": 9.869,
+          "periods": 2,
+          "quants": 138,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 46,
+          "score": 14.105,
+          "periods": 4,
+          "quants": 33,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 55,
+          "score": 24.636,
+          "periods": 5,
+          "quants": 137,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 62,
+          "score": 15.372,
+          "periods": 3,
+          "quants": 167,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 63,
+          "score": 12.429,
+          "periods": 3,
+          "quants": 62,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 64,
+          "score": 10.769,
+          "periods": 2,
+          "quants": 217,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 81,
+          "score": 13.031,
+          "periods": 3,
+          "quants": 76,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 87,
+          "score": 22.443,
+          "periods": 6,
+          "quants": 88,
+          "has_scale_context": false
+        }
+      ],
+      "pages_rejected": [
+        {
+          "page_no": 1,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 2,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 3,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 4,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 5,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 6,
+          "reason": "over_budget",
+          "score": 9.72,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 7,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 8,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 9,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 10,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 11,
+          "reason": "over_budget",
+          "score": 4.812,
+          "bare_year_ratio": 0.2
+        },
+        {
+          "page_no": 12,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 13,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 14,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 16,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 18,
+          "reason": "over_budget",
+          "score": 6.516,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 20,
+          "reason": "over_budget",
+          "score": 5.242,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 22,
+          "reason": "over_budget",
+          "score": 9.364,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 23,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 24,
+          "reason": "over_budget",
+          "score": 4.934,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 25,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 26,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 27,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 28,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 29,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 30,
+          "reason": "over_budget",
+          "score": 9.657,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 31,
+          "reason": "over_budget",
+          "score": 4.331,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 32,
+          "reason": "over_budget",
+          "score": 4.19,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 33,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 35,
+          "reason": "over_budget",
+          "score": 2.708,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 36,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 37,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 38,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 39,
+          "reason": "over_budget",
+          "score": 4.796,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 40,
+          "reason": "over_budget",
+          "score": 3.871,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 41,
+          "reason": "over_budget",
+          "score": 9.25,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 42,
+          "reason": "over_budget",
+          "score": 4.71,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 43,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 44,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 45,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 47,
+          "reason": "over_budget",
+          "score": 4.248,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 48,
+          "reason": "over_budget",
+          "score": 9.657,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 49,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 50,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 51,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 52,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.2
+        },
+        {
+          "page_no": 53,
+          "reason": "over_budget",
+          "score": 3.332,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 54,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 56,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 57,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 58,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 59,
+          "reason": "over_budget",
+          "score": 3.951,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 60,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 61,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 65,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 66,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 67,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 68,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 69,
+          "reason": "over_budget",
+          "score": 5.112,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 70,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 71,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 72,
+          "reason": "over_budget",
+          "score": 4.22,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 73,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 74,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 75,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 76,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 77,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 78,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 79,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 80,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.14
+        },
+        {
+          "page_no": 82,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 83,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.27
+        },
+        {
+          "page_no": 84,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 85,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.24
+        },
+        {
+          "page_no": 86,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 88,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.24
+        },
+        {
+          "page_no": 89,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        }
+      ],
+      "bare_year_dropped_pages": 0,
+      "batches": [
+        [
+          15,
+          17
+        ],
+        [
+          19
+        ],
+        [
+          21
+        ],
+        [
+          34
+        ],
+        [
+          46
+        ],
+        [
+          55
+        ],
+        [
+          62
+        ],
+        [
+          63
+        ],
+        [
+          64,
+          81
+        ],
+        [
+          87
+        ]
+      ],
+      "projected_calls": 10
+    },
+    {
+      "doc_id": "80f993da9c93fbf9",
+      "filename": "02-rbi-annual-report-2024-25-excerpt.pdf",
+      "n_pages": 100,
+      "table_strategy": "lines",
+      "budget": 15,
+      "char_budget": 6000,
+      "pages_selected": [
+        {
+          "page_no": 15,
+          "score": 16.443,
+          "periods": 4,
+          "quants": 60,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 25,
+          "score": 9.541,
+          "periods": 2,
+          "quants": 117,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 30,
+          "score": 9.437,
+          "periods": 2,
+          "quants": 111,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 34,
+          "score": 11.189,
+          "periods": 2,
+          "quants": 268,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 49,
+          "score": 23.27,
+          "periods": 7,
+          "quants": 104,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 52,
+          "score": 15.545,
+          "periods": 3,
+          "quants": 177,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 53,
+          "score": 22.609,
+          "periods": 5,
+          "quants": 91,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 54,
+          "score": 21.647,
+          "periods": 4,
+          "quants": 223,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 74,
+          "score": 10.352,
+          "periods": 2,
+          "quants": 176,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 77,
+          "score": 44.041,
+          "periods": 8,
+          "quants": 354,
+          "has_scale_context": true
+        },
+        {
+          "page_no": 81,
+          "score": 14.074,
+          "periods": 3,
+          "quants": 108,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 91,
+          "score": 12.457,
+          "periods": 2,
+          "quants": 506,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 92,
+          "score": 30.377,
+          "periods": 6,
+          "quants": 434,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 95,
+          "score": 26.345,
+          "periods": 4,
+          "quants": 724,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 97,
+          "score": 32.476,
+          "periods": 15,
+          "quants": 661,
+          "has_scale_context": false
+        }
+      ],
+      "pages_rejected": [
+        {
+          "page_no": 1,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 2,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 3,
+          "reason": "over_budget",
+          "score": 3.401,
+          "bare_year_ratio": 0.34
+        },
+        {
+          "page_no": 4,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 5,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 6,
+          "reason": "over_budget",
+          "score": 6.182,
+          "bare_year_ratio": 0.29
+        },
+        {
+          "page_no": 7,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 8,
+          "reason": "over_budget",
+          "score": 3.497,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 9,
+          "reason": "over_budget",
+          "score": 3.714,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 10,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.31
+        },
+        {
+          "page_no": 11,
+          "reason": "over_budget",
+          "score": 4.06,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 12,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.22
+        },
+        {
+          "page_no": 13,
+          "reason": "over_budget",
+          "score": 3.219,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 14,
+          "reason": "over_budget",
+          "score": 6.592,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 16,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 17,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.2
+        },
+        {
+          "page_no": 18,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.28
+        },
+        {
+          "page_no": 19,
+          "reason": "over_budget",
+          "score": 6.735,
+          "bare_year_ratio": 0.21
+        },
+        {
+          "page_no": 20,
+          "reason": "over_budget",
+          "score": 3.045,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 21,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.38
+        },
+        {
+          "page_no": 22,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 23,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.22
+        },
+        {
+          "page_no": 24,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 26,
+          "reason": "over_budget",
+          "score": 5.778,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 27,
+          "reason": "over_budget",
+          "score": 5.361,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 28,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 29,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 31,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 32,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 33,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 35,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.16
+        },
+        {
+          "page_no": 36,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 37,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.24
+        },
+        {
+          "page_no": 38,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 39,
+          "reason": "over_budget",
+          "score": 4.718,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 40,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 41,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 42,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 43,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.28
+        },
+        {
+          "page_no": 44,
+          "reason": "over_budget",
+          "score": 4.234,
+          "bare_year_ratio": 0.25
+        },
+        {
+          "page_no": 45,
+          "reason": "over_budget",
+          "score": 9.25,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 46,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.15
+        },
+        {
+          "page_no": 47,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 48,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 50,
+          "reason": "over_budget",
+          "score": 4.779,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 51,
+          "reason": "over_budget",
+          "score": 9.437,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 55,
+          "reason": "over_budget",
+          "score": 4.489,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 56,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 57,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 58,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 59,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 60,
+          "reason": "over_budget",
+          "score": 5.557,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 61,
+          "reason": "over_budget",
+          "score": 8.955,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 62,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 63,
+          "reason": "over_budget",
+          "score": 9.044,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 64,
+          "reason": "over_budget",
+          "score": 7.29,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 65,
+          "reason": "over_budget",
+          "score": 5.361,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 66,
+          "reason": "over_budget",
+          "score": 9.065,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 67,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 68,
+          "reason": "over_budget",
+          "score": 4.663,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 69,
+          "reason": "over_budget",
+          "score": 4.369,
+          "bare_year_ratio": 0.28
+        },
+        {
+          "page_no": 70,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 71,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.2
+        },
+        {
+          "page_no": 72,
+          "reason": "over_budget",
+          "score": 5.118,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 73,
+          "reason": "over_budget",
+          "score": 8.276,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 75,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 76,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 78,
+          "reason": "over_budget",
+          "score": 4.836,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 79,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 80,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.09
+        },
+        {
+          "page_no": 82,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 83,
+          "reason": "over_budget",
+          "score": 4.718,
+          "bare_year_ratio": 0.16
+        },
+        {
+          "page_no": 84,
+          "reason": "over_budget",
+          "score": 8.885,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 85,
+          "reason": "over_budget",
+          "score": 4.997,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 86,
+          "reason": "over_budget",
+          "score": 4.595,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 87,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 88,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 89,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 90,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 93,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 94,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 96,
+          "reason": "over_budget",
+          "score": 8.441,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 98,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 99,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 100,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        }
+      ],
+      "bare_year_dropped_pages": 0,
+      "batches": [
+        [
+          15
+        ],
+        [
+          25,
+          30
+        ],
+        [
+          34
+        ],
+        [
+          49
+        ],
+        [
+          52,
+          53
+        ],
+        [
+          54
+        ],
+        [
+          74
+        ],
+        [
+          77
+        ],
+        [
+          81
+        ],
+        [
+          91
+        ],
+        [
+          92
+        ],
+        [
+          95
+        ],
+        [
+          97
+        ]
+      ],
+      "projected_calls": 13
+    },
+    {
+      "doc_id": "c60ecf78cea819f9",
+      "filename": "03-imf-india-2025-article-iv-excerpt.pdf",
+      "n_pages": 95,
+      "table_strategy": "text",
+      "budget": 12,
+      "char_budget": 6000,
+      "pages_selected": [
+        {
+          "page_no": 3,
+          "score": 19.033,
+          "periods": 5,
+          "quants": 44,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 9,
+          "score": 22.213,
+          "periods": 6,
+          "quants": 84,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 10,
+          "score": 17.433,
+          "periods": 3,
+          "quants": 333,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 11,
+          "score": 18.578,
+          "periods": 4,
+          "quants": 103,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 12,
+          "score": 18.4,
+          "periods": 3,
+          "quants": 460,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 13,
+          "score": 14.556,
+          "periods": 3,
+          "quants": 127,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 18,
+          "score": 20.636,
+          "periods": 10,
+          "quants": 61,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 19,
+          "score": 24.452,
+          "periods": 9,
+          "quants": 132,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 47,
+          "score": 18.528,
+          "periods": 3,
+          "quants": 480,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 52,
+          "score": 14.803,
+          "periods": 3,
+          "quants": 138,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 81,
+          "score": 18.691,
+          "periods": 4,
+          "quants": 106,
+          "has_scale_context": false
+        },
+        {
+          "page_no": 95,
+          "score": 14.261,
+          "periods": 3,
+          "quants": 115,
+          "has_scale_context": false
+        }
+      ],
+      "pages_rejected": [
+        {
+          "page_no": 1,
+          "reason": "image_only"
+        },
+        {
+          "page_no": 2,
+          "reason": "over_budget",
+          "score": 11.614,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 4,
+          "reason": "over_budget",
+          "score": 4.97,
+          "bare_year_ratio": 0.36
+        },
+        {
+          "page_no": 5,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 6,
+          "reason": "bare_year_majority",
+          "score": 1.609,
+          "bare_year_ratio": 0.75
+        },
+        {
+          "page_no": 7,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 8,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.26
+        },
+        {
+          "page_no": 14,
+          "reason": "over_budget",
+          "score": 6.664,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 15,
+          "reason": "over_budget",
+          "score": 6.931,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 16,
+          "reason": "over_budget",
+          "score": 12.301,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 17,
+          "reason": "over_budget",
+          "score": 12.609,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 20,
+          "reason": "over_budget",
+          "score": 10.125,
+          "bare_year_ratio": 0.19
+        },
+        {
+          "page_no": 21,
+          "reason": "over_budget",
+          "score": 4.963,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 22,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 23,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 24,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 25,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 26,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 27,
+          "reason": "over_budget",
+          "score": 8.789,
+          "bare_year_ratio": 0.1
+        },
+        {
+          "page_no": 28,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 29,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 30,
+          "reason": "over_budget",
+          "score": 9.022,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 31,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 32,
+          "reason": "over_budget",
+          "score": 9.774,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 33,
+          "reason": "over_budget",
+          "score": 6.271,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 34,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 35,
+          "reason": "over_budget",
+          "score": 10.597,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 36,
+          "reason": "over_budget",
+          "score": 6.588,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 37,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 38,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.01
+        },
+        {
+          "page_no": 39,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 40,
+          "reason": "over_budget",
+          "score": 5.746,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 41,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.03
+        },
+        {
+          "page_no": 42,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 43,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 44,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 45,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 46,
+          "reason": "over_budget",
+          "score": 5.733,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 48,
+          "reason": "over_budget",
+          "score": 12.061,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 49,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 50,
+          "reason": "over_budget",
+          "score": 5.866,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 51,
+          "reason": "over_budget",
+          "score": 9.657,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 53,
+          "reason": "over_budget",
+          "score": 11.213,
+          "bare_year_ratio": 0.2
+        },
+        {
+          "page_no": 54,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 55,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.17
+        },
+        {
+          "page_no": 56,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 57,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 58,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.41
+        },
+        {
+          "page_no": 59,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 60,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 61,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.14
+        },
+        {
+          "page_no": 62,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 63,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 64,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 65,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 66,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 67,
+          "reason": "over_budget",
+          "score": 9.673,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 68,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 69,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.23
+        },
+        {
+          "page_no": 70,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.4
+        },
+        {
+          "page_no": 71,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 72,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 73,
+          "reason": "over_budget",
+          "score": 5.557,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 74,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.12
+        },
+        {
+          "page_no": 75,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.07
+        },
+        {
+          "page_no": 76,
+          "reason": "over_budget",
+          "score": 6.868,
+          "bare_year_ratio": 0.13
+        },
+        {
+          "page_no": 77,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 78,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 79,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.06
+        },
+        {
+          "page_no": 80,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.08
+        },
+        {
+          "page_no": 82,
+          "reason": "over_budget",
+          "score": 10.646,
+          "bare_year_ratio": 0.05
+        },
+        {
+          "page_no": 83,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 84,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 85,
+          "reason": "over_budget",
+          "score": 6.142,
+          "bare_year_ratio": 0.02
+        },
+        {
+          "page_no": 86,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.04
+        },
+        {
+          "page_no": 87,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 88,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 89,
+          "reason": "over_budget",
+          "score": 8.838,
+          "bare_year_ratio": 0.11
+        },
+        {
+          "page_no": 90,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.18
+        },
+        {
+          "page_no": 91,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 92,
+          "reason": "not_candidate",
+          "score": 0.0,
+          "bare_year_ratio": 0.0
+        },
+        {
+          "page_no": 93,
+          "reason": "bare_year_majority",
+          "score": 0.0,
+          "bare_year_ratio": 0.67
+        },
+        {
+          "page_no": 94,
+          "reason": "over_budget",
+          "score": 9.437,
+          "bare_year_ratio": 0.11
+        }
+      ],
+      "bare_year_dropped_pages": 2,
+      "batches": [
+        [
+          3
+        ],
+        [
+          9
+        ],
+        [
+          10
+        ],
+        [
+          11
+        ],
+        [
+          12
+        ],
+        [
+          13
+        ],
+        [
+          18
+        ],
+        [
+          19
+        ],
+        [
+          47
+        ],
+        [
+          52
+        ],
+        [
+          81
+        ],
+        [
+          95
+        ]
+      ],
+      "projected_calls": 12
+    }
+  ],
+  "projected_total_calls": 75
+}
