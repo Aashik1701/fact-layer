@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-113%20passed-success.svg)](#test-suite--validation)
+[![Tests](https://img.shields.io/badge/tests-145%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
 > **Core Thesis: Comparability Before Comparison**  
@@ -343,6 +343,16 @@ Before entering the store, the proposed `verbatim_quote` is tested against raw p
 3. If not exact, performs a fuzzy character-level match. If similarity is $\ge 92\%$, the quote is snapped to real source coordinates.
 4. If similarity is $< 92\%$, the fact is **rejected** and logged to `data/rejected_facts.jsonl`.
 
+**This proves the quote exists in the source PDF. It does not prove `value_raw` — a separate field in the same LLM response — is the number that quote actually states.** An LLM can quote real text verbatim while misreporting the figure beside it (wrong column, wrong row, a transposed digit). `fact_layer/value_verify.py` closes that specific gap immediately after span verification, with pure deterministic Python — no second LLM call:
+
+1. Re-derives every distinct numeric quantity the verified quote text can support, using the *same* `normalize.parse_quantity()` value_raw itself was parsed with (never a second numeric parser), with date/FY phrases masked out first via `normalize.parse_period()` so `"FY2024"` never gets mistaken for a value candidate.
+2. If the quote supports **exactly one** distinct number and it agrees with `value_raw`'s parsed value within the figure's own stated precision (`Quantity.tolerance()`), the fact is `value_verification: "verified"`.
+3. If the quote supports **zero or several** distinct candidate numbers — a bare row of table figures with no column/position signal to pick from is the real, observed case (`"No. of ESOPs vested as on - 676,000 - 250,000"`) — the fact is `value_verification: "unverified"`. This is a deliberate refusal to guess, not a failure: the same principle Stage 9 applies between two facts (never compare before establishing what's being compared) applied here between one fact and its own evidence.
+4. If exactly one number is supported, currency/percent category matches on both sides, and the magnitude still disagrees beyond tolerance, the fact is **rejected** at extraction time (reason `value_mismatch`, logged to `data/rejected_facts.jsonl`) — a hallucinated value never reaches the store. A currency/unit disagreement is never silently reconciled (no FX conversion, same rule as the comparability gate); it is left `unverified` rather than guessed.
+5. Non-numeric (text/entity) facts have no deterministic numeric check to run and are always `unverified` — never falsely marked `verified` by numeric logic.
+
+`value_verification` and `value_verification_reason` are additive fields on `Fact` (excluded from `compute_id()` — see Stage 8 note below) and are surfaced on `GET /facts` and `GET /facts/{id}` for the frontend's evidence panel to display alongside span-verification status.
+
 ### Stage 5: Locale-Aware Normalization (`normalize.py`)
 Converts raw strings into structured dataclasses using deterministic Python:
 - **Numerical Scales**: Recognizes Indian and Western scales (`lakh` $= 10^5$, `crore` $= 10^7$, `million` $= 10^6$, `billion` $= 10^9$).
@@ -616,7 +626,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (113 tests):
+Execute the full offline test suite (145 tests):
 ```bash
 pytest
 ```
@@ -631,8 +641,8 @@ All endpoints return structured JSON. When mounted in production, static web ass
 |---|---|---|---|
 | `POST` | `/ingest` | `file`: Multipart PDF upload | `IngestResponse`: Status, new fact count, new relation count, touched clusters. |
 | `GET` | `/documents` | None | Array of ingested documents with IDs, filenames, and fact counts. |
-| `GET` | `/facts` | `doc_id`, `subject`, `measure`, `min_confidence`, `limit`, `offset` | Paginated array of extracted facts. |
-| `GET` | `/facts/{fact_id}` | `fact_id` (path) | Full `FactFull` object including all evidence anchors and coordinates. |
+| `GET` | `/facts` | `doc_id`, `subject`, `measure`, `min_confidence`, `limit`, `offset` | Paginated array of extracted facts, each including `value_verification` (`"verified"` \| `"unverified"` \| `null`) and `value_verification_reason`. |
+| `GET` | `/facts/{fact_id}` | `fact_id` (path) | Full `FactFull` object including all evidence anchors, coordinates, and value-verification status. |
 | `GET` | `/clusters` | `min_size` (default: 2), `limit`, `offset` | Fact clusters grouped by canonical `subject::measure`. |
 | `GET` | `/relations` | `type`, `min_confidence`, `doc_id`, `limit`, `offset` | Cross-fact relations sorted by confidence. |
 | `GET` | `/relations/{relation_id}` | `relation_id` (path) | Full `RelationFull` object with Gate evaluation and qualifier differences. |
@@ -651,14 +661,17 @@ All endpoints return structured JSON. When mounted in production, static web ass
 - **Result**: **0 of the 8 contradictions gained periods on both sides**. The single case that changed reclassified correctly into `AGGREGATES_INTO`.
 - **Resolution**: Reverted the change to preserve clean reproducibility rather than shipping an unverified heuristic.
 
-### 2. Hash Collisions in `Fact.compute_id()` (~0.3%)
-`Fact.compute_id()` hashes `subject`, `measure`, `value`, `doc_id`, `page`, and `char_start`, but excludes qualifiers. When two distinct facts appear at the same character span differing only in qualifiers, one overwrites the other (causing a 688 $\to$ 686 fact reduction in the full corpus). Documented as an acceptable edge-case trade-off to maintain stability in core dataclasses.
+### 2. Hash Collisions in `Fact.compute_id()` — Fixed
+`Fact.compute_id()` originally hashed `subject`, `measure`, `value`, `doc_id`, `page`, and `char_start`, but excluded qualifiers, `value_kind`, and `modality`. Two distinct facts appearing at the same character span differing only in a qualifier (period, scope, issuer, segment, ...) collided on one id and silently overwrote each other in `Store.facts` (a 688 $\to$ 686 fact reduction in the full corpus). Fixed as a correctness-hardening pass: identity now hashes the full qualifier set (`period`, `as_of`, `scope`, `basis`, `segment`, `geography`, `issuer`, `extra`), `value_kind`, and `modality` alongside the original fields, via an explicit ordered `json.dumps(..., sort_keys=True)` seed rather than `str(dataclass)` — `None` and `""` serialize distinctly (`null` vs `""`), so an absent qualifier is never conflated with an empty one. `value_verification` (below) is deliberately excluded from identity: it is an audit annotation of an already-identified fact, not part of what makes the claim distinct. The hash algorithm (SHA-1, 12 hex chars) is unchanged. Regression tests in `tests/test_models.py` reproduce the exact documented collision shape and confirm it no longer occurs; facts already persisted in `data/store.json` keep their original ids on load (`Store.load()` reads the stored `fact_id` rather than recomputing it), so this fix changes identity only for newly extracted facts, with no migration required for existing data.
 
 ### 3. Diminishing Returns on Measure Canonicalization Budget
 Increasing the LLM measure-resolution budget from 15 to 60 calls resolved 10 additional entity merges, but generated only **1 net new relation** (27 $\to$ 28). Investigation confirmed that most newly merged measures occurred within the same document, where self-corroboration is weighted to zero. The budget was capped at 60 calls.
 
 ### 4. Test Pollution Bug Discovered and Resolved
 Earlier tests ran extraction against `data/rejected_facts.jsonl` without directory isolation, causing the rejection log to inflate from 129 lines to 2,127 lines across repeated test runs. Fixed by introducing an injectable `rejected_path` parameter in `Store.ingest()`, ensuring test runs write rejections to temporary directories.
+
+### 5. What Deterministic Value Verification Does Not Prove
+`value_verification: "verified"` means the verified quote supports exactly one numeric reading and it agrees with `value_raw` within stated precision — it does **not** mean the figure is factually correct, only that the extraction is internally consistent with its own cited evidence. It cannot resolve genuine ambiguity: a quote is only ever compared against numbers it itself supports, so a table row reporting several distinct figures with no column/position information in the evidence model is honestly `"unverified"`, not silently resolved by guessing. It also cannot validate arithmetic: this pipeline has no derived-value mechanism (the LLM never computes, per the Stage 3 raw-string contract), so a hypothetical invented calculation the quote's own numbers don't state directly is `"unverified"`, never blessed as `"verified"`. Finally, non-numeric (text/entity) facts have no deterministic numeric check at all — they are always `"unverified"`, which is an honest "not checked", not a quality signal to be read as a red flag.
 
 ---
 
@@ -669,4 +682,4 @@ Earlier tests ran extraction against `data/rejected_facts.jsonl` without directo
 - [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: 113 unit and integration tests passing cleanly via `pytest`.
+- [x] **Comprehensive Test Suite**: 145 unit and integration tests passing cleanly via `pytest` (113 pre-existing + 32 added for deterministic value verification and the `Fact.compute_id()` collision fix).

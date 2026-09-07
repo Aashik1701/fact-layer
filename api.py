@@ -219,6 +219,8 @@ def _fact_summary(fact: Fact) -> dict:
         "doc_id": fact.evidence.doc_id if fact.evidence else None,
         "page": fact.evidence.page if fact.evidence else None,
         "evidence_count": len(STORE.get_evidence(fact.fact_id)),
+        "value_verification": fact.value_verification or None,
+        "value_verification_reason": fact.value_verification_reason or None,
     }
 
 

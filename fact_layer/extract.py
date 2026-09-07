@@ -1,7 +1,7 @@
 """
 Fact extraction with span verification.
 
-CLAUDE.md invariant 3 — "the model reads; Python reasons". The LLM emits raw
+Project invariant 3 — "the model reads; Python reasons". The LLM emits raw
 strings only (value_raw, period_raw, scope_raw, issuer_raw, verbatim_quote).
 All conversion runs through normalize.parse_quantity / parse_period /
 detect_scope, which are deterministic, tested and inspectable.
@@ -43,6 +43,7 @@ from .normalize import (
     parse_quantity,
 )
 from .parse import Document, Page, Table, detect_scale_context, parse_pdf
+from .value_verify import ValueVerificationStatus, verify_value
 from .triage import (
     UNLIMITED_BUDGET,
     _DEMO_BUDGETS,
@@ -61,7 +62,7 @@ _REPORT_PATH = os.path.join(_DATA_DIR, "extraction_report.json")
 # --------------------------------------------------------------------------
 # PART 0 — payload guard
 #
-# CLAUDE.md section 12 is explicit: "Payload cap: 8,000 chars per call. Over
+# Project specification section 12 is explicit: "Payload cap: 8,000 chars per call. Over
 # that, split into prose and table calls. Never truncate — truncation drops
 # facts with no trace, which is the one failure mode the rejected-facts log
 # cannot catch." Every chunk built below is therefore built by SPLITTING,
@@ -793,6 +794,27 @@ def verify_and_build_fact(
             return None
         is_text_claim = True
 
+    # --- deterministic value verification ---
+    # Span verification proves verbatim_quote occurs in the PDF; it says
+    # nothing about whether value_raw is the number that quote actually
+    # supports (a separate LLM-emitted field, same JSON object, no
+    # cross-check today). This is a pure Python re-derivation from the
+    # already-verified quote — no LLM call — using the identical
+    # parse_quantity() context as value_raw's own parse, so both sides are
+    # compared on the same normalised basis.
+    value_verification = verify_value(
+        value_raw, verbatim_quote, None if is_text_claim else quantity, effective_context,
+    )
+    if value_verification.status is ValueVerificationStatus.MISMATCH:
+        _append_rejected(RejectedFact(
+            raw_fact, page.page_no, doc_id, doc_filename,
+            "value_mismatch",
+            f"value_raw {value_raw!r} (parsed {value_verification.extracted}) disagrees with "
+            f"the sole number the verified quote supports ({value_verification.evidence}): "
+            f"{verbatim_quote[:120]!r}"
+        ), rejected_path)
+        return None
+
     # --- parse period ---
     period = None
     if period_raw and period_raw.strip():
@@ -862,6 +884,8 @@ def verify_and_build_fact(
             confidence=confidence,
             subject_raw=subject_raw,
             measure_raw=measure_raw,
+            value_verification=value_verification.status.value,
+            value_verification_reason=value_verification.reason,
         )
     else:
         fact = Fact(
@@ -875,6 +899,8 @@ def verify_and_build_fact(
             confidence=confidence,
             subject_raw=subject_raw,
             measure_raw=measure_raw,
+            value_verification=value_verification.status.value,
+            value_verification_reason=value_verification.reason,
         )
 
     return fact
@@ -938,7 +964,7 @@ def extract_document(
             # (currency/magnitude phrases like "in lakhs") misses per-column
             # units that live only in the header row — e.g. a "% change"
             # column whose cells are bare numbers like "6.5" with no % sign
-            # of their own (CLAUDE.md section 14b). Fold the header row text
+            # of their own (specification section 14b). Fold the header row text
             # in alongside it so parse_quantity() still sees the unit even
             # when value_raw doesn't repeat it.
             scale_context = ""

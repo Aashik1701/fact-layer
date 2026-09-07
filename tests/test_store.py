@@ -4,7 +4,7 @@ Dedup and incremental-relations tests use fast synthetic facts. The corpus-
 level tests (cluster/relation counts, save/load round-trip, and the "7th
 document" incrementality proof) run the real pipeline over all 6 starter
 PDFs in LLM_MODE=replay against the committed cache/llm/ — slow (one real
-extraction pass) but this is what CLAUDE.md section 14's exit criterion and
+extraction pass) but this is what the project specification section 14 exit criterion and
 the store-level exit criterion both require: real data, not stand-ins.
 """
 
@@ -32,7 +32,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Real-corpus tests below ingest all 6 starter PDFs (sometimes twice, across
 # different test functions) via Store.ingest(), which by default logs
 # span-verification rejections to the real data/rejected_facts.jsonl — a
-# graded deliverable (CLAUDE.md section 3.1). Without redirecting it, every
+# graded deliverable (project specification section 3.1). Without redirecting it, every
 # `pytest -q` run silently appends another full corpus's worth of rejections
 # on top of whatever is already there. This path is outside the repo and
 # shared by every real-corpus ingest call in this file.
@@ -64,7 +64,7 @@ def _mkfact(subject, measure, value_raw, doc_id="d1", page=1, period_label=None)
 
 
 # --------------------------------------------------------------------------
-# Dedup (CLAUDE.md section 11)
+# Dedup (project specification section 11)
 # --------------------------------------------------------------------------
 
 def test_dedup_collapses_same_document_repeats():
@@ -101,7 +101,7 @@ def test_dedup_takes_max_confidence():
 
 
 # --------------------------------------------------------------------------
-# Same-document corroboration weighted at zero (CLAUDE.md section 11)
+# Same-document corroboration weighted at zero (specification section 11)
 # --------------------------------------------------------------------------
 
 def test_same_document_corroboration_dropped_cross_document_kept():
@@ -219,7 +219,7 @@ def test_get_evidence_returns_merged_spans_from_real_corpus():
     Note on the real data: the two merged-evidence facts in this corpus both
     merge overlapping spans on the SAME page (the extractor quoted one figure
     twice, once with a wider surrounding sentence and once narrowly), not the
-    cross-page repeat CLAUDE.md section 11 anticipates. Distinct char offsets
+    cross-page repeat the specification section 11 anticipates. Distinct char offsets
     on one page are still genuinely distinct evidence spans, and they exercise
     the merge path identically, so this asserts on span count and distinctness
     rather than on page-distinctness, which the corpus does not currently
@@ -285,7 +285,7 @@ def test_full_corpus_store_saves_and_reloads(tmp_path):
 
 def test_incremental_ingest_of_final_document_only_touches_new_clusters():
     """Proves ingest() is incremental, not O(n^2)-per-call, using the same
-    'add one more document to an existing store' scenario CLAUDE.md's exit
+    'add one more document to an existing store' scenario the specification's exit
     criterion describes. We only have 6 real starter PDFs (no literal 7th
     document exists in this repo to fabricate one from without either
     reusing an already-ingested doc_id — parse.py's parsed-document cache is

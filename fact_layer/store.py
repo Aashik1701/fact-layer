@@ -56,7 +56,7 @@ _STORE_PATH = os.path.join(_DATA_DIR, "store.json")
 
 
 # --------------------------------------------------------------------------
-# STEP 2 (CLAUDE.md section 11): within-document dedup
+# STEP 2 (specification section 11): within-document dedup
 # --------------------------------------------------------------------------
 
 def _qualifiers_key(q: Qualifiers) -> tuple:
@@ -105,7 +105,7 @@ def dedupe_within_document(facts: list[Fact]) -> tuple[list[Fact], dict[str, lis
     for group in groups.values():
         primary = max(group, key=lambda f: f.confidence)
         if len(group) > 1:
-            primary.confidence = max(f.confidence for f in group)   # CLAUDE.md 11: take max confidence
+            primary.confidence = max(f.confidence for f in group)   # specification 11: take max confidence
             others = [f.evidence for f in group if f is not primary and f.evidence]
             if others:
                 extra_evidence[primary.fact_id] = others
@@ -118,7 +118,7 @@ def dedupe_within_document(facts: list[Fact]) -> tuple[list[Fact], dict[str, lis
 # --------------------------------------------------------------------------
 
 def _drop_same_document_corroboration(relations: list[Relation], facts_by_id: dict[str, Fact]) -> list[Relation]:
-    """CLAUDE.md section 11: 'Corroboration is only meaningful across
+    """Specification section 11: 'Corroboration is only meaningful across
     doc_id boundaries — weight same-document agreement at zero.'
     adjudicate_cluster() (reused as-is, protected) only skips exact
     same-PAGE repeats; dedup already collapses most same-document identical
@@ -437,6 +437,8 @@ def _fact_from_dict(d: dict) -> Fact:
         modality=Modality(d.get("modality", Modality.ASSERTED.value)),
         evidence=evidence, confidence=d.get("confidence", 1.0),
         subject_raw=d.get("subject_raw", ""), measure_raw=d.get("measure_raw", ""),
+        value_verification=d.get("value_verification", ""),
+        value_verification_reason=d.get("value_verification_reason", ""),
         fact_id=d.get("fact_id", ""),
     )
 

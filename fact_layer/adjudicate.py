@@ -19,7 +19,7 @@ from .models import Fact, Quantity, Relation, RelationType, ValueKind
 
 
 def _flag_period_unverified(rel: Relation, period_unverified: bool) -> Relation:
-    """CLAUDE.md section 17: compare_periods() returns UNKNOWN when either
+    """Project specification section 17: compare_periods() returns UNKNOWN when either
     side has no period, and the gate falls through to COMPARABLE — but
     unknown is not compatible, it is unverifiable. Asserting a like-for-like
     relation without having established like-for-like is the exact overreach
@@ -105,7 +105,7 @@ def adjudicate(a: Fact, b: Fact, g: Optional[GateResult] = None) -> Relation:
                         g.reason_code, g.explanation, qdiff)
 
     # ---------------- comparable: now, and only now, compare values ---------
-    # CLAUDE.md section 17: an UNKNOWN period_relation means the gate could
+    # Project specification section 17: an UNKNOWN period_relation means the gate could
     # not establish like-for-like on period at all (at least one side has no
     # parsed period), not that the periods are compatible. It must not carry
     # the same confidence as a relation where periods were actually checked.

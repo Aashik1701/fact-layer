@@ -28,7 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HELD_BACK = "03-imf-india-2025-article-iv-excerpt.pdf"
 
 # data/rejected_facts.jsonl is the FULL 6-document corpus's extraction-
-# failure deliverable (CLAUDE.md section 3.1) — a standalone artifact,
+# failure deliverable (project specification section 3.1) — a standalone artifact,
 # already verified at its true single-run count. Rebuilding only 5 of the 6
 # documents here must not touch it (it would just show a partial, smaller
 # count that isn't the number this repo reports); rejections from this build

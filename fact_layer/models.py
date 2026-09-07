@@ -163,6 +163,13 @@ class Fact:
     confidence: float = 1.0
     subject_raw: str = ""           # pre-canonicalisation, kept for audit
     measure_raw: str = ""
+    # Deterministic value-verification outcome (fact_layer.value_verify),
+    # set by extract.py, never by the LLM. "" means not evaluated (e.g. a
+    # fact loaded from a store.json written before this field existed) —
+    # distinct from "unverified", which means the check ran and could not
+    # confirm the value.
+    value_verification: str = ""
+    value_verification_reason: str = ""
     fact_id: str = ""
 
     def __post_init__(self) -> None:
@@ -170,17 +177,48 @@ class Fact:
             self.fact_id = self.compute_id()
 
     def compute_id(self) -> str:
+        """Identity = claim + qualifiers + source anchor.
+
+        Originally hashed subject/measure/value/doc_id/page/char_start only.
+        Two facts at the same span differing solely in a qualifier (period,
+        scope, issuer, ...), value_kind or modality collided on one id and
+        silently overwrote each other in Store.facts (documented in
+        README.md's Honest Limitations as a ~0.3% loss). Qualifiers are a
+        fact's identity, not decoration (see the module docstring) — a
+        collision here isn't cosmetic, it's the exact bug this system exists
+        to avoid making. value_verification is deliberately excluded: it is
+        an audit annotation of an already-identified fact, not part of what
+        makes the claim itself distinct.
+        """
         ev = self.evidence
+        q = self.qualifiers
+        period = q.period
+        period_key = (
+            period.kind.value if period else None,
+            period.start.isoformat() if period and period.start else None,
+            period.end.isoformat() if period and period.end else None,
+        )
         seed = json.dumps(
             {
                 "s": self.subject,
                 "m": self.measure,
+                "vk": self.value_kind.value,
                 "v": str(self.value),
+                "mod": self.modality.value,
+                "period": period_key,
+                "as_of": q.as_of.isoformat() if q.as_of else None,
+                "scope": q.scope.value,
+                "basis": q.basis,
+                "segment": q.segment,
+                "geography": q.geography,
+                "issuer": q.issuer,
+                "extra": sorted(q.extra.items()) if q.extra else [],
                 "d": ev.doc_id if ev else "",
                 "p": ev.page if ev else -1,
                 "c": ev.char_start if ev else -1,
             },
             sort_keys=True,
+            default=str,
         )
         return "f_" + hashlib.sha1(seed.encode()).hexdigest()[:12]
 

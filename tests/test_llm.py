@@ -1,7 +1,7 @@
 """LLM client tests. All run offline — no real network call is ever allowed
 to succeed here; a monkeypatched httpx.post that raises AssertionError if
 invoked is the enforcement mechanism for the "replay mode -> no network"
-invariant (CLAUDE.md section 3.4).
+invariant (project specification section 3.4).
 """
 
 import os

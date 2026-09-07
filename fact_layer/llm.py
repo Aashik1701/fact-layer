@@ -1,7 +1,7 @@
 """
 LLM client: provider-agnostic chat completion with a mandatory replay cache.
 
-CLAUDE.md invariant 4: graders run with no API key and no network. Every call
+Project invariant 4: graders run with no API key and no network. Every call
 this module makes is cached at cache/llm/{sha256(provider+model+messages)}.json;
 LLM_MODE=replay serves exclusively from that cache and raises a clear error on
 a miss rather than dialing out, so a fresh clone reproduces the demo offline.
@@ -112,7 +112,7 @@ def _config() -> tuple[str, str, str]:
     provider = os.environ.get("LLM_PROVIDER", "").strip().lower()
     model = os.environ.get("LLM_MODEL", "").strip()
     # Default to replay, not live: this pipeline must run offline out of the
-    # box for graders with no key, per CLAUDE.md invariant 4.
+    # box for graders with no key, per project invariant 4.
     mode = os.environ.get("LLM_MODE", "replay").strip().lower()
 
     if not model:

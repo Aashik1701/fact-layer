@@ -1,4 +1,4 @@
-"""Tests for the issuer qualifier (milestone 3.5) — see CLAUDE.md section 13.
+"""Tests for the issuer qualifier (milestone 3.5) — see project specification section 13.
 
 Where the real M3 extraction output supports it, these tests use REAL facts
 reconstructed via LLM_MODE=replay against the actual cache/llm/ committed
@@ -39,7 +39,7 @@ RBI_PDF = os.path.join(ROOT, "starter-datasets", "india-macroeconomy", "02-rbi-a
 IMF_PDF = os.path.join(ROOT, "starter-datasets", "india-macroeconomy", "03-imf-india-2025-article-iv-excerpt.pdf")
 
 # extract_document() defaults to logging rejections to the real
-# data/rejected_facts.jsonl (a graded deliverable, CLAUDE.md section 3.1).
+# data/rejected_facts.jsonl (a graded deliverable, specification section 3.1).
 # Redirect it here so running this file doesn't silently inflate that file.
 _TEST_REJECTED_PATH = os.path.join(tempfile.mkdtemp(prefix="fact_layer_test_"), "rejected_facts.jsonl")
 
@@ -115,7 +115,7 @@ def _make_fact(subject_raw, measure_raw, value_raw, period_label, issuer, modali
 # enough" regardless of unit and would misleadingly assert CORROBORATES
 # here. The gate-level verdict below is unaffected by that and is exactly
 # what this fix is responsible for; the full clean end-to-end relation is
-# verified in the next test using CLAUDE.md's own worked-example numbers,
+# verified in the next test using the specification worked-example numbers,
 # which do carry a consistent unit.
 # --------------------------------------------------------------------------
 
@@ -141,9 +141,9 @@ def test_real_imf_vs_rbi_gdp_projection_gate_is_incomparable_issuer():
     assert imf_gdp.qualifiers.issuer in g.explanation
 
 
-def test_claude_md_worked_example_imf_6_5_vs_rbi_7_2_is_apparent_conflict():
-    """CLAUDE.md section 2's own worked example: 'GDP growth 6.5% (IMF) vs
-    7.2% (RBI) -> forecast disagreement'. Confirms the new code produces
+def test_spec_worked_example_imf_6_5_vs_rbi_7_2_is_apparent_conflict():
+    """Specification section 2 worked example: 'GDP growth 6.5% (IMF) vs
+    7.2% (RBI) -> forecast disagreement'. Confirms the code produces
     exactly that verdict for exactly that pair, end to end."""
     imf = _make_fact("India", "GDP growth", "6.5 percent", "FY2024/25",
                      "IMF", Modality.PROJECTED)
@@ -247,7 +247,7 @@ def test_qualifiers_diff_includes_issuer():
 
 def test_single_issuer_present_does_not_trigger_issuer_verdict():
     """Only one side having an issuer must not be treated as a mismatch —
-    absence of a qualifier is not a conflict signal (CLAUDE.md invariant 6)."""
+    absence of a qualifier is not a conflict signal (specification invariant 6)."""
     with_issuer = _make_fact("India", "GDP growth", "6.5 percent", "FY2024/25",
                              "International Monetary Fund", Modality.PROJECTED)
     without_issuer = _make_fact("India", "GDP growth", "6.5 percent", "FY2024/25",

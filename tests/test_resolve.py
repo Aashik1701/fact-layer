@@ -1,9 +1,9 @@
-"""Tests for fact_layer/resolve.py (milestone 4, CLAUDE.md sections 14a/14b).
+"""Tests for fact_layer/resolve.py (milestone 4, specification sections 14a/14b).
 
 Covers all three tiers: the alias table (issuers + common measure synonyms),
 fuzzy measure matching, and the capped/cached LLM fallback for the residual
 ambiguous tail. The alias-collapse cases are anchored on the exact real
-strings CLAUDE.md section 14a calls out ("International Monetary Fund" vs
+strings specification section 14a calls out ("International Monetary Fund" vs
 "IMF staff") since that's the concrete gap this module exists to close.
 """
 
@@ -76,7 +76,7 @@ def test_resolve_subject_collapses_variants_to_same_canonical():
 
 
 # --------------------------------------------------------------------------
-# Tier 2: issuer alias table — the exact real-world collapse CLAUDE.md 14a
+# Tier 2: issuer alias table — the exact real-world collapse specification 14a
 # calls out.
 # --------------------------------------------------------------------------
 

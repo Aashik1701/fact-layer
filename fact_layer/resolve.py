@@ -6,9 +6,9 @@ project: rules first, LLM only for the residual ambiguous tail.
 
   1. Deterministic — normalize_entity() for subjects. Already exists, reused
      as-is, never reimplemented.
-  2. Declarative alias table — a small, locale-general dict for issuers
-     (CLAUDE.md section 14a) and for well-known measure synonyms. Extensible
-     at runtime, no filename- or dataset-specific rules (CLAUDE.md invariant 2).
+   2. Declarative alias table — a small, locale-general dict for issuers
+      (specification section 14a) and for well-known measure synonyms. Extensible
+      at runtime, no filename- or dataset-specific rules (project invariant 2).
   3. Fuzzy string match for near-misses (measures only), then — only for
      what's still ambiguous, capped at a small LLM budget — a cached LLM call
      that decides "are these the same measure?" given both verbatim strings.

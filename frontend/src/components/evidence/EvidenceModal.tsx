@@ -132,6 +132,28 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({
               )}
             </div>
 
+            {fact?.value_verification && (
+              <div className="flex items-center justify-end mb-2 -mt-1">
+                {fact.value_verification === 'verified' ? (
+                  <div
+                    title={fact.value_verification_reason || undefined}
+                    className="flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Value Verified
+                  </div>
+                ) : (
+                  <div
+                    title={fact.value_verification_reason || undefined}
+                    className="flex items-center gap-1 text-[11px] font-mono font-medium text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20"
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    Value Unverified
+                  </div>
+                )}
+              </div>
+            )}
+
             <blockquote
               className={cn(
                 'p-3 rounded-lg border font-mono text-xs leading-relaxed italic border-l-4 border-l-amber-500',

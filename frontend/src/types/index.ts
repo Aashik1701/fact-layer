@@ -52,6 +52,11 @@ export interface FactSummary {
   doc_id: string | null;
   page: number | null;
   evidence_count?: number;
+  // Deterministic check that value_raw is the number the verified quote
+  // actually supports — distinct from (and stronger than) span/quote
+  // verification. null/undefined on facts persisted before this existed.
+  value_verification?: 'verified' | 'unverified' | 'mismatch' | null;
+  value_verification_reason?: string | null;
 }
 
 export interface FactFull extends FactSummary {

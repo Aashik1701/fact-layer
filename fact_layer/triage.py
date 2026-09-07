@@ -2,7 +2,7 @@
 Deterministic, zero-LLM page triage.
 
 Six PDFs run to 511 pages; one LLM call per page would blow the free-tier
-budget five times over (CLAUDE.md section 10). Page selection has to be an
+budget five times over (project specification section 10). Page selection has to be an
 architectural component, not an afterthought — and it has to be decided
 without an LLM, using the same locale-general number/period detectors
 normalize.py already has, not a new hand-rolled vocabulary of measure names.
@@ -232,7 +232,7 @@ _DEFAULT_REPORT_PATH = os.path.join(_REPO_ROOT, "data", "triage_report.json")
 UNLIMITED_BUDGET = -1
 
 # Budgets an operator would pass in for this specific 6-PDF demo corpus,
-# matching CLAUDE.md section 10's measured target (~101 pages -> ~59 calls).
+# matching the project specification's measured target (~101 pages -> ~59 calls).
 # This dict is report-generation config for the CLI's default run over
 # starter-datasets/ — score_page/select_pages/batch_pages never see a
 # filename, and any other PDF just gets the generic page-count-derived
