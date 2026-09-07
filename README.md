@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-244%20passed-success.svg)](#test-suite--validation)
+[![Tests](https://img.shields.io/badge/tests-265%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
 > **Core Thesis: Comparability Before Comparison**  
@@ -657,7 +657,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (244 tests):
+Execute the full offline test suite (265 tests):
 ```bash
 pytest
 ```
@@ -738,4 +738,4 @@ Auditing the frontend for B2/B3 surfaced two pre-existing, silent bugs, both fro
 - [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: 244 unit and integration tests passing cleanly via `pytest` (145 pre-existing + 74 added for deterministic layout reconstruction, semantic table structure, context-aware verification, region-level evidence, and the parser benchmark suite).
+- [x] **Comprehensive Test Suite**: 265 unit and integration tests passing cleanly via `pytest` (244 pre-existing + 21 added for upload-security hardening — path traversal, size limits, PDF magic-byte validation, and cleanup).

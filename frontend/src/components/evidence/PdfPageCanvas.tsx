@@ -119,6 +119,23 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
         </div>
       </div>
 
+      {/* Honest degraded-evidence note — never silently drop the fact that no
+          exact coordinates are available; page-level grounding is still real
+          evidence, just not cell-precise. */}
+      {evidence && !evidence.bbox && (
+        <div
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-[11px] border-b',
+            isDark
+              ? 'bg-amber-500/5 border-slate-800 text-amber-400'
+              : 'bg-amber-50 border-slate-200 text-amber-700'
+          )}
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>Page-level evidence only — no exact bounding box was recorded for this span.</span>
+        </div>
+      )}
+
       {/* Canvas Viewport */}
       <div
         className={cn(

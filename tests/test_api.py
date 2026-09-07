@@ -118,6 +118,35 @@ def test_relations_filter_by_type_still_sorted(client):
     assert confidences == sorted(confidences, reverse=True)
 
 
+def test_relations_filter_by_fact_id(client):
+    """The additive fact_id filter backs the frontend's 'Compare this fact'
+    action — every relation returned must actually involve the requested
+    fact, on either side, and every relation known to involve that fact must
+    be included (no false negatives)."""
+    all_rels = client.get("/relations").json()["relations"]
+    target_fact_id = all_rels[0]["source_fact_id"]
+
+    r = client.get("/relations", params={"fact_id": target_fact_id})
+    assert r.status_code == 200
+    rels = r.json()["relations"]
+    assert len(rels) > 0
+    assert all(
+        rel["source_fact_id"] == target_fact_id or rel["target_fact_id"] == target_fact_id
+        for rel in rels
+    )
+    expected_ids = {
+        rel["relation_id"] for rel in all_rels
+        if rel["source_fact_id"] == target_fact_id or rel["target_fact_id"] == target_fact_id
+    }
+    assert {rel["relation_id"] for rel in rels} == expected_ids
+
+
+def test_relations_filter_by_fact_id_unknown_returns_empty(client):
+    r = client.get("/relations", params={"fact_id": "f_does_not_exist"})
+    assert r.status_code == 200
+    assert r.json() == {"total": 0, "relations": []}
+
+
 def test_stats_200_has_required_keys(client):
     r = client.get("/stats")
     assert r.status_code == 200

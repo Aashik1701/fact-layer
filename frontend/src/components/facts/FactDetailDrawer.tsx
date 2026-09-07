@@ -1,8 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/common/Modal';
-import { FactSummary } from '@/types';
+import { FactSummary, FactFull, RelationSummary } from '@/types';
 import { ConfidencePill } from '@/components/common/ConfidencePill';
-import { FileSearch } from 'lucide-react';
+import { GateVerdictBadge } from '@/components/relations/GateVerdictBadge';
+import { fetchFact, fetchRelations } from '@/lib/api';
+import { deriveSpanVerification, deriveValueVerification, deriveContextVerification } from '@/lib/verification';
+import {
+  FileSearch, CheckCircle2, AlertCircle, HelpCircle, GitCompare, ArrowRight, Loader2,
+} from 'lucide-react';
 import { formatIssuer } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
@@ -12,15 +17,94 @@ interface FactDetailDrawerProps {
   onClose: () => void;
   fact: FactSummary | null;
   onOpenEvidence: (fact: FactSummary) => void;
+  onOpenRelation?: (relationId: string) => void;
 }
+
+// A small checklist row for the VERIFICATION section. Three distinct states,
+// never collapsed into a single boolean: confirmed (backend said so),
+// contradicted (backend said so), and "not evaluated" / "not applicable" —
+// which must never be rendered as a green success state (Phase 9).
+const VerificationRow: React.FC<{
+  label: string;
+  state: 'confirmed' | 'failed' | 'unknown';
+  detail?: string;
+  isDark: boolean;
+}> = ({ label, state, detail, isDark }) => {
+  const icon =
+    state === 'confirmed' ? (
+      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+    ) : state === 'failed' ? (
+      <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+    ) : (
+      <HelpCircle className={cn('w-3.5 h-3.5 shrink-0', isDark ? 'text-slate-500' : 'text-slate-400')} />
+    );
+  return (
+    <div className="flex items-start gap-2 py-1.5">
+      {icon}
+      <div className="min-w-0">
+        <span
+          className={cn(
+            'text-xs font-mono font-medium',
+            state === 'confirmed'
+              ? 'text-emerald-500'
+              : state === 'failed'
+                ? 'text-amber-500'
+                : isDark ? 'text-slate-400' : 'text-slate-500'
+          )}
+        >
+          {label}
+        </span>
+        {detail && (
+          <p className={cn('text-[11px] leading-relaxed mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
+            {detail}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
   isOpen,
   onClose,
   fact,
   onOpenEvidence,
+  onOpenRelation,
 }) => {
   const { isDark } = useTheme();
+
+  const [fullFact, setFullFact] = useState<FactFull | null>(null);
+  const [loadingFact, setLoadingFact] = useState<boolean>(false);
+
+  const [relations, setRelations] = useState<RelationSummary[] | null>(null);
+  const [loadingRelations, setLoadingRelations] = useState<boolean>(false);
+  const [relationsError, setRelationsError] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isOpen || !fact) {
+      setFullFact(null);
+      setRelations(null);
+      setRelationsError(false);
+      return;
+    }
+
+    setLoadingFact(true);
+    fetchFact(fact.fact_id)
+      .then((data) => setFullFact(data))
+      .catch((err) => console.error('Failed to load full fact:', err))
+      .finally(() => setLoadingFact(false));
+
+    setLoadingRelations(true);
+    setRelationsError(false);
+    fetchRelations({ fact_id: fact.fact_id })
+      .then((res) => setRelations(res.relations))
+      .catch((err) => {
+        console.error('Failed to load relations for fact:', err);
+        setRelationsError(true);
+      })
+      .finally(() => setLoadingRelations(false));
+  }, [isOpen, fact?.fact_id]);
+
   if (!fact) return null;
 
   const cardCls = cn(
@@ -37,6 +121,25 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
     'font-mono block mt-0.5',
     isDark ? 'text-slate-200' : 'text-slate-800'
   );
+
+  const primaryEvidence = fullFact?.evidence?.[0] ?? null;
+
+  const span = deriveSpanVerification(primaryEvidence, loadingFact);
+  const value = deriveValueVerification(fact);
+  const context = deriveContextVerification(fact);
+
+  const hasSourceContext = !!(
+    primaryEvidence &&
+    (primaryEvidence.row_label || primaryEvidence.column_header || primaryEvidence.unit_context)
+  );
+
+  const hasBbox = !!primaryEvidence?.bbox;
+
+  const periodDisplay =
+    fact.qualifiers.period?.label ||
+    (fact.qualifiers.period?.start || fact.qualifiers.period?.end
+      ? `${fact.qualifiers.period?.start || ''} - ${fact.qualifiers.period?.end || ''}`.trim()
+      : null);
 
   return (
     <Modal
@@ -57,100 +160,121 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
           </span>
         </div>
       }
-      subtitle="Canonicalized knowledge layer entity attributes and source grounding"
+      subtitle="Fact → Evidence → Verification → Comparison"
       maxWidth="3xl"
     >
       <div className="space-y-6 text-xs">
-        {/* Values Comparison Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className={cardCls}>
-            <span className={labelCls}>Canonical Normalized Value</span>
-            <div className="text-xl font-mono font-bold text-emerald-500">
-              {fact.value.normalized}{' '}
-              <span className={cn('text-sm font-normal', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                {fact.value.unit || ''}
-              </span>
-            </div>
-            {fact.value.currency && (
-              <span className={cn('text-[11px] font-mono', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                Currency: {fact.value.currency}
-              </span>
-            )}
-          </div>
-
-          <div className={cardCls}>
-            <span className={labelCls}>Raw Stated Text (In Source PDF)</span>
-            <div className={cn('text-base font-mono', isDark ? 'text-slate-200' : 'text-slate-700')}>
-              "{fact.value.raw}"
-            </div>
-            <span className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
-              Unmodified text string before normalization
+        {/* FACT — headline value */}
+        <div className={cn(cardCls, 'text-center py-6')}>
+          <span className={labelCls}>Canonical Value</span>
+          <div className="text-3xl font-mono font-bold text-emerald-500 mt-1">
+            {fact.value.normalized}{' '}
+            <span className={cn('text-base font-normal', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              {fact.value.unit || ''}
             </span>
+          </div>
+          <div className={cn('text-xs font-mono mt-2', isDark ? 'text-slate-400' : 'text-slate-500')}>
+            "{fact.value.raw}"
           </div>
         </div>
 
-        {/* Qualifiers & Metadata Grid */}
+        {/* Structured metadata */}
         <div
           className={cn(
-            'p-4 rounded-xl border space-y-3',
+            'p-4 rounded-xl border grid grid-cols-2 sm:grid-cols-3 gap-4',
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+          )}
+        >
+          <div>
+            <span className={labelCls}>Period</span>
+            <span className={valueCls}>{periodDisplay || 'Not stated'}</span>
+          </div>
+          <div>
+            <span className={labelCls}>Scope</span>
+            <span className={valueCls}>{fact.qualifiers.scope || 'unknown'}</span>
+          </div>
+          <div>
+            <span className={labelCls}>Issuer</span>
+            <span className={cn(valueCls, 'font-sans font-medium')}>{formatIssuer(fact.qualifiers.issuer)}</span>
+          </div>
+          <div>
+            <span className={labelCls}>Basis</span>
+            <span className={valueCls}>{fact.qualifiers.basis || 'not stated'}</span>
+          </div>
+          <div>
+            <span className={labelCls}>Modality</span>
+            <span className={valueCls}>{fact.modality}</span>
+          </div>
+          <div>
+            <span className={labelCls}>Confidence</span>
+            <div className="mt-0.5"><ConfidencePill confidence={fact.confidence} showIcon /></div>
+          </div>
+          <div className="col-span-2 sm:col-span-3">
+            <span className={labelCls}>Source</span>
+            <span className={cn(valueCls, 'truncate block')}>{fact.doc_id || 'Unknown document'} · Page {fact.page ?? 1}</span>
+          </div>
+        </div>
+
+        {/* VERIFICATION */}
+        <div
+          className={cn(
+            'p-4 rounded-xl border',
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
           )}
         >
           <span
             className={cn(
-              'text-[11px] font-semibold uppercase tracking-wider block border-b pb-2',
+              'text-[11px] font-semibold uppercase tracking-wider block border-b pb-2 mb-1',
               isDark ? 'text-slate-300 border-slate-800' : 'text-slate-600 border-slate-200'
             )}
           >
-            Entity Qualifiers &amp; Modality Taxonomy
+            Verification
           </span>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <div>
-              <span className={labelCls}>Modality</span>
-              <span
-                className={cn(
-                  'px-2 py-0.5 rounded font-mono border inline-block mt-0.5 text-[11px]',
-                  isDark
-                    ? 'bg-slate-800 text-slate-200 border-slate-700'
-                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                )}
-              >
-                {fact.modality}
-              </span>
-            </div>
-            <div>
-              <span className={labelCls}>Confidence</span>
-              <div className="mt-0.5">
-                <ConfidencePill confidence={fact.confidence} showIcon />
-              </div>
-            </div>
-            <div>
-              <span className={labelCls}>Period</span>
-              <span className={valueCls}>
-                {fact.qualifiers.period?.label ||
-                  `${fact.qualifiers.period?.start || ''} - ${fact.qualifiers.period?.end || ''}`.trim() ||
-                  'N/A'}
-              </span>
-            </div>
-            <div>
-              <span className={labelCls}>Reporting Issuer</span>
-              <span className={cn(valueCls, 'font-sans font-medium')}>
-                {formatIssuer(fact.qualifiers.issuer)}
-              </span>
-            </div>
-            <div>
-              <span className={labelCls}>Institutional Scope</span>
-              <span className={valueCls}>{fact.qualifiers.scope || 'default'}</span>
-            </div>
-            <div>
-              <span className={labelCls}>Measurement Basis</span>
-              <span className={valueCls}>{fact.qualifiers.basis || 'standard'}</span>
-            </div>
-          </div>
+          <VerificationRow label={span.label} state={span.state} detail={span.detail} isDark={isDark} />
+          <VerificationRow label={value.label} state={value.state} detail={value.detail} isDark={isDark} />
+          <VerificationRow label={context.label} state={context.state} detail={context.detail} isDark={isDark} />
         </div>
 
-        {/* Provenance Banner */}
+        {/* SOURCE CONTEXT */}
+        {hasSourceContext && (
+          <div
+            className={cn(
+              'p-4 rounded-xl border',
+              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            )}
+          >
+            <span
+              className={cn(
+                'text-[11px] font-semibold uppercase tracking-wider block border-b pb-2 mb-2',
+                isDark ? 'text-slate-300 border-slate-800' : 'text-slate-600 border-slate-200'
+              )}
+            >
+              Source Context
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              {primaryEvidence?.row_label && (
+                <div>
+                  <span className={labelCls}>Row</span>
+                  <span className={valueCls}>{primaryEvidence.row_label}</span>
+                </div>
+              )}
+              {primaryEvidence?.column_header && (
+                <div>
+                  <span className={labelCls}>Column</span>
+                  <span className={valueCls}>{primaryEvidence.column_header}</span>
+                </div>
+              )}
+              {primaryEvidence?.unit_context && (
+                <div className="col-span-2">
+                  <span className={labelCls}>Unit</span>
+                  <span className={valueCls}>{primaryEvidence.unit_context}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* EVIDENCE ACTION */}
         <div
           className={cn(
             'p-4 rounded-xl border flex items-center justify-between gap-4',
@@ -158,27 +282,87 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
           )}
         >
           <div className="space-y-0.5 min-w-0">
-            <span className={labelCls}>Document Provenance</span>
-            <div
-              className={cn(
-                'font-mono text-xs truncate max-w-sm',
-                isDark ? 'text-slate-200' : 'text-slate-700'
-              )}
-            >
+            <span className={labelCls}>PDF Provenance</span>
+            <div className={cn('font-mono text-xs truncate max-w-sm', isDark ? 'text-slate-200' : 'text-slate-700')}>
               {fact.doc_id || 'Unknown Document'}
             </div>
             <span className={cn('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              PDF Page {fact.page ?? 1}
+              {!loadingFact && !hasBbox
+                ? 'Page-level evidence only — no exact bounding box recorded for this span.'
+                : `PDF Page ${fact.page ?? 1}`}
             </span>
           </div>
 
           <button
             onClick={() => { onClose(); onOpenEvidence(fact); }}
-            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-semibold font-mono text-xs flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all shrink-0"
+            className="px-4 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-white font-bold font-mono text-xs flex items-center gap-1.5 shadow-md shadow-sky-500/20 transition-all shrink-0"
           >
             <FileSearch className="w-4 h-4" />
-            Inspect PDF Evidence
+            Inspect Evidence
           </button>
+        </div>
+
+        {/* COMPARE THIS FACT */}
+        <div
+          className={cn(
+            'p-4 rounded-xl border',
+            isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+          )}
+        >
+          <span
+            className={cn(
+              'text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 border-b pb-2 mb-2',
+              isDark ? 'text-slate-300 border-slate-800' : 'text-slate-600 border-slate-200'
+            )}
+          >
+            <GitCompare className="w-3.5 h-3.5 text-sky-500" />
+            Compare This Fact
+          </span>
+
+          {loadingRelations ? (
+            <div className={cn('flex items-center gap-2 py-3 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Checking the comparability gate against related facts…
+            </div>
+          ) : relationsError ? (
+            <p className={cn('text-xs py-2', isDark ? 'text-slate-500' : 'text-slate-400')}>
+              Unable to load comparisons for this fact right now.
+            </p>
+          ) : relations && relations.length > 0 ? (
+            <div className="space-y-2">
+              {relations.map((rel) => {
+                const otherSide = rel.source_fact_id === fact.fact_id ? rel.target_summary : rel.source_summary;
+                return (
+                  <button
+                    key={rel.relation_id}
+                    onClick={() => onOpenRelation && onOpenRelation(rel.relation_id)}
+                    disabled={!onOpenRelation}
+                    className={cn(
+                      'w-full flex items-center justify-between gap-3 p-2.5 rounded-lg border text-left transition-colors',
+                      isDark
+                        ? 'bg-slate-950/40 border-slate-800 hover:bg-slate-800/60'
+                        : 'bg-white border-slate-200 hover:bg-slate-100',
+                      !onOpenRelation && 'cursor-default'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <GateVerdictBadge verdict={rel.relation} size="sm" />
+                      <span className={cn('font-mono text-[11px] truncate', isDark ? 'text-slate-300' : 'text-slate-600')}>
+                        <ArrowRight className="w-3 h-3 inline mx-1 text-slate-400" />
+                        {otherSide || 'related fact'}
+                      </span>
+                    </div>
+                    <ConfidencePill confidence={rel.confidence} />
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className={cn('text-xs py-2', isDark ? 'text-slate-500' : 'text-slate-400')}>
+              No relations have been formed for this fact yet — either no comparable
+              fact exists in the corpus, or nothing has been evaluated against it.
+            </p>
+          )}
         </div>
       </div>
     </Modal>

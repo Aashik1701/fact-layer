@@ -148,7 +148,12 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenAbout, onSelectRelationTyp
         {stats && stats.relations && (
           <div className="hidden xl:flex items-center gap-1.5">
             {(Object.keys(RELATION_CONFIG) as RelationType[]).map((type) => {
-              const count = stats.relations.by_type[type] ?? 0;
+              // GET /stats returns by_type keyed on the backend's lowercase
+              // RelationType.value (e.g. "apparent_conflict"), not the
+              // uppercase RelationType used for display config — looking up
+              // the uppercase key directly always missed, silently showing
+              // 0 for every real count.
+              const count = stats.relations.by_type[type.toLowerCase()] ?? 0;
               const cfg = RELATION_CONFIG[type];
               return (
                 <button

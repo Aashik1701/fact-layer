@@ -176,27 +176,45 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({
               </div>
             )}
 
-            {(activeEvidence?.row_label || activeEvidence?.column_header || activeEvidence?.unit_context) && (
+            {(activeEvidence?.row_label || activeEvidence?.column_header || activeEvidence?.unit_context) ? (
               <div
                 className={cn(
-                  'mb-3 p-2.5 rounded-lg border text-[11px] font-mono grid grid-cols-2 gap-x-3 gap-y-1',
+                  'mb-3 p-3 rounded-lg border grid grid-cols-2 gap-x-4 gap-y-2',
                   isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-600'
                 )}
               >
-                <div className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-sky-500 mb-0.5">
+                <div className="col-span-2 text-[10px] font-semibold uppercase tracking-wider text-sky-500">
                   Source Context
                 </div>
                 {activeEvidence?.row_label && (
-                  <div><span className="opacity-60">Row:</span> {activeEvidence.row_label}</div>
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wide opacity-60">Row</span>
+                    <span className="font-mono">{activeEvidence.row_label}</span>
+                  </div>
                 )}
                 {activeEvidence?.column_header && (
-                  <div><span className="opacity-60">Column:</span> {activeEvidence.column_header}</div>
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wide opacity-60">Column</span>
+                    <span className="font-mono">{activeEvidence.column_header}</span>
+                  </div>
                 )}
                 {activeEvidence?.unit_context && (
-                  <div className="col-span-2"><span className="opacity-60">Unit:</span> {activeEvidence.unit_context}</div>
+                  <div className="col-span-2">
+                    <span className="block text-[10px] uppercase tracking-wide opacity-60">Unit</span>
+                    <span className="font-mono">{activeEvidence.unit_context}</span>
+                  </div>
                 )}
               </div>
-            )}
+            ) : activeEvidence && !activeEvidence.cell_bbox ? (
+              <div
+                className={cn(
+                  'mb-3 p-2.5 rounded-lg border text-[11px] leading-relaxed',
+                  isDark ? 'bg-slate-900/40 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'
+                )}
+              >
+                No table-cell context was confidently attributed to this value — this is page/span-level evidence only.
+              </div>
+            ) : null}
 
             <blockquote
               className={cn(

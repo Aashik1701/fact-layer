@@ -62,6 +62,7 @@ export interface RelationFilterParams {
   type?: string;
   min_confidence?: number;
   doc_id?: string;
+  fact_id?: string;
 }
 
 export async function fetchRelations(params?: RelationFilterParams): Promise<{
@@ -72,6 +73,7 @@ export async function fetchRelations(params?: RelationFilterParams): Promise<{
   if (params?.type) query.set('type', params.type);
   if (params?.min_confidence !== undefined) query.set('min_confidence', params.min_confidence.toString());
   if (params?.doc_id) query.set('doc_id', params.doc_id);
+  if (params?.fact_id) query.set('fact_id', params.fact_id);
 
   const res = await fetch(`${API_BASE}/relations?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch relations: ${res.statusText}`);

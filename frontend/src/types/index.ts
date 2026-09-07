@@ -129,15 +129,18 @@ export interface DocumentInfo {
   diagnostics?: DocumentDiagnostics | null;
 }
 
+// Matches the real JSON shape served by GET /clusters (api.py's
+// list_clusters()) verbatim — a previous version of this type declared
+// `key`/`subject`/`measure`/`fact_ids`/`sample_values`/`issuers`/
+// `relation_count` fields that the backend has never sent (the actual
+// payload is `cluster_key`/`size`/`facts`/`relations`), so every cluster
+// card silently rendered blank subject/measure labels and an undefined
+// React key.
 export interface ClusterInfo {
-  key: string;
-  subject: string;
-  measure: string;
+  cluster_key: string;
   size: number;
-  fact_ids: string[];
-  sample_values?: string[];
-  issuers?: string[];
-  relation_count?: number;
+  facts: FactSummary[];
+  relations: RelationSummary[];
 }
 
 export interface StatsResponse {

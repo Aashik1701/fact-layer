@@ -4,6 +4,7 @@ import { FactSummary } from '@/types';
 import { FactsTable } from './FactsTable';
 import { FactDetailDrawer } from './FactDetailDrawer';
 import { EvidenceModal } from '@/components/evidence/EvidenceModal';
+import { RelationInspectorModal } from '@/components/relations/RelationInspectorModal';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
 import { Database, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
@@ -25,6 +26,7 @@ export const FactsPage: React.FC = () => {
 
   const [selectedFact, setSelectedFact] = useState<FactSummary | null>(null);
   const [evidenceFact, setEvidenceFact] = useState<FactSummary | null>(null);
+  const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null);
 
   const loadFacts = async () => {
     setLoading(true);
@@ -213,12 +215,20 @@ export const FactsPage: React.FC = () => {
         onClose={() => setSelectedFact(null)}
         fact={selectedFact}
         onOpenEvidence={(f) => setEvidenceFact(f)}
+        onOpenRelation={(relationId) => { setSelectedFact(null); setSelectedRelationId(relationId); }}
       />
 
       <EvidenceModal
         isOpen={!!evidenceFact}
         onClose={() => setEvidenceFact(null)}
         fact={evidenceFact}
+      />
+
+      <RelationInspectorModal
+        isOpen={!!selectedRelationId}
+        onClose={() => setSelectedRelationId(null)}
+        relationId={selectedRelationId}
+        onOpenEvidence={(f) => setEvidenceFact(f)}
       />
     </div>
   );

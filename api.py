@@ -585,6 +585,7 @@ def list_relations(
     type: Optional[str] = None,
     min_confidence: Optional[float] = None,
     doc_id: Optional[str] = None,
+    fact_id: Optional[str] = None,
 ):
     rels = list(STORE.relations)
     if type:
@@ -598,6 +599,11 @@ def list_relations(
             return (a and a.evidence and a.evidence.doc_id == doc_id) or \
                    (b and b.evidence and b.evidence.doc_id == doc_id)
         rels = [r for r in rels if _touches(r)]
+    if fact_id:
+        # Additive filter for the "Compare this fact" UI action — every
+        # relation this specific fact participates in, either side. Reuses
+        # the already-computed Relation list; no new comparability logic.
+        rels = [r for r in rels if r.source_fact_id == fact_id or r.target_fact_id == fact_id]
 
     rels.sort(key=lambda r: r.confidence, reverse=True)
     return {"total": len(rels), "relations": [_relation_summary(r) for r in rels]}

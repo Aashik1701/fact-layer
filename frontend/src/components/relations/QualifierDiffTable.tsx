@@ -1,83 +1,84 @@
 import React from 'react';
-import { FactFull, FactSummary } from '@/types';
-import { Check, AlertCircle } from 'lucide-react';
+import { FactFull, FactSummary, GateInfo } from '@/types';
+import { Check, AlertCircle, HelpCircle } from 'lucide-react';
 import { cn, formatIssuer } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
 
 interface QualifierDiffTableProps {
   factA: FactFull | FactSummary;
   factB: FactFull | FactSummary;
-  qualifierDiff?: Record<string, any>;
+  // The backend-computed diff (Qualifiers.diff(), fact_layer/models.py) —
+  // whichever key names a dimension is the ONLY signal used to decide
+  // "aligned" vs "different" below. Nothing here re-derives comparability
+  // from the raw qualifier values; the gate already did that.
+  qualifierDiff?: Record<string, [unknown, unknown]>;
+  gate?: GateInfo;
   className?: string;
 }
 
+// Every dimension shown is either read directly off the backend's
+// qualifier_diff dict (presence of the key = the gate found a difference)
+// or, for period, off the gate's own period_relation enum — never a
+// frontend string comparison of the two raw values.
 export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
   factA,
   factB,
   qualifierDiff = {},
+  gate,
   className,
 }) => {
   const { isDark } = useTheme();
 
-  const periodA =
-    factA.qualifiers?.period?.label ||
-    `${factA.qualifiers?.period?.start || ''} - ${factA.qualifiers?.period?.end || ''}`.trim() ||
-    'N/A';
-  const periodB =
-    factB.qualifiers?.period?.label ||
-    `${factB.qualifiers?.period?.start || ''} - ${factB.qualifiers?.period?.end || ''}`.trim() ||
-    'N/A';
+  const periodLabel = (f: FactFull | FactSummary) =>
+    f.qualifiers?.period?.label ||
+    (f.qualifiers?.period?.start || f.qualifiers?.period?.end
+      ? `${f.qualifiers?.period?.start || ''} - ${f.qualifiers?.period?.end || ''}`.trim()
+      : 'Not stated');
 
-  const scopeA = factA.qualifiers?.scope || 'default';
-  const scopeB = factB.qualifiers?.scope || 'default';
+  const periodRelation = gate?.period_relation;
+  const periodDiff = periodRelation
+    ? periodRelation !== 'equal'
+    : 'period' in qualifierDiff;
+  const periodNote: Record<string, string> = {
+    equal: 'Identical reporting period',
+    subsumes: "Source A's period contains Source B's — expect a component, not equality",
+    subsumed_by: "Source B's period contains Source A's — expect a component, not equality",
+    overlaps: 'Periods partially overlap — not on a strictly like-for-like basis',
+    disjoint: 'Different reporting periods entirely',
+    succeeds: 'Point-in-time claims at different dates — the later one updates the earlier',
+    precedes: 'Point-in-time claims at different dates — the later one updates the earlier',
+    unknown: 'At least one side states no reporting period — unverifiable, not confirmed aligned',
+  };
 
-  const modalityA = factA.modality || 'ASSERTED';
-  const modalityB = factB.modality || 'ASSERTED';
-
-  const issuerA = formatIssuer(factA.qualifiers?.issuer);
-  const issuerB = formatIssuer(factB.qualifiers?.issuer);
-
-  const methodA = factA.qualifiers?.basis || 'standard';
-  const methodB = factB.qualifiers?.basis || 'standard';
-
-  const rows = [
+  const rows: Array<{ dimension: string; sourceA: string; sourceB: string; isDiff: boolean; unverifiable?: boolean; note: string }> = [
     {
       dimension: 'Reporting Period',
-      sourceA: periodA,
-      sourceB: periodB,
-      isDiff: periodA !== periodB || 'period' in qualifierDiff,
-      note: periodA !== periodB ? 'Mismatch: comparing different fiscal periods' : 'Identical period',
-    },
-    {
-      dimension: 'Modality',
-      sourceA: modalityA,
-      sourceB: modalityB,
-      isDiff: modalityA !== modalityB || 'modality' in qualifierDiff,
-      note:
-        modalityA !== modalityB
-          ? 'Mismatch: one is realized point vs projection/estimate'
-          : 'Compatible modalities',
+      sourceA: periodLabel(factA),
+      sourceB: periodLabel(factB),
+      isDiff: periodDiff,
+      unverifiable: periodRelation === 'unknown',
+      note: periodRelation ? periodNote[periodRelation] : (periodDiff ? 'Gate found the periods differ' : 'Gate confirms identical period'),
     },
     {
       dimension: 'Institutional Scope',
-      sourceA: scopeA,
-      sourceB: scopeB,
-      isDiff: scopeA !== scopeB || 'scope' in qualifierDiff,
-      note: scopeA !== scopeB ? 'Scope boundary divergence' : 'Aligned boundaries',
+      sourceA: factA.qualifiers?.scope || 'unknown',
+      sourceB: factB.qualifiers?.scope || 'unknown',
+      isDiff: 'scope' in qualifierDiff,
+      note: 'scope' in qualifierDiff ? 'Reported on different bases — both can be correct for the same period' : 'Aligned reporting boundary',
     },
     {
       dimension: 'Reporting Issuer',
-      sourceA: issuerA,
-      sourceB: issuerB,
-      isDiff: issuerA !== issuerB,
-      note: issuerA !== issuerB ? 'Cross-institution comparison' : 'Same issuer',
+      sourceA: formatIssuer(factA.qualifiers?.issuer),
+      sourceB: formatIssuer(factB.qualifiers?.issuer),
+      isDiff: gate ? gate.cross_issuer === true : 'issuer' in qualifierDiff,
+      note: (gate ? gate.cross_issuer : 'issuer' in qualifierDiff) ? 'Different issuing institutions' : 'Same issuer',
     },
     {
       dimension: 'Measurement Basis',
-      sourceA: methodA,
-      sourceB: methodB,
-      isDiff: methodA !== methodB || 'basis' in qualifierDiff,
-      note: methodA !== methodB ? 'Different accounting or calculation basis' : 'Uniform basis',
+      sourceA: factA.qualifiers?.basis || 'not stated',
+      sourceB: factB.qualifiers?.basis || 'not stated',
+      isDiff: 'basis' in qualifierDiff,
+      note: 'basis' in qualifierDiff ? 'Different accounting or calculation basis' : 'Uniform basis',
     },
     {
       dimension: 'Canonical Stated Value',
@@ -90,6 +91,16 @@ export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
           : 'Identical numerical values',
     },
   ];
+
+  if ('segment' in qualifierDiff || factA.qualifiers?.segment || factB.qualifiers?.segment) {
+    rows.splice(3, 0, {
+      dimension: 'Business Segment',
+      sourceA: factA.qualifiers?.segment || 'not stated',
+      sourceB: factB.qualifiers?.segment || 'not stated',
+      isDiff: 'segment' in qualifierDiff,
+      note: 'segment' in qualifierDiff ? 'Different business or product segments' : 'Same segment',
+    });
+  }
 
   return (
     <div
@@ -139,7 +150,19 @@ export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
               </td>
               <td className="py-3 px-4">
                 <div className="flex items-center gap-1.5">
-                  {row.isDiff ? (
+                  {row.unverifiable ? (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border font-medium',
+                        isDark
+                          ? 'text-slate-400 bg-slate-800/60 border-slate-700'
+                          : 'text-slate-600 bg-slate-100 border-slate-300'
+                      )}
+                    >
+                      <HelpCircle className="w-3 h-3" />
+                      {row.note}
+                    </span>
+                  ) : row.isDiff ? (
                     <span
                       className={cn(
                         'inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border font-medium',

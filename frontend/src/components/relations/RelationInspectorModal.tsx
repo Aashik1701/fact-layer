@@ -106,53 +106,74 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
         </div>
       ) : relation ? (
         <div className="space-y-6">
-          {/* Top Verdict Strip */}
-          <div
-            className={cn(
-              'p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4',
-              isDark ? 'bg-slate-800/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <GateVerdictBadge verdict={relation.relation} size="lg" />
-              <div>
-                <div className={cn('text-xs font-mono', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                  DECIDED BY:{' '}
-                  <span className={cn('uppercase font-semibold', isDark ? 'text-slate-200' : 'text-slate-800')}>
-                    {relation.decided_by}
-                  </span>
-                </div>
-                {relation.reason_code && (
-                  <div className="text-[11px] font-mono text-amber-500 mt-0.5 font-medium">
-                    Trigger: {relation.reason_code}
-                  </div>
-                )}
-                {relation.gate && relation.gate.verdict !== 'comparable' && (
-                  <div
-                    className={cn('text-[11px] font-mono mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}
-                    title="The comparability gate's own raw verdict, independent of how adjudication ultimately classified the relationship"
+          {/* Gate Verdict -> Relationship: two distinct concepts, never collapsed.
+              The gate answers "are these comparable, and how" (Python, comparability.py);
+              the relationship is what adjudication concluded once that question was
+              settled (Python, adjudicate.py). A relation can be CORROBORATES while the
+              gate verdict is INCOMPARABLE_ISSUER — that is not a contradiction in the UI,
+              it is the system explaining itself. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div
+              className={cn(
+                'p-4 rounded-xl border space-y-1.5',
+                isDark ? 'bg-slate-800/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+              )}
+            >
+              <span className={cn('text-[10px] uppercase font-mono tracking-wider block', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                Comparability Gate Verdict
+              </span>
+              {relation.gate ? (
+                <>
+                  <span
+                    className={cn(
+                      'inline-block px-2.5 py-1 rounded-md border font-mono font-bold uppercase text-sm tracking-wide',
+                      relation.gate.verdict === 'comparable'
+                        ? isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : isDark ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' : 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                    )}
                   >
-                    Comparability Gate:{' '}
-                    <span className="uppercase font-semibold text-indigo-400">{relation.gate.verdict}</span>
-                    {relation.gate.cross_issuer && ' (cross-issuer)'}
-                  </div>
-                )}
-              </div>
+                    {relation.gate.verdict.replace(/_/g, ' ')}
+                  </span>
+                  {relation.gate.cross_issuer && (
+                    <div className="text-[11px] font-mono text-amber-500 font-medium">Cross-issuer comparison</div>
+                  )}
+                </>
+              ) : (
+                <span className={cn('text-xs font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                  Gate verdict not available for this relation.
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <span className={cn('text-[10px] uppercase font-mono block', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                  Relation Confidence
+            <div
+              className={cn(
+                'p-4 rounded-xl border space-y-1.5',
+                isDark ? 'bg-slate-800/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className={cn('text-[10px] uppercase font-mono tracking-wider', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                  Relationship
                 </span>
-                <div className="flex items-center justify-end gap-2 mt-0.5">
+                <div className="flex items-center gap-1.5">
                   <ConfidencePill confidence={relation.confidence} showIcon />
-                  {relation.relation === 'CONTRADICTS' && (
-                    <span className="text-[10px] text-rose-500 font-mono font-medium" title="Halved due to contradiction rule">
-                      (Adjudication Halved)
+                  {relation.reason_code?.endsWith('_period_unverified') && (
+                    <span
+                      className="text-[10px] text-rose-500 font-mono font-medium"
+                      title="Confidence halved: at least one side states no reporting period, so the comparison could not be fully verified"
+                    >
+                      (halved)
                     </span>
                   )}
                 </div>
+              </div>
+              <GateVerdictBadge verdict={relation.relation} size="lg" />
+              <div className={cn('text-[11px] font-mono', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                Decided by:{' '}
+                <span className={cn('uppercase font-semibold', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                  {relation.decided_by}
+                </span>
+                {relation.reason_code && <> · Trigger: <span className="text-amber-500">{relation.reason_code}</span></>}
               </div>
             </div>
           </div>
@@ -360,7 +381,8 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
               <QualifierDiffTable
                 factA={relation.source_fact}
                 factB={relation.target_fact}
-                qualifierDiff={relation.qualifier_diff}
+                qualifierDiff={relation.gate?.qualifier_diff || relation.qualifier_diff}
+                gate={relation.gate}
               />
             </div>
           )}

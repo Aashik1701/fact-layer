@@ -3,8 +3,7 @@ import { fetchClusters } from '@/lib/api';
 import { ClusterInfo } from '@/types';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { EmptyState } from '@/components/common/EmptyState';
-import { Layers, Search, RefreshCw, GitCompare } from 'lucide-react';
-import { formatIssuer } from '@/lib/utils';
+import { Layers, Search, RefreshCw } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
@@ -41,7 +40,7 @@ export const ClustersPage: React.FC<ClustersPageProps> = ({ onSelectCluster }) =
   const filteredClusters = clusters.filter((c) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
-    return c.key.toLowerCase().includes(query) || c.subject.toLowerCase().includes(query) || c.measure.toLowerCase().includes(query);
+    return c.cluster_key.toLowerCase().includes(query);
   });
 
   return (
@@ -135,89 +134,54 @@ export const ClustersPage: React.FC<ClustersPageProps> = ({ onSelectCluster }) =
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredClusters.map((cluster) => (
-            <div
-              key={cluster.key}
-              onClick={() => onSelectCluster && onSelectCluster(cluster)}
-              className={cn(
-                'p-4 rounded-xl border cursor-pointer space-y-3 group transition-all',
-                isDark
-                  ? 'bg-slate-900/70 border-slate-800 hover:border-sky-500/30 hover:bg-slate-900 hover:shadow-lg hover:shadow-sky-500/5'
-                  : 'bg-white border-slate-200 hover:border-sky-300 hover:shadow-md shadow-sm'
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-0.5 truncate">
-                  <span
-                    className={cn(
-                      'text-[10px] font-mono uppercase tracking-wider block',
-                      isDark ? 'text-slate-500' : 'text-slate-400'
-                    )}
-                  >
-                    {cluster.subject}
-                  </span>
-                  <h4
-                    className={cn(
-                      'font-mono text-sm font-bold transition-colors truncate',
-                      isDark
-                        ? 'text-slate-100 group-hover:text-sky-400'
-                        : 'text-slate-800 group-hover:text-sky-600'
-                    )}
-                  >
-                    {cluster.measure}
-                  </h4>
-                </div>
+          {filteredClusters.map((cluster) => {
+            // cluster_key is Fact.cluster_key() from fact_layer/models.py,
+            // always "<subject>::<measure>" — split on the first occurrence
+            // in case a measure name itself ever contains "::".
+            const sepIdx = cluster.cluster_key.indexOf('::');
+            const subjectLabel = sepIdx >= 0 ? cluster.cluster_key.slice(0, sepIdx) : cluster.cluster_key;
+            const measureLabel = sepIdx >= 0 ? cluster.cluster_key.slice(sepIdx + 2) : '';
 
-                <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20 shrink-0">
-                  {cluster.size} {cluster.size === 1 ? 'fact' : 'facts'}
-                </span>
-              </div>
-
-              {/* Sample values */}
-              {cluster.sample_values && cluster.sample_values.length > 0 && (
-                <div className="space-y-1">
-                  <span className={cn('text-[10px] block uppercase font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>
-                    Sample Stated Values:
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {cluster.sample_values.slice(0, 3).map((val, i) => (
-                      <span
-                        key={i}
-                        className={cn(
-                          'px-2 py-0.5 rounded border text-[11px] font-mono text-emerald-500 truncate max-w-[140px]',
-                          isDark
-                            ? 'bg-slate-900 border-slate-800'
-                            : 'bg-emerald-50 border-emerald-200'
-                        )}
-                      >
-                        {val}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Issuers */}
-              {cluster.issuers && cluster.issuers.length > 0 && (
-                <div
-                  className={cn(
-                    'pt-2 border-t flex items-center justify-between text-[11px]',
-                    isDark ? 'border-slate-800/80 text-slate-400' : 'border-slate-100 text-slate-500'
-                  )}
-                >
-                  <span className="truncate max-w-[180px]">
-                    {cluster.issuers.map(formatIssuer).join(', ')}
-                  </span>
-                  {cluster.relation_count !== undefined && cluster.relation_count > 0 && (
-                    <span className="flex items-center gap-1 font-mono text-amber-500 text-[10px]">
-                      <GitCompare className="w-3 h-3" />
-                      {cluster.relation_count} rels
+            return (
+              <div
+                key={cluster.cluster_key}
+                onClick={() => onSelectCluster && onSelectCluster(cluster)}
+                className={cn(
+                  'p-4 rounded-xl border cursor-pointer space-y-3 group transition-all',
+                  isDark
+                    ? 'bg-slate-900/70 border-slate-800 hover:border-sky-500/30 hover:bg-slate-900 hover:shadow-lg hover:shadow-sky-500/5'
+                    : 'bg-white border-slate-200 hover:border-sky-300 hover:shadow-md shadow-sm'
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-0.5 truncate">
+                    <span
+                      className={cn(
+                        'text-[10px] font-mono uppercase tracking-wider block',
+                        isDark ? 'text-slate-500' : 'text-slate-400'
+                      )}
+                    >
+                      {subjectLabel}
                     </span>
-                  )}
+                    <h4
+                      className={cn(
+                        'font-mono text-sm font-bold transition-colors truncate',
+                        isDark
+                          ? 'text-slate-100 group-hover:text-sky-400'
+                          : 'text-slate-800 group-hover:text-sky-600'
+                      )}
+                    >
+                      {measureLabel}
+                    </h4>
+                  </div>
+
+                  <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20 shrink-0">
+                    {cluster.size} {cluster.size === 1 ? 'fact' : 'facts'}
+                  </span>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
