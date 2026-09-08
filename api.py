@@ -47,6 +47,8 @@ from fact_layer.resolve import write_resolution_log
 from fact_layer import graph as graph_module
 from fact_layer.graph import GraphProjection
 from fact_layer.investigate import investigate
+from fact_layer import lineage as lineage_module
+from fact_layer import temporal as temporal_module
 from fact_layer.retrieval import get_index
 from fact_layer.storage import backend_from_env
 from fact_layer.store import Store, _STORE_PATH
@@ -987,6 +989,65 @@ def rejected_facts(limit: int = Query(20, ge=1, le=500), reason: Optional[str] =
         if not reason or row.get("reason") == reason
     ]
     return {"total": len(matching), "rejected_facts": matching[:limit]}
+
+
+# --------------------------------------------------------------------------
+# GET /entities/{subject}/history
+#
+# Temporal Knowledge (fact_layer/temporal.py): a chronologically-ordered,
+# scope/modality-grouped projection of every verified fact for one
+# canonical (subject, measure) — never a second store, never interpolated,
+# never a claim of continuity the comparability gate hasn't established.
+# `measure` omitted returns the discovery list of measures this subject
+# actually has facts for, rather than guessing one.
+# --------------------------------------------------------------------------
+
+@app.get("/entities/{subject}/history")
+def entity_history(subject: str, measure: Optional[str] = Query(None)):
+    known = temporal_module.entity_measures(STORE, subject)
+    if not known:
+        raise HTTPException(404, "unknown subject (no facts for this entity)")
+
+    if measure is None:
+        return {"subject": subject, "measures": known}
+
+    try:
+        history = temporal_module.entity_history(STORE, subject, measure)
+    except Exception as exc:                          # noqa: BLE001
+        raise HTTPException(500, f"history projection failed: {type(exc).__name__}")
+    return history.to_dict()
+
+
+# --------------------------------------------------------------------------
+# GET /facts/{fact_id}/lineage, GET /relations/{relation_id}/lineage
+#
+# Evidence Lineage (fact_layer/lineage.py): the provenance chain behind one
+# fact or one adjudicated relation — fact(s) -> evidence -> page -> document
+# — built entirely from fact_layer.graph.GraphProjection (no second graph
+# engine). 404, never synthesized, for an unknown id.
+# --------------------------------------------------------------------------
+
+@app.get("/facts/{fact_id}/lineage")
+def fact_lineage(fact_id: str):
+    try:
+        result = lineage_module.fact_lineage(STORE, fact_id)
+    except Exception as exc:                          # noqa: BLE001
+        raise HTTPException(500, f"lineage projection failed: {type(exc).__name__}")
+    if result is None:
+        raise HTTPException(404, "unknown fact_id")
+    return result.to_dict()
+
+
+@app.get("/relations/{relation_id}/lineage")
+def relation_lineage(relation_id: str):
+    relation = _relation_index().get(relation_id)
+    if relation is None:
+        raise HTTPException(404, "unknown relation_id")
+    try:
+        result = lineage_module.relation_lineage(STORE, relation, relation_id)
+    except Exception as exc:                          # noqa: BLE001
+        raise HTTPException(500, f"lineage projection failed: {type(exc).__name__}")
+    return result.to_dict()
 
 
 # --------------------------------------------------------------------------
