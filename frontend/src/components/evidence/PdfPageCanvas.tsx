@@ -19,33 +19,64 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   filename,
 }) => {
   const { isDark } = useTheme();
+  // Defaults to the whole page fitted inside the viewport (computed on
+  // image load, below) rather than a fixed 100% — a raster page routinely
+  // exceeds the viewport at native size, so opening evidence at 100% zoom
+  // showed only whatever the auto-scroll centered on: effectively a crop
+  // around the anchor, not the page. Fitting the whole page in view by
+  // default means the evidence box is seen in its real context every time,
+  // with zoom controls still available to inspect it more closely.
   const [zoom, setZoom] = useState<number>(1);
+  const [fitZoom, setFitZoom] = useState<number>(1);
+  // The rendered PDF page's own pixel size at the fixed DPI the backend
+  // rasterized it at — needed to size the page wrapper in real pixels (see
+  // handleImageLoad) rather than via a CSS transform, which visually scales
+  // the image but leaves its LAYOUT footprint (and therefore the
+  // viewport's scrollable area and centering) at the untransformed, native
+  // size. At zoom < 1 (the new fit-to-page default) that mismatch left a
+  // page shrunk to, say, 40% of its size sitting inside a scroll area still
+  // reserving 100% of it — masquerading as dead space below the page.
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [hasError, setHasError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const anchorHighlightRef = useRef<HTMLDivElement>(null);
 
   const imageUrl = getPageImageUrl(docId, page);
 
-  // A wide or tall source page routinely exceeds the viewport, and the
-  // evidence anchor is rarely near the top-left corner the container
-  // starts scrolled to — without this, a reviewer can open evidence whose
-  // highlight is technically correct but sits entirely off-screen, with
-  // nothing on screen suggesting they need to scroll to find it. Reset on
-  // every new page/evidence so a stale scroll position from the previous
-  // anchor never lingers, and re-run once the image has actually loaded
-  // (before that, the container has no real scrollable size to target).
   useEffect(() => {
     setLoading(true);
   }, [docId, page]);
 
+  // A reviewer who has zoomed in past the fitted view can still lose track
+  // of where the evidence anchor sits — keep it in view as a safety net,
+  // but only nudge the minimum distance ('nearest') rather than forcing it
+  // to the center every time, since at the default fitted zoom the whole
+  // page (and the anchor) is already visible and shouldn't jump around.
   useEffect(() => {
     if (loading) return;
-    anchorHighlightRef.current?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
+    anchorHighlightRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
   }, [loading, evidence?.doc_id, evidence?.page, evidence?.bbox]);
 
-  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 2.5));
-  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
-  const handleResetZoom = () => setZoom(1);
+  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 3));
+  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.1));
+  const handleResetZoom = () => setZoom(fitZoom);
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const viewport = viewportRef.current;
+    if (viewport && img.naturalWidth && img.naturalHeight) {
+      setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+      const PADDING = 32; // matches the viewport's p-4 (16px) on each side
+      const availableWidth = viewport.clientWidth - PADDING;
+      const availableHeight = viewport.clientHeight - PADDING;
+      const fit = Math.min(availableWidth / img.naturalWidth, availableHeight / img.naturalHeight, 1);
+      const clamped = Math.max(0.1, Math.min(fit, 3));
+      setFitZoom(clamped);
+      setZoom(clamped);
+    }
+    setLoading(false);
+  };
 
   // Compute bbox overlay percentages
   const bboxAsPct = (bbox: [number, number, number, number]): React.CSSProperties => {
@@ -145,7 +176,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
                 ? 'hover:bg-slate-800 text-slate-400 hover:text-slate-200'
                 : 'hover:bg-slate-100 text-slate-500 hover:text-slate-800'
             )}
-            title="Reset Zoom"
+            title="Fit Whole Page"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -188,8 +219,9 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
 
       {/* Canvas Viewport */}
       <div
+        ref={viewportRef}
         className={cn(
-          'flex-1 overflow-auto p-4 flex items-center justify-center min-h-[420px] max-h-[650px] relative',
+          'flex-1 overflow-auto p-4 flex items-center justify-center min-h-[420px] max-h-[80vh] relative',
           isDark ? 'bg-slate-950/60' : 'bg-slate-50'
         )}
       >
@@ -217,18 +249,25 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
           </div>
         ) : (
           <div
-            className="relative transition-transform duration-150 origin-top shadow-2xl rounded"
-            style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+            className="relative shadow-2xl rounded transition-[width,height] duration-150"
+            style={
+              naturalSize
+                ? { width: naturalSize.width * zoom, height: naturalSize.height * zoom }
+                : undefined
+            }
           >
-            {/* The PDF Page Image */}
+            {/* The PDF Page Image — sized in real pixels (not CSS transform)
+                so the wrapper's own layout box always matches what's on
+                screen; see naturalSize's comment above for why that matters
+                at fit-to-page zoom levels below 100%. */}
             <img
               src={imageUrl}
               alt={`Page ${page} of ${docId}`}
               className={cn(
-                'max-w-none rounded border bg-white',
+                'block w-full h-full rounded border bg-white',
                 isDark ? 'border-slate-700' : 'border-slate-300'
               )}
-              onLoad={() => setLoading(false)}
+              onLoad={handleImageLoad}
               onError={() => {
                 setLoading(false);
                 setHasError(true);

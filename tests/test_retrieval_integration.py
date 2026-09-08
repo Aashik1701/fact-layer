@@ -176,3 +176,60 @@ def test_unresolvable_candidate_fact_id_is_dropped(index):
     facts_by_id_missing_b = {a.fact_id: a}
     pairs = generate_candidate_pairs([a], facts_by_id_missing_b, index)
     assert pairs == []
+
+
+# --------------------------------------------------------------------------
+# Store.ingest(relationship_mode="retrieval") — the actual wiring in
+# fact_layer/store.py, not just adjudicate_via_retrieval() in isolation.
+# The expensive pipeline stages (PDF parsing, LLM extraction) are faked out
+# (deterministic, no PDF/LLM involved) so this stays fast; resolve_facts()
+# is the REAL function, and gate()/adjudicate()/RetrievalIndex are all real.
+# --------------------------------------------------------------------------
+
+def test_store_ingest_wires_relationship_mode_retrieval(monkeypatch, index):
+    import fact_layer.store as store_mod
+    from fact_layer.extract import ExtractionStats
+    from fact_layer.parse import Document
+
+    def _mkraw(subject, measure, value_raw, doc_id, page, period_label=None):
+        return _mkfact(subject, measure, value_raw, period_label=period_label, doc_id=doc_id, page=page)
+
+    # Different pages: same-page repetition is deliberately not evidence of
+    # anything (adjudicate_cluster()'s own rule, reused as-is in
+    # adjudicate_via_retrieval()) — same-page facts would be skipped before
+    # ever reaching gate()/adjudicate(), which isn't what this test wants
+    # to exercise.
+    raw_facts = [
+        _mkraw("delhivery", "revenue", "1204000000", "docA", page=3, period_label="FY2023-24"),
+        _mkraw("delhivery", "revenue", "1459000000", "docA", page=7, period_label="FY2023-24"),  # -> CONTRADICTS
+        _mkraw("rbi", "reserve_money_growth", "65", "docA", page=9),                              # unrelated subject
+    ]
+
+    monkeypatch.setattr(store_mod, "parse_pdf",
+                         lambda path: Document(doc_id="docA", filename="fake.pdf", n_pages=1, pages=[]))
+    monkeypatch.setattr(store_mod, "extract_document_defaults", lambda doc: {})
+    monkeypatch.setattr(store_mod, "select_pages", lambda doc, budget: [])
+    monkeypatch.setattr(
+        store_mod, "extract_document",
+        lambda doc, selected, defaults, rejected_path: (raw_facts, ExtractionStats(proposed=3, verified=3)),
+    )
+    monkeypatch.setattr(store_mod, "resolve_facts", lambda facts, resolver: (facts, resolver))
+    # Store.ingest() does `from .retrieval import get_index` INSIDE the
+    # method body (a lazy, call-time import — see its own comment on why:
+    # importing fact_layer.retrieval eagerly at module load would build an
+    # embedding provider even when RETRIEVAL_ENABLED=false). That means
+    # patching fact_layer.store.get_index has no effect; the patch target
+    # is the retrieval package's own attribute, which the lazy import
+    # resolves fresh at call time.
+    monkeypatch.setattr("fact_layer.retrieval.get_index", lambda: index)
+
+    store = store_mod.Store()
+    result = store.ingest("fake.pdf", relationship_mode="retrieval")
+
+    assert result.skipped_reason is None
+    assert len(result.new_facts) == 3
+    kinds = {r.relation for r in result.new_relations}
+    assert RelationType.CONTRADICTS in kinds
+    # The RBI fact must never pair with either revenue fact (SUBJECT_MISMATCH).
+    rbi_id = raw_facts[2].fact_id
+    assert not any(rbi_id in (r.source_fact_id, r.target_fact_id) for r in result.new_relations)

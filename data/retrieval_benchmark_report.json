@@ -1,0 +1,45 @@
+{
+  "n_docs": 100,
+  "facts_per_doc": 120,
+  "total_facts": 12000,
+  "bruteforce": {
+    "baseline_pairs": 214395,
+    "relations_kept": 214257,
+    "elapsed_seconds": 2.1986
+  },
+  "retrieval": {
+    "total_facts": 12000,
+    "baseline_pairs": 214395,
+    "blocked_pairs": 271165,
+    "retrieved_pairs": 120297,
+    "total_candidate_pairs_considered": 391462,
+    "candidate_reduction_ratio": 0.4389001609179318,
+    "relations_kept": 120210,
+    "elapsed_seconds": 393.2984
+  },
+  "known_relation_recovery": {
+    "known_pairs": 214257,
+    "recovered": 120210
+  },
+  "recall_at_k": {
+    "lexical": {
+      "10": 0.30666666666666664,
+      "25": 0.5833333333333334,
+      "50": 0.67,
+      "100": 0.7933333333333333
+    },
+    "semantic": {
+      "10": 0.12666666666666668,
+      "25": 0.19333333333333333,
+      "50": 0.23,
+      "100": 0.28
+    },
+    "hybrid": {
+      "10": 0.23333333333333334,
+      "25": 0.39666666666666667,
+      "50": 0.5966666666666667,
+      "100": 0.71
+    }
+  },
+  "recall_at_k_sample_size": 300
+}

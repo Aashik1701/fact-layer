@@ -374,6 +374,71 @@ def test_fuzzy_snap_works(tmp_path):
     assert fact.evidence.verified is True
 
 
+def test_fuzzy_snap_widens_truncated_number(tmp_path):
+    """Regression for a real corpus bug: a table row packs several similar
+    numbers close together ("1,860 2,194 2,076" — three fiscal years on one
+    line), and the fuzzy matcher's coarse window landed a few characters
+    short of the quoted figure, truncating the span mid-digit so the
+    highlighted evidence showed "1" (a fragment of the wrong, earlier
+    number) instead of the quoted "2,194". The span must be widened to
+    fully contain the actual quoted number."""
+    page_text = "Total revenue from customers 1,860 2,194 2,076 7,214 in the period."
+    page = _make_page(page_text)
+
+    raw_fact = {
+        "subject_raw": "Company",
+        "measure_raw": "Total revenue from customers",
+        "value_raw": "2,194",
+        "period_raw": "FY23",
+        "scope_raw": None,
+        "issuer_raw": None,
+        "modality": "asserted",
+        # Deliberately NOT a literal substring (extra trailing period breaks
+        # exact match), forcing the fuzzy fallback this test targets.
+        "verbatim_quote": "Total revenue  from customers 2,194.",
+    }
+
+    rejected_path = str(tmp_path / "rejected.jsonl")
+    fact = verify_and_build_fact(raw_fact, [page], "doc1", "test.pdf",
+                                 {}, "", rejected_path)
+
+    assert fact is not None
+    quoted_span = page_text[fact.evidence.char_start:fact.evidence.char_end]
+    assert "2,194" in quoted_span
+    assert "1,860" not in quoted_span[quoted_span.index("2,194"):]  # doesn't run past it either
+
+
+def test_fuzzy_snap_rejects_unlocatable_number(tmp_path):
+    """Regression for a real corpus bug: an LLM-emitted verbatim_quote
+    claimed a figure ("52,350.00") that does not actually appear anywhere
+    near its best fuzzy-matched location on the page (only "12,350.00" and
+    "40,000.00" are really there) — the old fuzzy matcher still accepted
+    the best-scoring window and highlighted unrelated text as if it backed
+    the hallucinated number. It must be rejected instead."""
+    page_text = "Offer size: Rs. 40,000.00 million and Rs. 12,350.00 million total."
+    page = _make_page(page_text)
+
+    raw_fact = {
+        "subject_raw": "Company",
+        "measure_raw": "Total offer amount",
+        "value_raw": "52,350.00",
+        "period_raw": None,
+        "scope_raw": None,
+        "issuer_raw": None,
+        "modality": "asserted",
+        "verbatim_quote": "Rs. 52,350.00 million",
+    }
+
+    rejected_path = str(tmp_path / "rejected.jsonl")
+    fact = verify_and_build_fact(raw_fact, [page], "doc1", "test.pdf",
+                                 {}, "", rejected_path)
+
+    assert fact is None
+    with open(rejected_path, "r") as f:
+        record = json.loads(f.readline())
+    assert record["reason"] == "quote_not_found"
+
+
 def test_no_subject_rejected(tmp_path):
     """A raw fact with empty subject_raw is rejected with reason 'no_subject'."""
     page_text = "Revenue was Rs. 100 Cr."

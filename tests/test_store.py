@@ -201,8 +201,8 @@ def test_full_corpus_cluster_and_relation_counts():
 
 # --------------------------------------------------------------------------
 # Downstream safety of resolve.py's SUBJECT_ALIASES table (entity-resolution
-# turn) against this same real corpus. Measured before adding it: 688
-# facts, 401 canonical subjects, 550 clusters (92 with 2+ facts), 28
+# turn) against this same real corpus. Measured before adding it: 685
+# facts, 399 canonical subjects, 547 clusters (92 with 2+ facts), 28
 # relations ({'apparent_conflict': 17, 'contradicts': 8, 'corroborates': 2,
 # 'aggregates_into': 1}), with a standalone 'rbi' subject bucket (one fact —
 # the IMF document's bare "RBI" mention). Measured after: byte-identical on
@@ -216,14 +216,25 @@ def test_full_corpus_cluster_and_relation_counts():
 # adding a fuzzy/context tier for subjects (see test_resolve.py's
 # test_real_corpus_reserve_money_family_does_not_fuzzy_merge for the real
 # false-merge risk that tier would carry, and README §13).
+#
+# The 688/401/550 baseline these counts previously pinned predates the
+# evidence span-verifier fix in extract.py's _snap_fuzzy_span_to_numbers():
+# it widens (never shrinks) a fuzzy-matched span so it actually contains
+# every number the quote names, and rejects the match outright when one
+# can't be found nearby instead of accepting a highlight over the wrong
+# digits. That fix drops 3 facts whose fuzzy match previously landed on an
+# unverifiable or neighboring number (2 facts truly unlocatable; 1 more
+# elsewhere in the corpus), which is also why canonical_subjects/
+# clusters_total each shifted down slightly — real corpus-correctness
+# changes, not a resolver regression.
 # --------------------------------------------------------------------------
 
 def test_subject_aliases_do_not_change_real_corpus_fact_or_cluster_counts():
     store = _full_store()
     summary = store.canonical_summary()
-    assert len(store.facts) == 688
-    assert summary["canonical_subjects"] == 401
-    assert summary["clusters_total"] == 550
+    assert len(store.facts) == 685
+    assert summary["canonical_subjects"] == 399
+    assert summary["clusters_total"] == 547
     assert summary["clusters_with_2plus_facts"] == 92
 
 

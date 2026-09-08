@@ -1,11 +1,16 @@
 """Tests for fact_layer/retrieval/blocking.py.
 
-Two groups: things blocking DOES eliminate (subject/measure/value_kind/
-unit-category mismatch), and — just as important for this architecture —
-things it must NEVER eliminate (scope/segment/geography/basis/issuer
-mismatch, and same-category currency mismatch), because
-`comparability.gate()` turns those into real CORROBORATES/APPARENT_CONFLICT
-relations. See blocking.py's module docstring for the full reasoning.
+Two groups: things blocking DOES eliminate (subject/measure/value_kind
+mismatch — the exact set `gate()` turns into `UNRELATED`), and — just as
+important for this architecture — things it must NEVER eliminate
+(scope/segment/geography/basis/issuer mismatch, and unit/currency
+mismatch of any kind), because `comparability.gate()` turns those into
+real CORROBORATES/APPARENT_CONFLICT relations. Unit/currency mismatch
+used to be blocked here too, on the assumption it was a narrow edge case;
+measuring it against the real corpus proved that assumption wrong (it
+silently discarded 8 of 15 real relations — see blocking.py's module
+docstring), so it was removed. See blocking.py's module docstring for the
+full reasoning.
 """
 
 import os
@@ -70,18 +75,22 @@ def test_different_value_kind_blocked():
     assert result.reason == "VALUE_KIND_MISMATCH"
 
 
-def test_different_unit_category_blocked():
-    a = _mkfact(unit="percent", currency=None)
-    b = _mkfact(unit="currency", currency="INR")
-    result = blocking_check(a, b)
-    assert result.candidate is False
-    assert result.reason == "UNIT_CATEGORY_MISMATCH"
-
-
 # --------------------------------------------------------------------------
 # NOT blocked — must reach gate() so CORROBORATES/APPARENT_CONFLICT stay
 # discoverable (task section 22 / this project's "Case 3" capability).
 # --------------------------------------------------------------------------
+
+def test_different_unit_category_not_blocked():
+    # Real-corpus regression: this used to be blocked as
+    # "UNIT_CATEGORY_MISMATCH" on the assumption it was a rare edge case.
+    # Measured against data/store.json, that rule silently discarded 8 of
+    # the corpus's 15 real relations (gate() reaches INCOMPARABLE_UNIT ->
+    # a real APPARENT_CONFLICT/CORROBORATES relation for exactly this
+    # shape whenever scope/segment/issuer already matched) — see
+    # blocking.py's module docstring.
+    a = _mkfact(unit="percent", currency=None)
+    b = _mkfact(unit="currency", currency="INR")
+    assert blocking_check(a, b).candidate is True
 
 def test_scope_mismatch_not_blocked():
     a = _mkfact(scope=Scope.STANDALONE)

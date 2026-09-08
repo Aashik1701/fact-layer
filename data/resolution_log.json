@@ -1,11 +1,11 @@
 {
   "summary": {
-    "total_decisions": 1639,
+    "total_decisions": 1633,
     "by_tier": {
-      "deterministic": 550,
+      "deterministic": 548,
       "new": 246,
-      "unresolved": 455,
-      "exact_repeat": 272,
+      "unresolved": 453,
+      "exact_repeat": 270,
       "llm": 10,
       "alias": 94,
       "fuzzy": 12
@@ -679,30 +679,6 @@
       "kind": "subject",
       "raw": "Offer for sale",
       "canonical": "offer for sale",
-      "tier": "deterministic",
-      "confidence": 1.0,
-      "detail": ""
-    },
-    {
-      "kind": "measure",
-      "raw": "aggregate amount",
-      "canonical": "aggregate_amount",
-      "tier": "exact_repeat",
-      "confidence": 1.0,
-      "detail": ""
-    },
-    {
-      "kind": "issuer",
-      "raw": "Delhivery Limited",
-      "canonical": "Delhivery Limited",
-      "tier": "unresolved",
-      "confidence": 0.5,
-      "detail": "no alias table match; kept verbatim"
-    },
-    {
-      "kind": "subject",
-      "raw": "Total offer",
-      "canonical": "total offer",
       "tier": "deterministic",
       "confidence": 1.0,
       "detail": ""
@@ -9679,30 +9655,6 @@
       "kind": "subject",
       "raw": "Employee benefit expense",
       "canonical": "employee benefit expense",
-      "tier": "deterministic",
-      "confidence": 1.0,
-      "detail": ""
-    },
-    {
-      "kind": "measure",
-      "raw": "₹ Cr",
-      "canonical": "cr",
-      "tier": "exact_repeat",
-      "confidence": 1.0,
-      "detail": ""
-    },
-    {
-      "kind": "issuer",
-      "raw": "Delhivery Limited",
-      "canonical": "Delhivery Limited",
-      "tier": "unresolved",
-      "confidence": 0.5,
-      "detail": "no alias table match; kept verbatim"
-    },
-    {
-      "kind": "subject",
-      "raw": "Adjusted EBITDA",
-      "canonical": "adjusted ebitda",
       "tier": "deterministic",
       "confidence": 1.0,
       "detail": ""

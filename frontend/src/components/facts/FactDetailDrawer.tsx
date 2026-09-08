@@ -3,6 +3,7 @@ import { Modal } from '@/components/common/Modal';
 import { FactSummary, FactFull, RelationSummary } from '@/types';
 import { ConfidencePill } from '@/components/common/ConfidencePill';
 import { GateVerdictBadge } from '@/components/relations/GateVerdictBadge';
+import { RetrievalCandidatesPanel } from '@/components/facts/RetrievalCandidatesPanel';
 import { fetchFact, fetchRelations } from '@/lib/api';
 import { deriveSpanVerification, deriveValueVerification, deriveContextVerification } from '@/lib/verification';
 import {
@@ -364,6 +365,11 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
             </p>
           )}
         </div>
+
+        {/* CANDIDATE RETRIEVAL — section 19: shows what retrieval found,
+            never what it decided; the comparability gate above remains
+            the sole authority for CORROBORATES/CONTRADICTS/etc. */}
+        <RetrievalCandidatesPanel fact={fact} />
       </div>
     </Modal>
   );

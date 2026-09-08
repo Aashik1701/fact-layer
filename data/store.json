@@ -1008,67 +1008,6 @@
       "value_verification_reason": "value_matches_sole_quote_number",
       "fact_id": "f_bf0873b77681"
     },
-    "f_890052dcbfd9": {
-      "subject": "total offer",
-      "measure": "aggregate_amount",
-      "value_kind": "quantity",
-      "value": {
-        "value": "52350000000.00",
-        "unit": "currency",
-        "currency": "INR",
-        "sig_figs": 7,
-        "raw": "₹52,350.00 million"
-      },
-      "qualifiers": {
-        "period": {
-          "kind": "instant",
-          "start": "2022-05-14",
-          "end": "2022-05-14",
-          "label": "May 14, 2022"
-        },
-        "as_of": null,
-        "scope": "standalone",
-        "basis": null,
-        "segment": null,
-        "geography": null,
-        "issuer": "Delhivery Limited",
-        "extra": {}
-      },
-      "modality": "asserted",
-      "evidence": {
-        "doc_id": "c2a4a8255dce2ff5",
-        "page": 1,
-        "char_start": 1336,
-        "char_end": 1352,
-        "verbatim_quote": "₹52,350.00 million",
-        "bbox": [
-          190.25,
-          244.60399999999993,
-          253.80800000000002,
-          253.60399999999993
-        ],
-        "extractor": "llm",
-        "verified": true,
-        "table_id": "c2a4a8255dce2ff5_p1_dd270e46",
-        "row_index": 6,
-        "column_index": 12,
-        "cell_bbox": [
-          259.922002,
-          208.12117647058824,
-          310.01300321428573,
-          253.7
-        ],
-        "row_label": "Fresh Issue and\nOffer for Sale",
-        "column_header": "CONTACT",
-        "unit_context": ""
-      },
-      "confidence": 1.0,
-      "subject_raw": "Total offer",
-      "measure_raw": "aggregate amount",
-      "value_verification": "verified_with_context",
-      "value_verification_reason": "value_matches_quote_and_confident_table_cell",
-      "fact_id": "f_890052dcbfd9"
-    },
     "f_a9420a8df609": {
       "subject": "swift investments",
       "measure": "weighted_average_cost_per_equity_share",
@@ -2462,7 +2401,7 @@
       "value_verification_reason": "value_matches_sole_quote_number",
       "fact_id": "f_994b75f4acf2"
     },
-    "f_0bed301e11f9": {
+    "f_000cae812481": {
       "subject": "net asset value per share",
       "measure": "net_asset_value_per_share_in",
       "value_kind": "quantity",
@@ -2492,13 +2431,13 @@
       "evidence": {
         "doc_id": "c2a4a8255dce2ff5",
         "page": 5,
-        "char_start": 728,
+        "char_start": 528,
         "char_end": 780,
         "verbatim_quote": "Net asset value per share (in ₹) (Note 3) 56.44",
         "bbox": [
           77.424,
-          286.0339999999999,
-          325.312,
+          209.56399999999996,
+          518.1239999999999,
           305.47399999999993
         ],
         "extractor": "llm",
@@ -2516,7 +2455,7 @@
       "measure_raw": "Net asset value per share (in ₹)",
       "value_verification": "unverified",
       "value_verification_reason": "multiple_numeric_candidates_in_quote_ambiguous",
-      "fact_id": "f_0bed301e11f9"
+      "fact_id": "f_000cae812481"
     },
     "f_a7bc86dce768": {
       "subject": "promoters",
@@ -3949,7 +3888,7 @@
         "doc_id": "c2a4a8255dce2ff5",
         "page": 10,
         "char_start": 2191,
-        "char_end": 2222,
+        "char_end": 2237,
         "verbatim_quote": "SVF Doorbell (Cayman) Ltd 194.61",
         "bbox": [
           77.424,
@@ -6886,7 +6825,7 @@
       "value_verification_reason": "value_matches_sole_quote_number",
       "fact_id": "f_c9c83c19cc46"
     },
-    "f_1742cfa860bd": {
+    "f_2bbba924cce3": {
       "subject": "customer retention rate for top 100 customers",
       "measure": "customer_retention_rate",
       "value_kind": "quantity",
@@ -6916,11 +6855,11 @@
       "evidence": {
         "doc_id": "c2a4a8255dce2ff5",
         "page": 56,
-        "char_start": 1785,
-        "char_end": 1808,
+        "char_start": 1765,
+        "char_end": 1809,
         "verbatim_quote": "93.00% for Fiscal 2019",
         "bbox": [
-          312.27912000000003,
+          219.75072000000006,
           269.08136,
           407.6461200000002,
           279.04135999999994
@@ -6940,7 +6879,7 @@
       "measure_raw": "Customer Retention Rate",
       "value_verification": "verified",
       "value_verification_reason": "value_matches_sole_quote_number",
-      "fact_id": "f_1742cfa860bd"
+      "fact_id": "f_2bbba924cce3"
     },
     "f_d2124095b7d3": {
       "subject": "revenue from contracts with customers",
@@ -11220,7 +11159,7 @@
         "doc_id": "4c5a0e94d84aeb42",
         "page": 43,
         "char_start": 2944,
-        "char_end": 3036,
+        "char_end": 3087,
         "verbatim_quote": "in the proportion of 9:1 i.e. nine equity shares of ₹10 each for every one equity share of ₹10 each",
         "bbox": [
           306.4724,
@@ -13349,12 +13288,12 @@
         "doc_id": "4c5a0e94d84aeb42",
         "page": 69,
         "char_start": 814,
-        "char_end": 861,
+        "char_end": 874,
         "verbatim_quote": "Depreciation of property, plant and equipment 3,809.88",
         "bbox": [
           70.02360000000004,
           182.54629999999997,
-          474.6476,
+          545.6796,
           190.54629999999997
         ],
         "extractor": "llm",
@@ -15665,7 +15604,7 @@
         "doc_id": "4c5a0e94d84aeb42",
         "page": 83,
         "char_start": 1767,
-        "char_end": 1846,
+        "char_end": 1848,
         "verbatim_quote": "Deposits with original maturity of more than three months but less 1,000.00",
         "bbox": [
           53.0236,
@@ -15721,12 +15660,12 @@
         "doc_id": "4c5a0e94d84aeb42",
         "page": 83,
         "char_start": 1768,
-        "char_end": 1836,
+        "char_end": 1857,
         "verbatim_quote": "Deposits with original maturity of more than three months but less 3,500.00",
         "bbox": [
           70.0316,
           293.4969,
-          304.9196000000001,
+          545.6956,
           301.4969
         ],
         "extractor": "llm",
@@ -18873,12 +18812,12 @@
         "doc_id": "4c5a0e94d84aeb42",
         "page": 97,
         "char_start": 3618,
-        "char_end": 3657,
+        "char_end": 3665,
         "verbatim_quote": "Expected life of share options 4 to 5 years",
         "bbox": [
           53.02359999999999,
           433.45829999999995,
-          474.6356,
+          524.4875999999999,
           441.45829999999995
         ],
         "extractor": "llm",
@@ -21423,12 +21362,12 @@
         "doc_id": "cd521b3849e8bcf1",
         "page": 23,
         "char_start": 70,
-        "char_end": 100,
+        "char_end": 110,
         "verbatim_quote": "Total revenue from customers 2,194",
         "bbox": [
           49.728,
           133.80759999999998,
-          308.68888,
+          378.40887999999995,
           144.36759999999998
         ],
         "extractor": "llm",
@@ -21479,12 +21418,12 @@
         "doc_id": "cd521b3849e8bcf1",
         "page": 23,
         "char_start": 70,
-        "char_end": 101,
+        "char_end": 116,
         "verbatim_quote": "Total revenue from customers 2,076",
         "bbox": [
           49.728,
           133.80759999999998,
-          308.68888,
+          448.12888,
           144.36759999999998
         ],
         "extractor": "llm",
@@ -21540,12 +21479,12 @@
         "doc_id": "cd521b3849e8bcf1",
         "page": 24,
         "char_start": 80,
-        "char_end": 123,
+        "char_end": 134,
         "verbatim_quote": "Freight, Handling and Servicing Cost(1,2) 1,372",
         "bbox": [
           84.408,
           108.5272,
-          292.41796,
+          471.77872,
           119.6284
         ],
         "extractor": "llm",
@@ -21601,12 +21540,12 @@
         "doc_id": "cd521b3849e8bcf1",
         "page": 24,
         "char_start": 80,
-        "char_end": 123,
+        "char_end": 146,
         "verbatim_quote": "Freight, Handling and Servicing Cost(1,2) 1,519",
         "bbox": [
           84.408,
           108.5272,
-          292.41796,
+          639.0587200000001,
           119.6284
         ],
         "extractor": "llm",
@@ -21691,62 +21630,6 @@
       "value_verification": "verified_with_context",
       "value_verification_reason": "value_matches_quote_and_confident_table_cell",
       "fact_id": "f_4eb2ed8ffd96"
-    },
-    "f_73e0ae37c4b1": {
-      "subject": "adjusted ebitda",
-      "measure": "cr",
-      "value_kind": "quantity",
-      "value": {
-        "value": "210000000",
-        "unit": "currency",
-        "currency": "INR",
-        "sig_figs": 2,
-        "raw": "21"
-      },
-      "qualifiers": {
-        "period": {
-          "kind": "duration",
-          "start": "2024-01-01",
-          "end": "2024-03-31",
-          "label": "Q4 FY24"
-        },
-        "as_of": null,
-        "scope": "unknown",
-        "basis": null,
-        "segment": null,
-        "geography": null,
-        "issuer": "Delhivery Limited",
-        "extra": {}
-      },
-      "modality": "asserted",
-      "evidence": {
-        "doc_id": "cd521b3849e8bcf1",
-        "page": 23,
-        "char_start": 0,
-        "char_end": 16,
-        "verbatim_quote": "Adjusted EBITDA 21",
-        "bbox": [
-          45.984,
-          34.42160000000001,
-          352.12368,
-          71.38159999999999
-        ],
-        "extractor": "llm",
-        "verified": true,
-        "table_id": null,
-        "row_index": null,
-        "column_index": null,
-        "cell_bbox": null,
-        "row_label": null,
-        "column_header": null,
-        "unit_context": ""
-      },
-      "confidence": 1.0,
-      "subject_raw": "Adjusted EBITDA",
-      "measure_raw": "₹ Cr",
-      "value_verification": "verified",
-      "value_verification_reason": "value_matches_sole_quote_number",
-      "fact_id": "f_73e0ae37c4b1"
     },
     "f_617984180388": {
       "subject": "estimated p l charge for esops performance based options",
@@ -21967,7 +21850,7 @@
       "value_verification_reason": "value_matches_sole_quote_number",
       "fact_id": "f_66c42fa85bb5"
     },
-    "f_889b0e3e3317": {
+    "f_edf645dc699c": {
       "subject": "construction",
       "measure": "increase_above_its_pre_pandemic_trend",
       "value_kind": "quantity",
@@ -21992,13 +21875,13 @@
       "evidence": {
         "doc_id": "e03255fdaf2e025c",
         "page": 15,
-        "char_start": 1408,
+        "char_start": 1297,
         "char_end": 1539,
         "verbatim_quote": "Construction has been a standout, gaining momentum since mid-FY21 and soaring approximately 15 per cent above its pre‑pandemic trend",
         "bbox": [
           59.99999999999999,
-          404.5477,
-          516.0203999999998,
+          360.5437,
+          516.0252000000002,
           433.0477
         ],
         "extractor": "llm",
@@ -22016,7 +21899,7 @@
       "measure_raw": "increase above its pre‑pandemic trend",
       "value_verification": "verified",
       "value_verification_reason": "value_matches_sole_quote_number",
-      "fact_id": "f_889b0e3e3317"
+      "fact_id": "f_edf645dc699c"
     },
     "f_b32468812b91": {
       "subject": "real gva",
@@ -23257,7 +23140,7 @@
       "value_verification_reason": "quote_contains_no_numeric_literal",
       "fact_id": "f_e9a5a471606f"
     },
-    "f_cfcdd846f972": {
+    "f_bf406af56b37": {
       "subject": "eu cbam levy",
       "measure": "expected_to_take_effect_from",
       "value_kind": "quantity",
@@ -23282,12 +23165,12 @@
       "evidence": {
         "doc_id": "e03255fdaf2e025c",
         "page": 46,
-        "char_start": 1264,
+        "char_start": 1194,
         "char_end": 1328,
         "verbatim_quote": "the levy, however, is expected to take effect from 1 January 2026",
         "bbox": [
           67.6939,
-          350.9375,
+          334.9325,
           508.77959999999985,
           377.9425
         ],
@@ -23306,7 +23189,7 @@
       "measure_raw": "expected to take effect from",
       "value_verification": "unverified",
       "value_verification_reason": "quote_contains_no_numeric_literal",
-      "fact_id": "f_cfcdd846f972"
+      "fact_id": "f_bf406af56b37"
     },
     "f_c5f0438d1ae9": {
       "subject": "uk cbam",
@@ -25633,13 +25516,13 @@
         "doc_id": "80f993da9c93fbf9",
         "page": 15,
         "char_start": 1928,
-        "char_end": 1947,
+        "char_end": 2018,
         "verbatim_quote": "3.3 per cent in 2024",
         "bbox": [
-          155.20439999999994,
+          52.29939999999999,
           469.77639999999997,
-          252.32339999999994,
-          480.77639999999997
+          559.6578000000003,
+          498.07939999999996
         ],
         "extractor": "llm",
         "verified": true,
@@ -26709,13 +26592,13 @@
         "doc_id": "80f993da9c93fbf9",
         "page": 49,
         "char_start": 1602,
-        "char_end": 1639,
+        "char_end": 1689,
         "verbatim_quote": "from 23.5 per cent as at end-March 2024",
         "bbox": [
-          353.42089999999996,
+          52.2954,
           378.92539999999997,
           559.6687000000001,
-          389.92539999999997
+          406.5904
         ],
         "extractor": "llm",
         "verified": true,
@@ -27926,12 +27809,12 @@
         "doc_id": "80f993da9c93fbf9",
         "page": 74,
         "char_start": 356,
-        "char_end": 374,
+        "char_end": 379,
         "verbatim_quote": "Revenue Deficit | 0.6",
         "bbox": [
           55.1259,
           169.48219999999992,
-          172.26990000000004,
+          231.33390000000003,
           177.48219999999992
         ],
         "extractor": "llm",
@@ -28028,12 +27911,12 @@
         "doc_id": "80f993da9c93fbf9",
         "page": 74,
         "char_start": 432,
-        "char_end": 456,
+        "char_end": 461,
         "verbatim_quote": "Gross Fiscal Deficit | 3.6",
         "bbox": [
           55.12590000000006,
           186.81819999999993,
-          172.26990000000006,
+          231.33390000000006,
           194.81819999999993
         ],
         "extractor": "llm",
@@ -28772,7 +28655,7 @@
         "doc_id": "80f993da9c93fbf9",
         "page": 81,
         "char_start": 384,
-        "char_end": 451,
+        "char_end": 455,
         "verbatim_quote": "Merchandise trade deficit widened to US$ 282.8 billion in 2024-25",
         "bbox": [
           77.06470000000002,
@@ -30162,31 +30045,6 @@
   "extra_evidence": {},
   "relations": [
     {
-      "source_fact_id": "f_4416622d5aa9",
-      "target_fact_id": "f_bc13105cdc69",
-      "relation": "apparent_conflict",
-      "confidence": 0.85,
-      "reason_code": "unit_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (count vs currency).",
-      "qualifier_diff": {
-        "issuer": [
-          "SVF Doorbell (Cayman) Ltd",
-          "Delhivery Limited"
-        ]
-      },
-      "decided_by": "rule"
-    },
-    {
-      "source_fact_id": "f_e390ed9651ce",
-      "target_fact_id": "f_3a7f56abc57e",
-      "relation": "apparent_conflict",
-      "confidence": 0.85,
-      "reason_code": "unit_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
-      "qualifier_diff": {},
-      "decided_by": "rule"
-    },
-    {
       "source_fact_id": "f_ee13dd84d73c",
       "target_fact_id": "f_c008937aed20",
       "relation": "apparent_conflict",
@@ -30232,6 +30090,31 @@
       "decided_by": "rule"
     },
     {
+      "source_fact_id": "f_4416622d5aa9",
+      "target_fact_id": "f_bc13105cdc69",
+      "relation": "apparent_conflict",
+      "confidence": 0.85,
+      "reason_code": "unit_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (count vs currency).",
+      "qualifier_diff": {
+        "issuer": [
+          "SVF Doorbell (Cayman) Ltd",
+          "Delhivery Limited"
+        ]
+      },
+      "decided_by": "rule"
+    },
+    {
+      "source_fact_id": "f_e390ed9651ce",
+      "target_fact_id": "f_3a7f56abc57e",
+      "relation": "apparent_conflict",
+      "confidence": 0.85,
+      "reason_code": "unit_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
+      "qualifier_diff": {},
+      "decided_by": "rule"
+    },
+    {
       "source_fact_id": "f_58c908ef1363",
       "target_fact_id": "f_d2124095b7d3",
       "relation": "apparent_conflict",
@@ -30242,40 +30125,6 @@
         "period": [
           "December 31, 2021",
           "Fiscal 2019"
-        ]
-      },
-      "decided_by": "rule"
-    },
-    {
-      "source_fact_id": "f_84eae7b4b5df",
-      "target_fact_id": "f_69d93c56b177",
-      "relation": "contradicts",
-      "confidence": 0.475,
-      "reason_code": "value_mismatch_period_unverified",
-      "explanation": "Same subject, measure, scope and period, but the values differ by 21.0% (676,000 - 250,000 vs 534,000). No contextual qualifier accounts for the gap. One source states no reporting period, so a like-for-like comparison cannot be confirmed; this may reflect an extraction gap rather than a real disagreement.",
-      "qualifier_diff": {
-        "period": [
-          "as on March 31, 2024",
-          null
-        ]
-      },
-      "decided_by": "rule"
-    },
-    {
-      "source_fact_id": "f_e2066192875b",
-      "target_fact_id": "f_8afda5421db5",
-      "relation": "apparent_conflict",
-      "confidence": 0.85,
-      "reason_code": "unit_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
-      "qualifier_diff": {
-        "period": [
-          null,
-          "May 14, 2022"
-        ],
-        "scope": [
-          "unknown",
-          "standalone"
         ]
       },
       "decided_by": "rule"
@@ -30376,6 +30225,21 @@
       "decided_by": "rule"
     },
     {
+      "source_fact_id": "f_84eae7b4b5df",
+      "target_fact_id": "f_69d93c56b177",
+      "relation": "contradicts",
+      "confidence": 0.475,
+      "reason_code": "value_mismatch_period_unverified",
+      "explanation": "Same subject, measure, scope and period, but the values differ by 21.0% (676,000 - 250,000 vs 534,000). No contextual qualifier accounts for the gap. One source states no reporting period, so a like-for-like comparison cannot be confirmed; this may reflect an extraction gap rather than a real disagreement.",
+      "qualifier_diff": {
+        "period": [
+          "as on March 31, 2024",
+          null
+        ]
+      },
+      "decided_by": "rule"
+    },
+    {
       "source_fact_id": "f_6e75da333748",
       "target_fact_id": "f_58c908ef1363",
       "relation": "apparent_conflict",
@@ -30408,6 +30272,25 @@
         ],
         "scope": [
           "consolidated",
+          "standalone"
+        ]
+      },
+      "decided_by": "rule"
+    },
+    {
+      "source_fact_id": "f_e2066192875b",
+      "target_fact_id": "f_8afda5421db5",
+      "relation": "apparent_conflict",
+      "confidence": 0.85,
+      "reason_code": "unit_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
+      "qualifier_diff": {
+        "period": [
+          null,
+          "May 14, 2022"
+        ],
+        "scope": [
+          "unknown",
           "standalone"
         ]
       },
@@ -30470,9 +30353,6 @@
     ],
     "offer for sale::aggregate_amount": [
       "f_bf0873b77681"
-    ],
-    "total offer::aggregate_amount": [
-      "f_890052dcbfd9"
     ],
     "anchor investor bid offer period::date": [
       "f_41b8d25bfa40"
@@ -30547,7 +30427,7 @@
     ],
     "net asset value per share::net_asset_value_per_share_in": [
       "f_069d3fd75a5d",
-      "f_0bed301e11f9"
+      "f_000cae812481"
     ],
     "total borrowings::total_borrowings": [
       "f_994b75f4acf2"
@@ -30742,7 +30622,7 @@
       "f_c9c83c19cc46"
     ],
     "customer retention rate for top 100 customers::customer_retention_rate": [
-      "f_1742cfa860bd"
+      "f_2bbba924cce3"
     ],
     "engineering data sciences and product professionals::number_of_professionals": [
       "f_1076a4d933aa"
@@ -31438,9 +31318,6 @@
     "employee benefit expense::cr": [
       "f_4eb2ed8ffd96"
     ],
-    "adjusted ebitda::cr": [
-      "f_73e0ae37c4b1"
-    ],
     "estimated p l charge for esops performance based options::cr": [
       "f_617984180388"
     ],
@@ -31455,7 +31332,7 @@
       "f_bcb569d354c6"
     ],
     "construction::increase_above_its_pre_pandemic_trend": [
-      "f_889b0e3e3317"
+      "f_edf645dc699c"
     ],
     "real gva::growth": [
       "f_b32468812b91"
@@ -31513,7 +31390,7 @@
       "f_e9a5a471606f"
     ],
     "eu cbam levy::expected_to_take_effect_from": [
-      "f_cfcdd846f972"
+      "f_bf406af56b37"
     ],
     "uk cbam::scheduled_to_come_into_force_on": [
       "f_c5f0438d1ae9"

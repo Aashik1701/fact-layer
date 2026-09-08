@@ -21,17 +21,33 @@ def test_upsert_and_search_finds_shared_tokens(tmp_path):
     results = idx.search("subject: delhivery\nmeasure: revenue\nperiod: FY2023-24", top_k=10)
     ids = [r.fact_id for r in results]
     assert "f1" in ids
-    assert "f2" in ids   # shares subject/measure tokens even though period differs
-    assert set(ids) == {"f1", "f2", "f3"}   # "period" token alone still links f3 loosely
+    assert "f2" in ids   # shares the real "delhivery"/"revenue" values even though period differs
+    assert set(ids) == {"f1", "f2", "f3"}   # f3 shares the real period value "FY2023-24"
 
 
 def test_higher_score_for_more_overlapping_terms(tmp_path):
     idx = _mkindex(tmp_path)
     idx.upsert("close", "subject: delhivery\nmeasure: revenue\nperiod: FY2023-24\nscope: standalone")
-    idx.upsert("far", "subject: rbi\nmeasure: reserve_money_growth\nperiod: FY2019-20\nscope: unknown")
+    # "far" shares only the real "standalone" value with the query — every
+    # generic field-name label ("subject", "measure", "period", "scope")
+    # is deliberately excluded from query matching (see lexical.py's
+    # _STRUCTURAL_STOPWORDS) since every fact repeats them, so a fact
+    # sharing *only* those labels and nothing else must NOT look relevant.
+    idx.upsert("far", "subject: rbi\nmeasure: reserve_money_growth\nperiod: FY2019-20\nscope: standalone")
     results = idx.search("subject: delhivery\nmeasure: revenue\nperiod: FY2023-24\nscope: standalone", top_k=10)
     by_id = {r.fact_id: r.score for r in results}
     assert by_id["close"] > by_id["far"]
+
+
+def test_structural_labels_alone_do_not_produce_a_match(tmp_path):
+    idx = _mkindex(tmp_path)
+    # Shares every generic field-name label with the query but not one
+    # real value — must not match at all once structural tokens are
+    # excluded from the query (they would otherwise inflate every BM25
+    # evaluation with the entire corpus's worth of identical labels).
+    idx.upsert("unrelated", "subject: rbi\nmeasure: reserve_money_growth\nperiod: FY2019-20\nscope: unknown")
+    results = idx.search("subject: delhivery\nmeasure: revenue\nperiod: FY2023-24\nscope: standalone", top_k=10)
+    assert results == []
 
 
 def test_upsert_many_replaces_existing_row(tmp_path):

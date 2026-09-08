@@ -14,39 +14,43 @@ ONE verdict that never produces a kept relation is `INCOMPARABLE_KIND`,
 which `adjudicate()` maps straight to `UNRELATED` (discarded everywhere
 this codebase reports relations).
 
-Blocking on scope, segment, or geography — as the task's illustrative
-examples suggest — would therefore silently delete exactly the relation
-type this project's README treats as a headline capability ("Case 3:
-Apparent Conflict"), and would violate the task's own overriding rule:
-"[retrieval] must not change the meaning of the final relationship
-logic." So this module only blocks pairs the gate would turn into
-`UNRELATED` (or, in one narrow documented case, a vanishingly unlikely
-same-subject/measure-but-different-unit-category pair — see
-`UNIT_CATEGORY_MISMATCH` below) anyway:
+So this module blocks ONLY subject, measure, and value_kind mismatches —
+the exact set the gate would turn into `UNRELATED` anyway:
 
-  SUBJECT_MISMATCH          canonical subject differs — never in the same
-                             cluster today either (Fact.cluster_key()); this
-                             generalizes that existing hard boundary rather
-                             than loosening or tightening it.
-  MEASURE_MISMATCH          canonical measure differs — same reasoning.
-  VALUE_KIND_MISMATCH       value_kind differs — mirrors gate()'s own
-                             INCOMPARABLE_KIND -> UNRELATED exactly; zero
-                             information loss.
-  UNIT_CATEGORY_MISMATCH    both Quantity, and `.unit` (the category —
-                             "percent" | "currency" | "count" — NOT the
-                             currency code) differs. Narrow, explicitly
-                             accepted trade-off: gate() could in principle
-                             still turn this into an APPARENT_CONFLICT if
-                             an extraction error reported the same
-                             subject/measure/period once as a percentage
-                             and once as an absolute count. This is the
-                             same kind of documented, evidence-weighed
-                             trade-off resolve.py already makes elsewhere
-                             (see its "why subjects don't get a fuzzy
-                             tier" docstring) rather than an oversight.
+  SUBJECT_MISMATCH    canonical subject differs — never in the same
+                       cluster today either (Fact.cluster_key()); this
+                       generalizes that existing hard boundary rather
+                       than loosening or tightening it.
+  MEASURE_MISMATCH    canonical measure differs — same reasoning.
+  VALUE_KIND_MISMATCH value_kind differs — mirrors gate()'s own
+                       INCOMPARABLE_KIND -> UNRELATED exactly; zero
+                       information loss.
 
-Scope, segment, geography, basis, issuer and same-category currency
-mismatches are NEVER blocked here — they must reach `gate()` so the
+AN EARLIER VERSION OF THIS MODULE ALSO BLOCKED UNIT-CATEGORY MISMATCHES
+(percent vs. currency vs. count) AS A "NARROW, RARE EDGE CASE." MEASURED
+EVIDENCE PROVED THAT WRONG, NOT NARROW:
+--------------------------------------------------------------------------
+Running the real committed corpus (`data/store.json`, 552 facts, 15 known
+relations) through that rule showed it silently discarding **8 of the 15
+relations (53%)** — not a rare edge case at all. The reason is structural,
+not a tuning mistake: `gate()` checks unit compatibility only *after*
+scope, issuer, and segment already matched (or one side left them
+unstated) — by the time two facts differ ONLY in reported unit/currency,
+`gate()` reaches `INCOMPARABLE_UNIT`, which `adjudicate()` turns into a
+real `APPARENT_CONFLICT`/`CORROBORATES`-despite-context relation, exactly
+like every other `INCOMPARABLE_*` verdict except `INCOMPARABLE_KIND`.
+Blocking on it destroys real relations for the same reason blocking on
+scope/segment/geography would — this project's own real financial/macro
+corpus reports the same measure in mismatched units often enough that
+"unit mismatch" is a common, real signal worth showing through the gate,
+not a hypothetical worth trading away for a marginal efficiency gain that
+was never actually measured to matter. See README §10a / Honest
+Limitations for the full before/after measurement
+(`tests/test_retrieval_real_corpus_recall.py` pins the fixed 15/15
+recovery as a regression test).
+
+Scope, segment, geography, basis, issuer, and unit/currency mismatches of
+every kind are NEVER blocked here — they must reach `gate()` so the
 existing CORROBORATES/APPARENT_CONFLICT logic stays fully discoverable
 through retrieval. See tests/test_retrieval_blocking.py and
 tests/test_retrieval_integration.py for the regression tests proving this
@@ -58,7 +62,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from ..models import Fact, Quantity
+from ..models import Fact
 
 
 @dataclass(frozen=True)
@@ -83,9 +87,6 @@ def blocking_check(a: Fact, b: Fact) -> BlockingResult:
         return BlockingResult(False, "MEASURE_MISMATCH")
     if a.value_kind != b.value_kind:
         return BlockingResult(False, "VALUE_KIND_MISMATCH")
-    if isinstance(a.value, Quantity) and isinstance(b.value, Quantity):
-        if a.value.unit != b.value.unit:
-            return BlockingResult(False, "UNIT_CATEGORY_MISMATCH")
     return _PASS
 
 

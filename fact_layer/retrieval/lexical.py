@@ -17,6 +17,7 @@ matching the semantic channel's cosine convention and sparing
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 from dataclasses import dataclass
 
@@ -66,7 +67,22 @@ class LexicalIndex:
         # FTS5's MATCH syntax treats punctuation specially; the retrieval
         # text is our own deterministic "key: value" lines, so quote each
         # token defensively rather than hand-roll query escaping.
-        tokens = [t for t in _tokenize(query_text) if t]
+        #
+        # _STRUCTURAL_STOPWORDS are excluded from the QUERY side only —
+        # the index itself is untouched (FTS5 tokenizes whatever text
+        # upsert_many() stores; nothing here controls that). Every
+        # fact_to_retrieval_text() output repeats the same field-name
+        # tokens ("subject", "measure", "scope", ...) and the same "none"
+        # placeholder for an absent qualifier, so those terms have a
+        # posting list roughly as long as the whole corpus. Left in the
+        # OR-query, BM25 has to score every row for those non-
+        # discriminating terms on every single search — cost that grows
+        # with corpus size on every one of the N per-fact queries this
+        # module's caller issues, i.e. O(N^2) overall. Dropping them
+        # leaves only the actual discriminating values (subject/measure
+        # names, period labels, real qualifier values), which is both
+        # faster and a more meaningful lexical signal.
+        tokens = [t for t in _tokenize(query_text) if t and t not in _STRUCTURAL_STOPWORDS]
         if not tokens:
             return []
         match_query = " OR ".join(f'"{t}"' for t in tokens)
@@ -88,13 +104,34 @@ class LexicalIndex:
         self._conn.close()
 
 
+# The fixed field-name vocabulary fact_to_retrieval_text() emits on every
+# single fact, plus its "absent qualifier" placeholder — see search()'s
+# comment for why these are excluded from the query rather than left to
+# inflate every BM25 evaluation.
+_STRUCTURAL_STOPWORDS = frozenset({
+    "subject", "measure", "value_kind", "period", "scope", "segment",
+    "geography", "issuer", "basis", "modality", "extra", "none",
+})
+
+
+_TOKEN_RE = re.compile(r"[a-z0-9_]+")
+
+
 def _tokenize(text: str) -> list[str]:
-    out = []
-    for raw in text.replace(":", " ").replace("\n", " ").split(" "):
-        t = "".join(ch for ch in raw if ch.isalnum() or ch == "_")
-        if t:
-            out.append(t.lower())
-    return out
+    """Must split on the SAME boundaries FTS5's default (unicode61)
+    tokenizer uses when it indexes `upsert_many()`'s stored text, or a
+    query token can silently never match anything.
+
+    The previous version stripped punctuation out of each whitespace-
+    separated word instead of splitting on it — "FY2023-24" became the
+    glued token "fy202324", but FTS5 itself indexes "FY2023-24" as the
+    two separate tokens "fy2023" and "24" (confirmed against a live FTS5
+    table), so that glued query token matched nothing. Every period label
+    in this project uses a hyphen or slash (`FY2023-24`, `Q1 FY2023-24`),
+    so this was silently zeroing out the lexical channel's period signal
+    for every single query — regex-splitting on alnum/underscore runs
+    (matching unicode61's own separator behavior) fixes it."""
+    return _TOKEN_RE.findall(text.lower())
 
 
 __all__ = ["LexicalIndex", "LexicalMatch"]

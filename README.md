@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-283%20passed-success.svg)](#test-suite--validation)
+[![Tests](https://img.shields.io/badge/tests-389%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
 > **Core Thesis: Comparability Before Comparison**  
@@ -53,6 +53,7 @@ The repository includes:
   - [Case 4: Extraction Failure (Mechanically Logged Rejections)](#case-4-extraction-failure-mechanically-logged-rejections)
 - [9. Measured Metrics & Corpus Statistics](#9-measured-metrics--corpus-statistics)
 - [10. Empirical Scale & Stress Testing](#10-empirical-scale--stress-testing)
+  - [10a. Retrieval + Scale Layer (Candidate Generation Before the Gate)](#10a-retrieval--scale-layer-candidate-generation-before-the-gate)
 - [11. Quickstart & Setup Guide](#11-quickstart--setup-guide)
 - [12. API Reference](#12-api-reference)
 - [13. Honest Limitations & Engineering Post-Mortems](#13-honest-limitations--engineering-post-mortems)
@@ -117,6 +118,7 @@ Fact Layer separates mechanical reading from deterministic reasoning:
 - **Contextual Conflict Explanations**: Differentiates between true mathematical contradictions and expected forecast variances, generating plain-English audit trails.
 - **Incremental Ingestion**: Uploading a PDF updates only affected clusters without recomputing unrelated document relations.
 - **Interactive Evidence Provenance UI**: A modern React SPA with PDF canvas rendering, bounding-box overlays, zoom controls, and theme switching.
+- **Retrieval + Scale Layer** (`fact_layer/retrieval/`, optional, `RETRIEVAL_ENABLED=false` by default): deterministic candidate blocking, hybrid lexical (BM25/FTS5) + semantic (local embedding) retrieval, and a local vector store narrow which fact pairs are even considered before they reach the unmodified comparability gate — see [§10a](#10a-retrieval--scale-layer-candidate-generation-before-the-gate).
 
 ---
 
@@ -266,7 +268,7 @@ sequenceDiagram
 
 ### 4.4 Persistence: JSON Today, a Storage Contract for Tomorrow
 
-**Current: `data/store.json` via `JsonFactStore`.** This is a local assignment, run by one grader on one machine, with no concurrent users and a corpus of a handful of PDFs — a single JSON file is simple, fully reproducible (`scripts/build_demo_store.py` rebuilds it deterministically), needs zero external services or credentials, and every existing consumer already round-trips through it correctly (283+ tests, including a byte-for-byte real-corpus regression check). **This is not pretended to be horizontally scalable** — see "What this does not provide" below.
+**Current: `data/store.json` via `JsonFactStore`.** This is a local assignment, run by one grader on one machine, with no concurrent users and a corpus of a handful of PDFs — a single JSON file is simple, fully reproducible (`scripts/build_demo_store.py` rebuilds it deterministically), needs zero external services or credentials, and every existing consumer already round-trips through it correctly (389 tests, including a byte-for-byte real-corpus regression check). **This is not pretended to be horizontally scalable** — see "What this does not provide" below.
 
 **The point of this section: persistence is isolated behind a contract, not scattered through the domain.** `fact_layer/storage.py` defines:
 
@@ -629,10 +631,10 @@ Across 2,041 canonicalization decisions logged to `data/resolution_log.json`:
 | Dimension | Pre-Seeded Store (5 Documents) | Full Store (All 6 Documents) |
 |---|---|---|
 | Ingested Documents | 5 documents | 6 documents |
-| Stored Facts | **554 facts** | **688 facts** |
-| Fact Clusters | **446 clusters** | **549 clusters** |
+| Stored Facts | **552 facts** | **685 facts** |
+| Fact Clusters | **444 clusters** | **546 clusters** |
 | Comparison-Eligible Clusters ($\ge 2$ facts) | **72 clusters** | **93 clusters** |
-| Canonical Subjects | 338 subjects | 401 subjects |
+| Canonical Subjects | 337 subjects | 399 subjects |
 | Canonical Measures | 252 measures | 316 measures |
 | Total Cross-Fact Relations | **15 relations** | **28 relations** |
 | ↳ `APPARENT_CONFLICT` | 13 | 17 |
@@ -660,6 +662,81 @@ To validate architectural scaling claims, stress tests were executed against syn
 - **Result**: Resolve + cluster latency remained stable between 0.03s and 0.07s across all 100 documents.
 - **Identified Bottleneck**: Complete whole-file JSON rewriting in `Store.save()`. Save time scaled from 0.03s to **7.26s** as `data/store.json` expanded to 122 MB.
 - **Architectural Solution**: Production deployments with $\ge 1,000$ documents should transition storage from flat JSON to SQLite.
+
+---
+
+### 10a. Retrieval + Scale Layer (Candidate Generation Before the Gate)
+
+Every relation this system reports still comes from exactly the same two modules as before: `comparability.gate()` decides *whether* two facts are comparable, `adjudicate.adjudicate()` decides *what relation* they have. Neither changed. What `fact_layer/retrieval/` adds is a candidate-generation stage in front of them:
+
+```
+ALL FACTS
+  → deterministic candidate blocking      (retrieval/blocking.py)
+  → lexical retrieval (BM25/FTS5)         (retrieval/lexical.py)
+  → semantic retrieval (embeddings)       (retrieval/embeddings.py, retrieval/vector_store.py)
+  → hybrid candidate ranking              (retrieval/hybrid.py)
+  → top-K candidates                      (retrieval/index.py)
+  → comparability.gate()                  ← UNCHANGED
+  → adjudicate.adjudicate()               ← UNCHANGED
+```
+
+It is off by default (`RETRIEVAL_ENABLED=false`) and, when off, `Store.ingest()` behaves byte-for-byte as before — the cluster-dict + `adjudicate_cluster()` path this README already documented is preserved verbatim as `relationship_mode="bruteforce"`, not replaced.
+
+**Why this exists, given `Fact.cluster_key()` (`subject::measure`) already blocks cross-topic comparisons for free:** clustering is a Python dict grouping, with no ceiling on how large one bucket can get, and no way to narrow a huge bucket down to "the most relevant K facts to compare this one against" — it either compares every pair in the cluster, or none. Retrieval replaces "every pair in the cluster" with "the top-K most lexically/semantically relevant facts, drawn from the whole corpus, then blocked back down to the same subject/measure/value-kind boundary clustering already enforces." At real-corpus scale (552 facts) this makes no visible difference. At the scale this task specifies (tens of thousands of facts, a handful of measures reported by every document) it is the difference between an O(n²) blowup in one cluster and a bounded top-K search.
+
+**Candidate blocking (`retrieval/blocking.py`) is deliberately narrower than "block on any qualifier mismatch."** `comparability.gate()` turns a scope, segment, geography, basis, issuer, *or unit/currency* mismatch into a real `CORROBORATES`-despite-context or `APPARENT_CONFLICT` relation — the exact capability §8's "Case 3: Apparent Conflict" showcases. Blocking on any of those would silently delete that relation type before the gate ever saw the pair, which the retrieval task's own governing rule forbids ("retrieval must not change the meaning of the final relationship logic"). So blocking removes only pairs the gate would discard anyway: different canonical subject, different canonical measure, different `value_kind` (mirrors the gate's own `INCOMPARABLE_KIND` → `UNRELATED`, zero information loss). An earlier version also blocked differing unit *category* as an "accepted narrow trade-off" — measuring it against the real corpus showed that assumption was wrong, not narrow (it discarded 8 of 15 real relations); see §13 Limitation #12 for the full measurement. `tests/test_retrieval_blocking.py` and `tests/test_retrieval_integration.py` pin both halves of the final design: what gets blocked, and — just as load-bearing — what must never be blocked (a standalone-vs-consolidated revenue pair, an FY24-vs-Q1FY25 revenue pair, or a percent-vs-count unit mismatch all still reach the gate and are correctly labeled, never silently dropped).
+
+**Embeddings are local and network-free after one download.** `fact_layer/retrieval/embeddings.py`'s `EmbeddingProvider` interface is backed by `FastEmbedProvider` — `fastembed` running a small ONNX model (`BAAI/bge-small-en-v1.5` by default, `EMBEDDING_MODEL`-configurable, ~64 MB, no `torch`), the same "one dependency, no GPU, no server" bar the rest of this project's dependency choices hold themselves to. `EMBEDDING_MODE=live` (default) downloads the model into `cache/embeddings/models/` on first use; `EMBEDDING_MODE=replay` — mirroring `llm.py`'s `LLM_MODE=replay` exactly — forces `HF_HUB_OFFLINE=1` and raises a clear `EmbeddingUnavailableError` rather than dialing out or fabricating a vector if the model isn't already cached. Every retrieval test in `tests/test_retrieval_embeddings.py` and `tests/test_retrieval_integration.py` runs in replay mode with the HTTP layer patched to raise on any call — 100% of them pass, proving the network guarantee holds for the new layer too.
+
+**The vector store is a small local module (`retrieval/vector_store.py`), not FAISS/Chroma/Qdrant** — the same "JSON, not Postgres, for this assignment" reasoning `fact_layer/storage.py` already gives, applied to vectors: a brute-force cosine search over an in-memory `(N, 384)` float32 matrix is sub-millisecond at the scale this task specifies (low tens of thousands of facts), so an approximate-nearest-neighbour index buys nothing measurable and would add a binary dependency with its own platform-wheel surface. `VectorStore` is a real interface (mirrors `FactStore`/`JsonFactStore`) — a future `FaissVectorStore` could implement it without any caller changing. It supports upsert, delete, metadata-filtered search, and `.npz`/JSON persistence; `fact_layer.retrieval.rebuild_retrieval_index()` reconstructs the lexical index, vector store, and (cache-assisted) embeddings from `Store.facts` alone if the derived index under `data/retrieval_index/` is ever deleted.
+
+**Incremental by construction.** `RetrievalIndex.upsert_facts()` only computes retrieval text, checks the embedding cache, and indexes the facts it's given — uploading a new PDF costs retrieval-index work proportional to that PDF's fact count, never the whole corpus. The embedding cache (`sqlite3`, keyed by `sha256(retrieval_text + model_id + dimension)` — never fact_id alone, so a resolution change that alters a fact's retrieval text simply misses the cache rather than serving a stale vector) makes a rebuild cheap too: re-deriving the index from `Store.facts` recomputes retrieval text and blocking freely, but only pays embedding cost for text the cache hasn't already seen.
+
+**Pair deduplication.** Whether the lexical channel finds fact A as a candidate for fact B, the semantic channel finds B for A, or both find the same pair, `fact_layer/retrieval/integration.py` computes `pair_key = tuple(sorted((fact_id_a, fact_id_b)))` and adjudicates each unordered pair at most once per ingest call — `tests/test_retrieval_integration.py::test_pair_processed_once_regardless_of_which_side_retrieves_it` is a direct regression test for this.
+
+**Configuration** (`.env.example`; all optional, defaults preserve pre-existing behavior):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RETRIEVAL_ENABLED` | `false` | Master switch. `false` = `Store.ingest()` behaves exactly as before this layer existed. |
+| `RETRIEVAL_TOP_K` | `50` | Candidates returned per fact after hybrid ranking. |
+| `RETRIEVAL_LEXICAL_WEIGHT` / `RETRIEVAL_SEMANTIC_WEIGHT` | `0.45` / `0.55` | Fusion weights, applied to each channel's min-max-normalized (not raw) score. |
+| `RETRIEVAL_CHANNEL_FANOUT` | `100` | Candidates each channel fetches before fusion narrows to top-K. |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Any `fastembed`-supported model name. |
+| `EMBEDDING_MODE` | `live` | `live` \| `replay` — see above. |
+| `RETRIEVAL_INDEX_PATH` | `data/retrieval_index` | Where the derived lexical/vector/embedding-cache index lives. |
+
+**API**: `GET /retrieval/stats` (index size, embedding model/dimension, cache hit/miss counts, configured weights) and `GET /facts/{fact_id}/candidates` (the actual retrieved candidates for one fact — lexical/semantic/hybrid scores and ranks, blocking status/reason) — both developer/investigation endpoints, both read-only, both documented in §12.
+
+**Frontend**: the fact detail drawer's new "Candidate Retrieval" panel shows the funnel (lexical → semantic → after-block → final top-K counts) and each candidate's scores and blocking status. It deliberately says "retrieval found this candidate," never a relation verdict — the comparability gate section above it in the same drawer remains the only place a verdict is shown.
+
+**Measured results — the real corpus** (`tests/test_retrieval_real_corpus_recall.py`, 552 facts, the same 15 relations README §9 documents): every one of the real corpus's 15 known relation pairs is recovered by `generate_candidate_pairs()` post-blocking (**15/15**), and Recall@25 is **1.0 on every channel** — lexical, semantic, and hybrid alike (semantic and hybrid already reach 1.0 at Recall@10; lexical needs K=25). At this corpus's actual scale and diversity, retrieval loses nothing.
+
+**Measured results — 100 synthetic documents, 12,000 facts** (`scripts/retrieval_benchmark.py`, real run against a freshly generated corpus and a real `RetrievalIndex`, `RETRIEVAL_TOP_K=50`; full output in `data/retrieval_benchmark_report.json`) — a deliberately harder, larger-cluster stress case than the real corpus above:
+
+| Metric | Bruteforce (baseline) | Retrieval |
+|---|---|---|
+| Candidate pairs evaluated | 214,395 (all pairs within each `cluster_key()`) | 391,462 considered (271,165 blocked, 120,297 sent to the gate) |
+| Relations kept (non-`UNRELATED`) | 214,257 | 120,210 |
+| Elapsed | 2.2s | 393.3s (index + retrieve + adjudicate, top-K=50, single process) |
+
+**Known-relation recovery:** of the 214,257 relation pairs the unchanged bruteforce/cluster path finds on this corpus, retrieval mode recovers **120,210 (56.1%)** at `RETRIEVAL_TOP_K=50`.
+
+**Recall@K** (300-pair random sample of the known set, seed `20240921`):
+
+| Channel | Recall@10 | Recall@25 | Recall@50 | Recall@100 |
+|---|---|---|---|---|
+| Lexical only | 0.307 | 0.583 | 0.670 | 0.793 |
+| Semantic only | 0.127 | 0.193 | 0.230 | 0.280 |
+| Hybrid (default weights) | 0.233 | 0.397 | 0.597 | 0.710 |
+
+**What this actually shows — including the parts that aren't flattering:**
+
+1. **Recall is genuinely incomplete at `top_k=50` on this workload, and that is reported, not hidden** (task requirement: "the system must not silently claim retrieval found ALL true relationships"). This synthetic corpus deliberately concentrates facts into a few large clusters (the "every filing reports revenue" shape) — several clusters run into the hundreds of facts, so a fixed top-50 candidate list per fact cannot surface every same-cluster partner. Recall@100 (0.71 hybrid) is meaningfully higher than Recall@10 (0.23), confirming this is a top-K sizing effect, not a broken retriever — raising `RETRIEVAL_TOP_K` for corpora with very large expected clusters is the direct lever, at the direct cost of the candidate-reduction ratio below.
+2. **Candidate reduction is real but corpus-dependent, not a fixed percentage**: 43.9% fewer pairs reach the gate than the bruteforce baseline evaluates, on a corpus whose baseline is already only within-cluster pairs (not naive N²). "Blocked" (271,165) exceeds the baseline pair count (214,395) because retrieval searches broadly across the whole corpus per fact and blocks back down afterward (see this section's blocking-order note below) — it is genuinely considering, and correctly rejecting, more cross-cluster proposals than the cluster-dict approach ever generates in the first place.
+3. **The semantic channel underperforms the lexical channel on this corpus, and the hybrid default weights do not fix that** — an honest negative result, not the one a marketing pitch would pick. Facts in the same cluster share nearly identical retrieval text (`fact_to_retrieval_text()`'s deterministic template differs only in period/scope/value), so `BAAI/bge-small-en-v1.5` embeds many same-cluster candidates within a very narrow cosine-similarity band, giving the ranking little to discriminate on; exact lexical token matches on the real period/value differences turn out to be the stronger signal for *this specific* "many near-duplicate facts, same vocabulary" shape. A real multi-document corpus with more phrasing diversity (paraphrased measures, varied qualifier wording) is exactly the case semantic retrieval is meant for — this benchmark's synthetic vocabulary does not exercise that case, which is a limitation of the benchmark, not evidence that semantic retrieval is unhelpful in general.
+4. **Per-fact retrieval latency is real, not sub-millisecond, once Python/sqlite overhead around the vector math is counted**: ~33ms/fact end-to-end at N=12,000 (393.3s ÷ 12,000 facts, single retrieval pass with pair building). The vector store's own dense matrix-vector product is sub-millisecond at this scale (the claim this section's vector-store rationale makes); the FTS5 query, embedding-cache lookup, lock acquisition, and hybrid fusion around it are what the remaining latency is actually paying for.
+5. **What retrieval does NOT get wrong**: the comparability gate never sees a difference in behavior. Every one of the 120,210 relations retrieval mode kept has the same relation type semantics as the bruteforce path would assign to that pair — recall is incomplete, but no relation retrieval *did* surface was ever mis-classified because of how it got there.
 
 ---
 
@@ -704,7 +781,7 @@ Open **`http://localhost:8008`** in your browser. The compiled React application
    ```
 3. Watch the progress bar execute parse $\to$ triage $\to$ extract $\to$ verify $\to$ resolve $\to$ gate $\to$ adjudicate.
 4. Once completed, notice that:
-   - Fact count updates from 554 to 688.
+   - Fact count updates from 552 to 685.
    - 13 new relations form, activating the **`CORROBORATES`** and **`APPARENT_CONFLICT`** tabs.
 5. Inspect the newly formed `APPARENT_CONFLICT` relation between IMF (7.8%) and RBI (6.5%) to view the side-by-side evidence viewer and qualifier matrix.
 
@@ -718,7 +795,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (283 tests):
+Execute the full offline test suite (389 tests, including the 65-test Retrieval + Scale layer suite in `tests/test_retrieval_*.py` — see §10a):
 ```bash
 pytest
 ```
@@ -742,6 +819,8 @@ All endpoints return structured JSON. When mounted in production, static web ass
 | `GET` | `/stats` | None | Global counts, relation breakdowns, coverage ratios, and the span-verification pass rate (this system does no OCR — there is nothing to report a pass rate for there). |
 | `GET` | `/page-image/{doc_id}/{page}` | `doc_id`, `page` (path) | Rendered PNG raster image of the source PDF page. |
 | `GET` | `/rejected-facts` | `reason`, `doc_id`, `limit`, `offset` | Array of facts rejected during mechanical span verification. |
+| `GET` | `/retrieval/stats` | None | Retrieval + Scale layer diagnostics (§10a): indexed fact count, embedding model/dimension, lexical/vector index sizes, embedding cache hit/miss counts, configured top-K and fusion weights. Works whether or not `RETRIEVAL_ENABLED` is set. |
+| `GET` | `/facts/{fact_id}/candidates` | `fact_id` (path), `top_k` | The actual hybrid-ranked candidates retrieved for one fact — lexical/semantic/hybrid scores and ranks, and each candidate's blocking status/reason. Developer/investigation endpoint (§10a); never itself asserts a relationship — see that section's "what this is not" note. |
 
 ### Upload Security (`POST /ingest`)
 
@@ -811,6 +890,14 @@ The alias table has **zero measured effect** on this specific corpus: no documen
 
 **Two genuine near-misses were found and deliberately NOT "fixed" here:** the IMF document's `"India's real GDP"`, `"India's credit rating"`, and `"India's stock of inward FDI"` remain distinct subjects from `"india"` and from each other. These are not naming-convention variance — they are subject/measure conflation at *extraction* time (e.g. `"India's real GDP"` was extracted with `measure_raw="grew by"`, not a proper measure label), so merging the subject alone wouldn't even produce a matching `cluster_key()` with the properly-extracted GDP-growth facts elsewhere. Fixing this belongs in `extract.py`'s subject/measure separation, which is out of scope for a resolution-layer change ("do not rewrite extraction") — documented here rather than papered over with a resolution-layer heuristic that wouldn't actually work.
 
+### 12. Retrieval Blocking Is Narrower Than Its Own Illustrative Examples — Measured, Not Just Argued
+The retrieval task brief's own examples list "incompatible scope," "incompatible segment," "incompatible geography," and "incompatible currency/unit category" as things candidate blocking should eliminate. Implemented literally, that would mean a standalone-vs-consolidated revenue pair (or any segment/geography/unit-differing pair) never reaches `comparability.gate()` at all — which would silently delete `APPARENT_CONFLICT`/`CORROBORATES`-despite-context, the exact relation type §8's "Case 3" showcases as a headline capability, and which `adjudicate.adjudicate()`'s shared branch for every `INCOMPARABLE_*` verdict except `INCOMPARABLE_KIND` still produces. The same brief's own governing rule — "retrieval must not change the meaning of the final relationship logic" — rules this out more forcefully than its examples suggest it in.
+
+**This was tested, not just argued, and the first version was wrong.** An earlier iteration of `fact_layer/retrieval/blocking.py` blocked subject, measure, value_kind, *and* unit-category mismatches, reasoning the last one was "a narrow, rare edge case" (a same-subject/measure pair reported once as a percentage and once as an absolute figure). Running that rule against the real committed corpus (`data/store.json`, 552 facts, 15 known relations) showed it silently discarding **8 of the 15 relations (53%)** — not narrow at all. The reason is structural: `gate()` only reaches its unit check after scope/issuer/segment already matched (or were left unstated), so "unit mismatch" fires exactly when nothing else already explains the difference — which is precisely the useful case, not a rare artifact. **Fixed decision:** blocking now removes only subject/measure/value_kind mismatches — the exact set `gate()` itself turns into `UNRELATED`, zero information loss, no trade-off to accept. `tests/test_retrieval_real_corpus_recall.py` pins the corrected 15/15 recovery as a regression test, and `tests/test_retrieval_blocking.py` proves scope/segment/geography/unit/currency mismatches of every kind still reach the gate.
+
+### 13. The Vector Store Is a ~150-Line Local Module, Not a Vector Database Product
+`fact_layer/retrieval/vector_store.py`'s `LocalNumpyVectorStore` is an in-memory `float32` matrix with `.npz`/JSON persistence and brute-force cosine search — not FAISS, Chroma, or Qdrant. This was a deliberate scope call, not an oversight: at the scale this task specifies (the 12,000-fact synthetic benchmark; the real corpus is 552 facts), a dense `(N, 384)` matrix-vector product is sub-millisecond, so an approximate-nearest-neighbour index has no measurable benefit to buy with a new binary dependency. `VectorStore` is still a genuine interface — the same `FactStore`/`JsonFactStore`/documented-`PostgresFactStore`-skeleton shape `storage.py` already uses — so a real ANN backend could be dropped in behind it if a corpus ever grew past the point brute-force cosine search stays cheap, without any caller (`retrieval/index.py`, `api.py`) changing.
+
 ---
 
 ## 14. Developer Submission Checklist
@@ -821,3 +908,4 @@ The alias table has **zero measured effect** on this specific corpus: no documen
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
 - [x] **Comprehensive Test Suite**: 283 unit and integration tests passing cleanly via `pytest` (265 pre-existing + 16 added for the ingestion job model — creation, stage transitions, completion, failure, error sanitization, and lock-serialized concurrency; note the pre-existing count also grew by 2 independently of this phase's own additions).
+- [x] **Retrieval + Scale Layer** (§10a): deterministic blocking, hybrid lexical/semantic retrieval, local embedding provider + vector store, incremental indexing, `rebuild_retrieval_index()`, two diagnostic API endpoints, a compact frontend panel, a 100-document/12,000-fact benchmark script, and 65 new tests (including a dedicated real-corpus Recall@K/known-relation-recovery suite) — all additive and disabled by default (`RETRIEVAL_ENABLED=false`), with the full pre-existing 324-test suite verified unchanged.

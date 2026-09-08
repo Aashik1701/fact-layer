@@ -9,6 +9,8 @@ import {
   RejectedFact,
   IngestAcceptedResponse,
   IngestJob,
+  RetrievalStats,
+  FactCandidatesResponse,
 } from '@/types';
 
 const API_BASE = '';
@@ -139,4 +141,21 @@ export async function fetchJob(jobId: string): Promise<IngestJob> {
 
 export function getPageImageUrl(docId: string, page: number): string {
   return `${API_BASE}/page-image/${encodeURIComponent(docId)}/${page}`;
+}
+
+// Retrieval + Scale layer diagnostics (fact_layer/retrieval/). Both
+// endpoints are read-only investigation views — see api.py's endpoint
+// docstring for why they work regardless of RETRIEVAL_ENABLED.
+export async function fetchRetrievalStats(): Promise<RetrievalStats> {
+  const res = await fetch(`${API_BASE}/retrieval/stats`);
+  if (!res.ok) throw new Error(`Failed to fetch retrieval stats: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchFactCandidates(factId: string, topK?: number): Promise<FactCandidatesResponse> {
+  const query = new URLSearchParams();
+  if (topK !== undefined) query.set('top_k', topK.toString());
+  const res = await fetch(`${API_BASE}/facts/${encodeURIComponent(factId)}/candidates?${query.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch candidates for fact ${factId}: ${res.statusText}`);
+  return res.json();
 }

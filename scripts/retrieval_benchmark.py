@@ -39,8 +39,7 @@ from fact_layer.adjudicate import adjudicate, adjudicate_cluster
 from fact_layer.models import Evidence, Fact, Period, Qualifiers, Quantity, RelationType, Scope, ValueKind
 from fact_layer.retrieval.config import RetrievalConfig
 from fact_layer.retrieval.index import RetrievalIndex
-from fact_layer.retrieval.integration import generate_candidate_pairs
-from fact_layer.retrieval.metrics import recall_at_k, scale_metrics
+from fact_layer.retrieval.metrics import recall_at_k
 
 N_DOCS = 100
 FACTS_PER_DOC = 120
@@ -63,8 +62,13 @@ def _period_for(label: str) -> Period:
     return parse_period(label)
 
 
+_POPULAR_PAIR_PROBABILITY = 0.08   # keeps the largest clusters in the low hundreds of
+                                    # facts, not the high hundreds — see generate_corpus()'s
+                                    # docstring for why this matters for runtime
+
+
 def _mkfact(rng: random.Random, doc_id: str, page: int, idx: int) -> Fact:
-    if rng.random() < 0.35:
+    if rng.random() < _POPULAR_PAIR_PROBABILITY:
         subject, measure = rng.choice(_POPULAR_PAIRS)
     else:
         subject, measure = rng.choice(_SUBJECTS), rng.choice(_MEASURES)
@@ -86,6 +90,17 @@ def _mkfact(rng: random.Random, doc_id: str, page: int, idx: int) -> Fact:
 
 
 def generate_corpus(n_docs: int = N_DOCS, facts_per_doc: int = FACTS_PER_DOC, seed: int = SEED) -> list[Fact]:
+    """A small fraction of facts (`_POPULAR_PAIR_PROBABILITY`) land on one
+    of a handful of over-represented (subject, measure) pairs — the
+    "every filing reports revenue" shape a real multi-document corpus
+    has, which is what actually produces large clusters worth stress-
+    testing candidate reduction against. This is deliberately kept modest
+    (~a few hundred facts in the largest cluster, not a few thousand):
+    `adjudicate_cluster()`'s pairwise cost is O(n^2) *per cluster*, so an
+    over-concentrated synthetic corpus measures Python-loop overhead on a
+    pathological input, not the architectural question this benchmark
+    actually asks.
+    """
     rng = random.Random(seed)
     facts: list[Fact] = []
     for d in range(n_docs):
@@ -114,11 +129,40 @@ def run_bruteforce(facts: list[Fact]) -> tuple[list, float, int]:
     return relations, elapsed, baseline_pairs
 
 
-def run_retrieval(facts: list[Fact], index: RetrievalIndex) -> tuple[list, float, dict]:
+def run_retrieval(facts: list[Fact], index: RetrievalIndex) -> tuple[list, float, dict, dict]:
+    """Single pass: one `retrieve_candidates()` + `annotate_blocking()`
+    call per fact feeds BOTH pair generation (for adjudication) and the
+    candidate-volume funnel (blocked/retrieved counts) — calling
+    `generate_candidate_pairs()` and `scale_metrics()` separately would
+    each loop over all `facts` independently, doubling real retrieval
+    cost at this benchmark's scale for no benefit (confirmed by
+    profiling: retrieve_candidates() cost is real, dominated by the
+    brute-force cosine search's O(N) per-query cost at N=12,000, not
+    something to pay twice over)."""
     facts_by_id = {f.fact_id: f for f in facts}
     t0 = time.time()
     index.upsert_facts(facts)
-    pairs = generate_candidate_pairs(facts, facts_by_id, index)
+
+    seen_pairs: set[tuple[str, str]] = set()
+    pairs: list[tuple[Fact, Fact]] = []
+    blocked, retrieved = 0, 0
+    for fact in facts:
+        candidates = index.retrieve_candidates(fact)
+        index.annotate_blocking(fact, candidates, facts_by_id)
+        for c in candidates:
+            other = facts_by_id.get(c.fact_id)
+            if other is None or other.fact_id == fact.fact_id:
+                continue
+            pair_key = tuple(sorted((fact.fact_id, other.fact_id)))
+            if pair_key in seen_pairs:
+                continue
+            seen_pairs.add(pair_key)
+            if c.blocking_status == "candidate":
+                retrieved += 1
+                pairs.append((fact, other))
+            else:
+                blocked += 1
+
     relations = []
     for fa, fb in pairs:
         if fa.evidence and fb.evidence and fa.evidence.doc_id == fb.evidence.doc_id \
@@ -128,7 +172,20 @@ def run_retrieval(facts: list[Fact], index: RetrievalIndex) -> tuple[list, float
         if rel.relation != RelationType.UNRELATED:
             relations.append(rel)
     elapsed = time.time() - t0
-    return relations, elapsed, facts_by_id
+
+    clusters: dict[str, list[Fact]] = defaultdict(list)
+    for f in facts:
+        clusters[f.cluster_key()].append(f)
+    baseline_pairs = sum(len(v) * (len(v) - 1) // 2 for v in clusters.values())
+    total_considered = blocked + retrieved
+    reduction_ratio = (1 - (retrieved / baseline_pairs)) if baseline_pairs else None
+    scale = {
+        "total_facts": len(facts), "baseline_pairs": baseline_pairs,
+        "blocked_pairs": blocked, "retrieved_pairs": retrieved,
+        "total_candidate_pairs_considered": total_considered,
+        "candidate_reduction_ratio": reduction_ratio,
+    }
+    return relations, elapsed, facts_by_id, scale
 
 
 def _pair_keys(relations) -> set[tuple[str, str]]:
@@ -166,9 +223,8 @@ def main() -> None:
         print("=" * 78)
         print("2. RETRIEVAL (relationship_mode=retrieval — blocking + hybrid retrieval)")
         print("=" * 78)
-        retrieval_relations, retrieval_elapsed, _ = run_retrieval(facts, index)
+        retrieval_relations, retrieval_elapsed, _, scale = run_retrieval(facts, index)
         retrieval_kept = [r for r in retrieval_relations if r.relation != RelationType.UNRELATED]
-        scale = scale_metrics(facts, index)
         print(f"  Baseline pairs (same definition as above):     {scale['baseline_pairs']:,}")
         print(f"  Blocked by blocking_check():                   {scale['blocked_pairs']:,}")
         print(f"  Retrieved (survived blocking, sent to gate()): {scale['retrieved_pairs']:,}")
@@ -196,9 +252,20 @@ def main() -> None:
         print("4. RECALL@K (fraction of known pairs whose partner appears in the top-K)")
         print("=" * 78)
         k_values = [10, 25, 50, 100]
+        # recall_at_k() issues a real retrieval call per (pair, direction,
+        # channel) — exhaustive over every known pair is not necessary for
+        # a statistically meaningful figure, so a fixed random sample keeps
+        # this benchmark's runtime bounded regardless of corpus size.
+        _RECALL_SAMPLE_SIZE = 300
+        sample_rng = random.Random(SEED)
+        recall_sample = list(baseline_pair_keys)
+        if len(recall_sample) > _RECALL_SAMPLE_SIZE:
+            recall_sample = sample_rng.sample(recall_sample, _RECALL_SAMPLE_SIZE)
+        print(f"  Sampling {len(recall_sample):,} of {len(baseline_pair_keys):,} known pairs "
+              f"(seed={SEED}) for Recall@K measurement.")
         recall_by_channel = {}
         for channel in ("lexical", "semantic", "hybrid"):
-            recall = recall_at_k(list(baseline_pair_keys), facts_by_id, index, k_values, channel=channel)
+            recall = recall_at_k(recall_sample, facts_by_id, index, k_values, channel=channel)
             recall_by_channel[channel] = recall
             row = "  ".join(f"Recall@{k}={recall[k]:.3f}" if recall[k] is not None else f"Recall@{k}=n/a"
                             for k in k_values)
@@ -214,6 +281,7 @@ def main() -> None:
                 "known_pairs": len(baseline_pair_keys), "recovered": len(recovered),
             },
             "recall_at_k": recall_by_channel,
+            "recall_at_k_sample_size": len(recall_sample),
         }
         out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                 "data", "retrieval_benchmark_report.json")
