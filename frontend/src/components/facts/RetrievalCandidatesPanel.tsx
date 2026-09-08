@@ -3,7 +3,9 @@ import { FactSummary, CandidateMatch, RetrievalDiagnostics } from '@/types';
 import { fetchFactCandidates } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
-import { Radar, Loader2, ShieldOff, ChevronRight, StepForward, CircleSlash } from 'lucide-react';
+import { Radar, Loader2, ShieldOff, ChevronRight, StepForward, CircleSlash, Scale, Network } from 'lucide-react';
+import { KnowledgeGraphModal } from '@/components/graph/KnowledgeGraphModal';
+import { ComparabilityInvestigator } from '@/components/facts/ComparabilityInvestigator';
 
 interface RetrievalCandidatesPanelProps {
   fact: FactSummary;
@@ -116,8 +118,14 @@ const ScoreBar: React.FC<{ label: string; value: number; isDark: boolean }> = ({
   </div>
 );
 
-const CandidateRow: React.FC<{ candidate: CandidateMatch; isDark: boolean }> = ({ candidate, isDark }) => {
+const CandidateRow: React.FC<{ candidate: CandidateMatch; queryFact: FactSummary; isDark: boolean }> = ({
+  candidate,
+  queryFact,
+  isDark,
+}) => {
   const [open, setOpen] = useState(false);
+  const [investigating, setInvestigating] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
   const blocked = candidate.blocking_status === 'blocked';
   const other = candidate.fact_summary;
   return (
@@ -187,6 +195,58 @@ const CandidateRow: React.FC<{ candidate: CandidateMatch; isDark: boolean }> = (
               facts are unrelated.
             </p>
           )}
+
+          {/* The chain the architecture depends on being visible:
+              retrieval proposed this candidate -> the gate decides meaning. */}
+          <button
+            type="button"
+            onClick={() => setInvestigating((v) => !v)}
+            aria-expanded={investigating}
+            className={cn(
+              'w-full mt-1 px-2 py-1.5 rounded-lg border text-[11px] font-medium flex items-center justify-center gap-1.5',
+              isDark
+                ? 'bg-slate-900 border-slate-700 text-slate-300 hover:border-sky-500/50'
+                : 'bg-slate-50 border-slate-300 text-slate-600 hover:border-sky-500/50'
+            )}
+          >
+            <Scale className="w-3 h-3" aria-hidden="true" />
+            {investigating ? 'Hide comparability' : 'Investigate comparability'}
+          </button>
+
+          {/* Graph entry point (spec §13E). The candidate keeps its
+              provenance label all the way through: retrieval surfaced it,
+              and only the adjudicator can turn it into a relationship. */}
+          <button
+            type="button"
+            onClick={() => setGraphOpen(true)}
+            className={cn(
+              'w-full px-2 py-1.5 rounded-lg border text-[11px] font-medium flex items-center justify-center gap-1.5',
+              isDark
+                ? 'bg-slate-900 border-slate-700 text-slate-300 hover:border-sky-500/50'
+                : 'bg-slate-50 border-slate-300 text-slate-600 hover:border-sky-500/50'
+            )}
+          >
+            <Network className="w-3 h-3" aria-hidden="true" />
+            Investigate in graph
+          </button>
+
+          {investigating && (
+            <div className="pt-1.5">
+              <ComparabilityInvestigator
+                factA={queryFact}
+                factBId={candidate.fact_id}
+                provenance="Candidate surfaced by lexical + semantic retrieval"
+              />
+            </div>
+          )}
+
+          <KnowledgeGraphModal
+            isOpen={graphOpen}
+            onClose={() => setGraphOpen(false)}
+            rootType="fact"
+            rootId={candidate.fact_id}
+            title={other ? `${other.subject} · ${other.measure}` : candidate.fact_id}
+          />
         </div>
       )}
     </div>
@@ -334,7 +394,7 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
               <SectionLabel isDark={isDark}>Retrieved candidates</SectionLabel>
               <div className="space-y-1.5">
                 {candidates.map((c) => (
-                  <CandidateRow key={c.fact_id} candidate={c} isDark={isDark} />
+                  <CandidateRow key={c.fact_id} candidate={c} queryFact={fact} isDark={isDark} />
                 ))}
               </div>
             </div>

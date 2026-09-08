@@ -10,6 +10,10 @@ import {
   IngestAcceptedResponse,
   IngestJob,
   RetrievalStats,
+  ComparabilityExplanation,
+  GraphNeighborhood,
+  GraphSearchResult,
+  GraphNodeType,
   FactCandidatesResponse,
 } from '@/types';
 
@@ -158,4 +162,46 @@ export async function fetchFactCandidates(factId: string, topK?: number): Promis
   const res = await fetch(`${API_BASE}/facts/${encodeURIComponent(factId)}/candidates?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch candidates for fact ${factId}: ${res.statusText}`);
   return res.json();
+}
+
+// Comparability Investigator (fact_layer/investigate.py). Deterministic and
+// offline: two stored facts in, a structured explanation of the existing
+// gate's verdict out. No LLM, no embedding, no re-extraction.
+export async function fetchComparability(
+  factAId: string,
+  factBId: string
+): Promise<ComparabilityExplanation> {
+  const res = await fetch(
+    `${API_BASE}/facts/${encodeURIComponent(factAId)}/comparability/${encodeURIComponent(factBId)}`
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to fetch comparability for ${factAId} vs ${factBId}: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+// Knowledge graph projection (fact_layer/graph.py). Bounded server-side:
+// depth, node and fan-out caps are enforced by the API, not by this client.
+export async function fetchGraphNeighborhood(
+  nodeType: GraphNodeType,
+  nodeId: string,
+  opts: { depth?: number; index?: number; maxNodes?: number; maxFanout?: number } = {}
+): Promise<GraphNeighborhood> {
+  const query = new URLSearchParams();
+  if (opts.depth !== undefined) query.set('depth', String(opts.depth));
+  if (opts.index !== undefined) query.set('index', String(opts.index));
+  if (opts.maxNodes !== undefined) query.set('max_nodes', String(opts.maxNodes));
+  if (opts.maxFanout !== undefined) query.set('max_fanout', String(opts.maxFanout));
+  const res = await fetch(
+    `${API_BASE}/graph/${nodeType}/${encodeURIComponent(nodeId)}?${query.toString()}`
+  );
+  if (!res.ok) throw new Error(`Failed to fetch graph for ${nodeType} ${nodeId}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function searchGraph(q: string, limit = 20): Promise<GraphSearchResult[]> {
+  const query = new URLSearchParams({ q, limit: String(limit) });
+  const res = await fetch(`${API_BASE}/graph/search?${query.toString()}`);
+  if (!res.ok) throw new Error(`Graph search failed: ${res.statusText}`);
+  return (await res.json()).results;
 }

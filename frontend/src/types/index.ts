@@ -415,3 +415,155 @@ export interface FactCandidatesResponse {
   diagnostics: RetrievalDiagnostics;
   candidates: CandidateMatch[];
 }
+
+// --------------------------------------------------------------------------
+// Comparability Investigator (fact_layer/investigate.py) — matches
+// GET /facts/{fact_a_id}/comparability/{fact_b_id} verbatim.
+//
+// The verdict is copied from comparability.gate(); this layer only EXPLAINS
+// it. Counterfactual actions state what would need to be true — no fact is
+// ever modified. And "incomparable" never means "unrelated".
+// --------------------------------------------------------------------------
+
+export type DimensionStatus =
+  | 'match'
+  | 'mismatch'
+  | 'missing'
+  | 'ambiguous'
+  | 'unverifiable'
+  | 'not_applicable';
+
+export interface DimensionReport {
+  dimension: string;
+  label: string;
+  status: DimensionStatus;
+  fact_a: string | null;
+  fact_b: string | null;
+  detail: string;
+  is_blocking: boolean;
+  reason_code: string | null;
+}
+
+export interface BlockingReason {
+  dimension: string;
+  label: string;
+  reason_code: string;
+  authority: string;
+}
+
+export interface CounterfactualAction {
+  dimension: string;
+  action_type: string;
+  current_status: DimensionStatus;
+  fact_a: string | null;
+  fact_b: string | null;
+  required_condition: string;
+  safe: boolean;
+  reason_code: string | null;
+  authority: string;
+}
+
+export interface ComparabilityEvidenceRef {
+  role: 'fact_a' | 'fact_b';
+  fact_id: string;
+  available: boolean;
+  doc_id?: string;
+  page?: number;
+  verbatim_quote?: string;
+  char_start?: number;
+  char_end?: number;
+  bbox?: number[] | null;
+  verified?: boolean;
+  value_verification?: string | null;
+}
+
+export interface ComparabilityExplanation {
+  fact_a_id: string;
+  fact_b_id: string;
+  verdict: string;
+  comparable: boolean;
+  relation_bearing: boolean;
+  structurally_blocked: boolean;
+  gate_reason_code: string;
+  gate_explanation: string;
+  dimensions: DimensionReport[];
+  blocking_reasons: BlockingReason[];
+  passing_dimensions: string[];
+  ambiguous_dimensions: string[];
+  counterfactual_actions: CounterfactualAction[];
+  safe_conclusion: string;
+  caveats: string[];
+  evidence_refs: ComparabilityEvidenceRef[];
+  authority: {
+    verdict_from: string;
+    structural_block_from: string;
+    deterministic: boolean;
+    llm_used: boolean;
+  };
+  disclaimer: string;
+  fact_a: FactSummary;
+  fact_b: FactSummary;
+}
+
+// --------------------------------------------------------------------------
+// Knowledge graph projection (fact_layer/graph.py) — matches
+// GET /graph/{node_type}/{node_id} verbatim.
+//
+// The graph is a READ-ONLY projection of the fact layer, never a source of
+// truth: relation edges exist only because the adjudicator recorded them,
+// and a retrieval candidate is never rendered as a relationship.
+// --------------------------------------------------------------------------
+
+export type GraphNodeType = 'entity' | 'fact' | 'evidence' | 'document';
+
+export const STRUCTURAL_EDGE_TYPES = ['HAS_FACT', 'SUPPORTED_BY', 'LOCATED_IN'] as const;
+export type StructuralEdgeType = (typeof STRUCTURAL_EDGE_TYPES)[number];
+
+export interface GraphNode {
+  id: string;
+  type: GraphNodeType;
+  label: string;
+  subtitle: string;
+  source_id: string;
+  depth: number;
+  metadata: Record<string, any>;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  /** A structural edge type, or an authoritative relation type
+   *  (CORROBORATES / CONTRADICTS / APPARENT_CONFLICT / SUPERSEDES /
+   *  AGGREGATES_INTO) recorded by the adjudicator. */
+  type: string;
+  label: string;
+  metadata: Record<string, any>;
+}
+
+export interface GraphMetadata {
+  depth: number;
+  max_depth: number;
+  node_count: number;
+  edge_count: number;
+  truncated: boolean;
+  truncation_reasons: string[];
+  max_nodes: number;
+  max_fanout: number;
+  projection_of: string;
+  is_source_of_truth: boolean;
+}
+
+export interface GraphNeighborhood {
+  root: GraphNode;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  metadata: GraphMetadata;
+}
+
+export interface GraphSearchResult {
+  type: GraphNodeType;
+  id: string;
+  label: string;
+  subtitle: string;
+}

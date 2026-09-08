@@ -14,6 +14,9 @@ import {
   Quote,
 } from 'lucide-react';
 import { formatIssuer, cn } from '@/lib/utils';
+import { Scale, Network } from 'lucide-react';
+import { KnowledgeGraphModal } from '@/components/graph/KnowledgeGraphModal';
+import { ComparabilityInvestigator } from '@/components/facts/ComparabilityInvestigator';
 import { useTheme } from '@/context/ThemeContext';
 
 interface RelationInspectorModalProps {
@@ -33,6 +36,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
   const [relation, setRelation] = useState<RelationFull | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [graphOpen, setGraphOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isOpen || !relationId) {
@@ -407,6 +411,61 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
               the same comparison cluster. The gate below never checks subject/measure equality itself; it checks whether the
               qualifiers make the two claims like-for-like.
             </div>
+          )}
+
+          {/* Graph entry point (spec §13C): trace this relationship —
+              both facts, their evidence and their source documents. */}
+          {relation.source_fact && (
+            <button
+              type="button"
+              onClick={() => setGraphOpen(true)}
+              className={cn(
+                'w-full px-3 py-2 rounded-lg border text-[11px] font-medium flex items-center justify-center gap-1.5',
+                isDark
+                  ? 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-sky-500/50'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-sky-500/50'
+              )}
+            >
+              <Network className="w-3.5 h-3.5 text-sky-500" aria-hidden="true" />
+              Trace this relationship in the knowledge graph
+            </button>
+          )}
+
+          {relation.source_fact && (
+            <KnowledgeGraphModal
+              isOpen={graphOpen}
+              onClose={() => setGraphOpen(false)}
+              rootType="fact"
+              rootId={relation.source_fact.fact_id}
+              title={`${relation.relation} · ${relation.source_fact.subject}`}
+              onOpenEvidence={onOpenEvidence}
+            />
+          )}
+
+          {/* Full comparability investigation for the exact pair behind this
+              relation — the same deterministic explanation the retrieval
+              candidate flow opens, reached from the relationship side. */}
+          {relation.source_fact && relation.target_fact && (
+            <details className="group">
+              <summary
+                className={cn(
+                  'cursor-pointer list-none px-3 py-2 rounded-lg border text-[11px] font-medium flex items-center gap-1.5',
+                  isDark
+                    ? 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-sky-500/50'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-sky-500/50'
+                )}
+              >
+                <Scale className="w-3.5 h-3.5 text-sky-500" aria-hidden="true" />
+                Investigate comparability for this pair
+              </summary>
+              <div className="pt-2">
+                <ComparabilityInvestigator
+                  factA={relation.source_fact}
+                  factBId={relation.target_fact.fact_id}
+                  provenance="Pair behind this recorded relationship"
+                />
+              </div>
+            </details>
           )}
 
           {/* Qualifier Diff Matrix */}

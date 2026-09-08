@@ -44,6 +44,9 @@ from fact_layer.jobs import Job, JobStage, JobStatus, JobStore
 from fact_layer.models import Fact, Qualifiers, Quantity, Relation
 from fact_layer.parse import _doc_id
 from fact_layer.resolve import write_resolution_log
+from fact_layer import graph as graph_module
+from fact_layer.graph import GraphProjection
+from fact_layer.investigate import investigate
 from fact_layer.retrieval import get_index
 from fact_layer.storage import backend_from_env
 from fact_layer.store import Store, _STORE_PATH
@@ -762,6 +765,102 @@ def stats():
         "clusters": {"total": summary["clusters_total"], "with_2plus_facts": summary["clusters_with_2plus_facts"]},
         "resolution": resolution_summary,
         "llm_this_process": dict(_llm._stats),
+    }
+
+
+# --------------------------------------------------------------------------
+# GET /graph/search, GET /graph/{node_type}/{node_id}
+#
+# Knowledge-graph projection (fact_layer/graph.py). Read-only and derived on
+# demand from Store.facts / Store.relations / Store.get_evidence() — there is
+# no graph database and no graph.json, so an incremental ingest is reflected
+# on the next request with no rebuild step.
+#
+# Traversal is bounded server-side: `depth` is clamped to graph.MAX_DEPTH and
+# the node/fan-out caps are enforced here, not trusted from the client.
+# --------------------------------------------------------------------------
+
+@app.get("/graph/search")
+def graph_search(q: str = Query(..., min_length=1, max_length=200),
+                 limit: int = Query(20, ge=1, le=50)):
+    """Jump-to affordance over entities, facts and documents."""
+    return {"query": q, "results": GraphProjection(STORE).search(q, limit=limit)}
+
+
+@app.get("/graph/{node_type}/{node_id:path}")
+def graph_neighborhood(
+    node_type: str,
+    node_id: str,
+    depth: int = Query(graph_module.DEFAULT_DEPTH, ge=0, le=graph_module.MAX_DEPTH),
+    index: Optional[int] = Query(None, ge=0, le=10_000),
+    max_nodes: int = Query(graph_module.DEFAULT_MAX_NODES, ge=1, le=500),
+    max_fanout: int = Query(graph_module.DEFAULT_MAX_FANOUT, ge=1, le=100),
+):
+    node_type = (node_type or "").strip().lower()
+    if node_type not in graph_module.NODE_TYPES:
+        raise HTTPException(
+            400, f"unknown node_type; expected one of {', '.join(graph_module.NODE_TYPES)}")
+
+    # Evidence has no id of its own — it is addressed as (fact_id, index).
+    # `index` travels as a query parameter because the natural composite id
+    # contains '#', which a URL path can never carry.
+    root_id = node_id
+    if node_type == graph_module.NODE_EVIDENCE:
+        root_id = f"{node_id}#{index or 0}"
+
+    try:
+        result = graph_module.build_neighborhood(
+            STORE, node_type, root_id, depth=depth,
+            max_nodes=max_nodes, max_fanout=max_fanout,
+        )
+    except Exception as exc:                          # noqa: BLE001
+        # Sanitized: never leak a traceback or a filesystem path through the
+        # graph endpoint (same contract as the ingest and investigator paths).
+        raise HTTPException(500, f"graph projection failed: {type(exc).__name__}")
+
+    if result is None:
+        raise HTTPException(404, f"unknown {node_type} id")
+    return result
+
+
+# --------------------------------------------------------------------------
+# GET /facts/{fact_a_id}/comparability/{fact_b_id}
+#
+# The Comparability Investigator (fact_layer/investigate.py): a deterministic,
+# read-only explanation of why one ordered pair of facts does or does not
+# satisfy the comparability gate, plus what would have to be true before a
+# valid comparison could happen.
+#
+# Deterministic and offline by construction: it reads two already-stored
+# facts, calls the existing gate, and formats the result. No LLM, no
+# embedding, no network, no re-extraction — so it is safe to call from a
+# hover/click in the UI and works unchanged in replay evaluation.
+# --------------------------------------------------------------------------
+
+@app.get("/facts/{fact_a_id}/comparability/{fact_b_id}")
+def fact_comparability(fact_a_id: str, fact_b_id: str):
+    fact_a = STORE.facts.get(fact_a_id)
+    if fact_a is None:
+        raise HTTPException(404, "unknown fact_a_id")
+    fact_b = STORE.facts.get(fact_b_id)
+    if fact_b is None:
+        raise HTTPException(404, "unknown fact_b_id")
+    if fact_a_id == fact_b_id:
+        raise HTTPException(400, "a fact cannot be compared with itself")
+
+    try:
+        explanation = investigate(fact_a, fact_b).to_dict()
+    except Exception as exc:                          # noqa: BLE001
+        # Never leak an internal traceback or a filesystem path through this
+        # endpoint; the same sanitized-error contract the ingest path uses.
+        raise HTTPException(500, f"comparability investigation failed: {type(exc).__name__}")
+
+    return {
+        **explanation,
+        # Fact references, not duplicated fact bodies — the client already
+        # has (or can fetch) these by id via GET /facts/{fact_id}.
+        "fact_a": _fact_summary(fact_a),
+        "fact_b": _fact_summary(fact_b),
     }
 
 

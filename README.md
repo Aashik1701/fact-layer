@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-431%20passed-success.svg)](#test-suite--validation)
+[![Tests](https://img.shields.io/badge/tests-566%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
 > **Core Thesis: Comparability Before Comparison**  
@@ -51,6 +51,8 @@ The repository includes:
   - [Case 2: Contradiction (Intra-Document ESOP Vesting Conflict)](#case-2-contradiction-intra-document-esop-vesting-conflict)
   - [Case 3: Apparent Conflict (Live Forecast Disagreement)](#case-3-apparent-conflict-live-forecast-disagreement)
   - [Case 4: Extraction Failure (Mechanically Logged Rejections)](#case-4-extraction-failure-mechanically-logged-rejections)
+- [8a. The Comparability Investigator & Counterfactual Readiness](#8a-the-comparability-investigator--counterfactual-readiness)
+- [8b. The Knowledge Graph (a projection, not a database)](#8b-the-knowledge-graph-a-projection-not-a-database)
 - [9. Measured Metrics & Corpus Statistics](#9-measured-metrics--corpus-statistics)
 - [10. Empirical Scale & Stress Testing](#10-empirical-scale--stress-testing)
   - [10a. Retrieval + Scale Layer (Candidate Generation Before the Gate)](#10a-retrieval--scale-layer-candidate-generation-before-the-gate)
@@ -118,6 +120,8 @@ Fact Layer separates mechanical reading from deterministic reasoning:
 - **Contextual Conflict Explanations**: Differentiates between true mathematical contradictions and expected forecast variances, generating plain-English audit trails.
 - **Incremental Ingestion**: Uploading a PDF updates only affected clusters without recomputing unrelated document relations.
 - **Interactive Evidence Provenance UI**: A modern React SPA with PDF canvas rendering, bounding-box overlays, zoom controls, and theme switching.
+- **Evidence-Grounded Knowledge Graph** (`fact_layer/graph.py`): a bounded, read-only projection connecting resolved entities, facts, evidence spans, source documents and established relationships, so a full provenance chain (entity → fact → evidence → document → page) can be traced by clicking. It has no database of its own and infers nothing. See [§8b](#8b-the-knowledge-graph-a-projection-not-a-database).
+- **Comparability Investigator & Counterfactual Readiness** (`fact_layer/investigate.py`): a deterministic, evidence-linked explanation of why any two facts do or do not satisfy the comparability gate — every blocking dimension, not just the first — plus a structured statement of what would need to be true before a valid comparison could be made. It never modifies a fact. See [§8a](#8a-the-comparability-investigator--counterfactual-readiness).
 - **Retrieval + Scale Layer** (`fact_layer/retrieval/`, optional, `RETRIEVAL_ENABLED=false` by default): deterministic candidate blocking, hybrid lexical (BM25/FTS5) + semantic (local embedding) retrieval, and a local vector store narrow which fact pairs are even considered before they reach the unmodified comparability gate — see [§10a](#10a-retrieval--scale-layer-candidate-generation-before-the-gate).
 
 ---
@@ -268,7 +272,7 @@ sequenceDiagram
 
 ### 4.4 Persistence: JSON Today, a Storage Contract for Tomorrow
 
-**Current: `data/store.json` via `JsonFactStore`.** This is a local assignment, run by one grader on one machine, with no concurrent users and a corpus of a handful of PDFs — a single JSON file is simple, fully reproducible (`scripts/build_demo_store.py` rebuilds it deterministically), needs zero external services or credentials, and every existing consumer already round-trips through it correctly (431 tests, including a byte-for-byte real-corpus regression check). **This is not pretended to be horizontally scalable** — see "What this does not provide" below.
+**Current: `data/store.json` via `JsonFactStore`.** This is a local assignment, run by one grader on one machine, with no concurrent users and a corpus of a handful of PDFs — a single JSON file is simple, fully reproducible (`scripts/build_demo_store.py` rebuilds it deterministically), needs zero external services or credentials, and every existing consumer already round-trips through it correctly (566 tests, including a byte-for-byte real-corpus regression check). **This is not pretended to be horizontally scalable** — see "What this does not provide" below.
 
 **The point of this section: persistence is isolated behind a contract, not scattered through the domain.** `fact_layer/storage.py` defines:
 
@@ -581,6 +585,176 @@ Out of the fact candidates proposed across the corpus, **95 were rejected** by m
 
 ---
 
+## 8a. The Comparability Investigator & Counterfactual Readiness
+
+The project's thesis is *comparability before comparison*. This is the feature that makes it inspectable: select any two facts and get a deterministic, evidence-linked account of whether they may be compared, exactly why, and what would have to be true before a comparison the system currently refuses could be justified.
+
+```
+FACT A + FACT B
+      │
+      ├── structural blocking  (retrieval/blocking.py)   ← subject / measure / value_kind
+      │
+      ▼
+COMPARABILITY GATE (comparability.gate)  ← unchanged, sole authority for the verdict
+      │
+      ▼
+STRUCTURED EXPLANATION (fact_layer/investigate.py)
+      ├── dimension matrix          (12 dimensions, 6-value status vocabulary)
+      ├── blocking reasons          (every one, not just the first)
+      ├── evidence references       (doc / page / quote / bbox)
+      └── counterfactual readiness  (what would need to be true)
+```
+
+**It explains the gate; it never replaces it.** `ComparabilityExplanation.verdict` is copied verbatim from `gate(a, b).verdict`, and every blocking reason code is one the gate itself emitted. `tests/test_investigate.py` asserts that equality over every fixture, and `tests/test_investigate_api.py` re-asserts it across 40 real in-corpus pairs. There is no LLM in this path: the same two facts always produce byte-identical output, which is what makes it testable, fast, and safe to call offline.
+
+### Two authorities, in order
+
+`gate()` deliberately does **not** compare subject or measure — it assumes callers only hand it same-`cluster_key()` facts, which is true for every caller inside the pipeline. But an investigator is reachable from the UI with any two facts, and handing the gate `revenue` and `ebitda` would return `COMPARABLE`, true only in the narrow sense that nothing the gate inspects disagrees. So the investigator applies the project's other existing structural authority first — `retrieval/blocking.py`'s `blocking_check()`, whose `SUBJECT_MISMATCH` / `MEASURE_MISMATCH` / `VALUE_KIND_MISMATCH` codes are reused verbatim rather than reinvented.
+
+### Finding every blocking dimension without a second gate
+
+`gate()` short-circuits: it returns on the first dimension that fails, so one call names one reason even when four dimensions disagree. Re-implementing its per-dimension predicates to enumerate them would create exactly the parallel engine this must not be.
+
+Instead the blocking set is discovered by **peeling**: ask the real gate what blocks, hypothetically align that one dimension on a throwaway copy, ask again, repeat. Every reason code in the result was produced by the real `gate()`. The loop is bounded by the dimension count and has an explicit no-progress guard.
+
+Measured on a four-way mismatch: a single `gate()` call reports only `scope_mismatch`; the investigator reports **scope, segment, unit and period** — while still returning `incomparable_scope` as the verdict, because that is what the gate said.
+
+### The status vocabulary is not a boolean
+
+| Status | Means |
+|---|---|
+| `MATCH` | both facts state it, and they agree |
+| `MISMATCH` | both state it, and they differ |
+| `MISSING` | at least one source never stated it — **not** a mismatch |
+| `AMBIGUOUS` | stated but not resolvable to one interpretation |
+| `UNVERIFIABLE` | stated, but not confirmed against evidence |
+| `NOT_APPLICABLE` | the dimension does not apply (unit on a text-valued fact) |
+
+`MISSING` never becomes `MISMATCH`, and `UNVERIFIABLE` never becomes `INCOMPARABLE`. An unstated scope produces a caveat — "agreement has not been established, only left unchecked" — and the system never assumes consolidated. Evidence uncertainty is reported separately from semantic incompatibility, because the gate does not consider verification state at all and so it can never be the thing that blocks a comparison.
+
+### Counterfactual readiness — a requirement, not a mutation
+
+When comparison is blocked, each blocking dimension yields one structured `CounterfactualAction`. **Nothing is transformed.** The facts are value-identical before and after (`test_no_fact_mutation`, asserted over every fixture); probing runs on `dataclasses.replace` copies that are never surfaced.
+
+The wording rules matter as much as the mechanism:
+
+| Case | What the system says | What it deliberately does **not** say |
+|---|---|---|
+| Period `FY2023-24` vs `FY2021-22` | "Both facts must refer to the same reporting period. Neither figure is wrong; they measure different windows of time." | "Use FY2023-24" — that would imply which fact is wrong |
+| Scope standalone vs consolidated | "…standalone with standalone, or consolidated with consolidated. The system does not prefer either scope." | any preference for consolidated |
+| Currency INR vs USD | "…or converted using a verified rate. No FX rate is stated in the sources, so this system will not convert." (`safe: false`) | an invented exchange rate |
+| Different issuers | "A valid comparison requires an issuer relationship that the knowledge layer explicitly recognises; differing institutions projecting the same quantity is forecast disagreement, not a factual error." | "align issuer" |
+| Unresolved entity | "…must resolve to the same canonical entity with sufficient confidence. The resolver leaves an entity unresolved rather than risking an incorrect merge." (`safe: false`) | a fuzzy merge to unblock the comparison |
+
+Actions are emitted **only** for dimensions an authority actually named. A geography difference, which the gate tolerates, produces no action — the panel never invents work that isn't required.
+
+### Incomparable ≠ unrelated
+
+Both the API (`disclaimer`) and the UI (a persistent footer on every blocked verdict) state it: *comparison blocked — this is not a finding that the two facts are unrelated.* It means this system cannot validly compare them under the current gate. `temporal_succession` and `aggregation_candidate` are not blocks at all — the adjudicator turns them into `SUPERSEDES` and `AGGREGATES_INTO`, so the investigator reports them as "comparison permitted under a specific relationship".
+
+### What the committed demo corpus can show
+
+Measured across every in-bucket pair of the 552-fact pre-seeded store:
+
+| Showcase case | Available | Count |
+|---|---|---|
+| Comparable | yes | 46 pairs |
+| Period mismatch | yes | 29 pairs |
+| Scope mismatch | yes | 7 pairs |
+| Unit / currency mismatch | yes | 3 pairs |
+| Multiple blocking dimensions | yes | 6 pairs |
+| Ambiguous / unstated dimension | yes | 202 pairs |
+| Unverified-value caveat | yes | 90 pairs |
+| Temporal succession (not a block) | yes | 114 pairs |
+| Aggregation candidate (not a block) | yes | 3 pairs |
+| Issuer mismatch | after live ingest | the IMF-vs-RBI pair appears once the held-back IMF document is ingested |
+
+### Limitations
+
+- **Counterfactual readiness does not modify facts, and does not guarantee the required information exists anywhere in the corpus.** "Both facts must refer to the same reporting period" is a statement about what a valid comparison needs, not a promise that such a pair has been extracted.
+- The investigator explains the gate **as it currently is**. A dimension the gate does not check (geography, for instance) is reported in the matrix for transparency but can never appear as a blocking reason.
+- Peeling reports the blocking dimensions in the order the gate raises them. That order is the gate's own precedence, not a ranking of severity.
+
+---
+
+## 8b. The Knowledge Graph (a projection, not a database)
+
+The graph makes the knowledge layer walkable: start at an entity, fact, evidence span or document and trace the full provenance chain without reading any source.
+
+```
+                    KNOWLEDGE LAYER
+       ┌─────────────────┼──────────────────┐
+     Facts            Relations          Evidence
+       └─────────────────┼──────────────────┘
+                         ▼
+                 GRAPH PROJECTION  (fact_layer/graph.py)
+                         ▼
+              INVESTIGATION EXPERIENCE
+            ┌────────────┼─────────────┐
+          Fact      Relationship    Evidence
+        Inspector    Inspector       Viewer
+            └────────────┼─────────────┘
+                         ▼
+                  SOURCE DOCUMENT
+```
+
+**There is no graph database and no `graph.json`.** Every node and edge is derived on demand from `Store.facts`, `Store.relations`, `Store.get_evidence()` and `Store.ingested_docs`. That is not a shortcut — it is what makes the graph correct after an incremental ingest: there is no second dataset that could go stale, so ingesting a document makes its facts, evidence and relations appear on the next request with no rebuild step. `tests/test_graph.py::test_new_facts_appear_without_any_graph_rebuild` pins it.
+
+### Node and edge model
+
+| Node | Projected from | Shows |
+|---|---|---|
+| `ENTITY` | `fact.subject` (post-resolution) | canonical name, live fact/document counts |
+| `FACT` | `Store.facts` | measure, value, period, scope, verification |
+| `EVIDENCE` | `Store.get_evidence(fact_id)` | page, verbatim quote, span, bbox, verified flag |
+| `DOCUMENT` | `Store.ingested_docs` | filename, fact count |
+
+Structural edges — `HAS_FACT`, `SUPPORTED_BY`, `LOCATED_IN` — wire the provenance chain. Relationship edges carry whatever `RelationType` the adjudicator recorded (`CORROBORATES`, `CONTRADICTS`, `APPARENT_CONFLICT`, `SUPERSEDES`, `AGGREGATES_INTO`) along with **its own** confidence, reason code and explanation. The graph computes none of those.
+
+### Three rules the projection never breaks
+
+1. **The graph infers nothing.** A relationship edge exists only because `Store.relations` contains it. Two facts that share a document, a subject or a high similarity score get no edge. `test_every_relation_edge_exists_in_the_authoritative_store` checks every edge against the store.
+2. **A retrieval candidate is not a relationship.** Candidates are not drawn as edges at all — that story belongs to the retrieval panel (§10a) and the Comparability Investigator (§8a). From a candidate you can open the graph, but it arrives labelled *"Candidate surfaced by lexical + semantic retrieval"*, never *"related fact"*.
+3. **Entity resolution is preserved, never improved.** Two facts share an `ENTITY` node exactly when `fact.subject` is already the same canonical string. The graph never merges what the resolver deliberately left apart — `UNRESOLVED > INCORRECT MERGE` holds here too.
+
+### Bounded traversal
+
+`GET /graph/{node_type}/{node_id}?depth=N` walks breadth-first from one root under three caps enforced **server-side**: depth (≤ 4), total nodes (≤ 500, default 150) and per-node fan-out (default 25). Rendering all 552 facts would be an unreadable web and a larger corpus would be unrenderable, so bounded neighbourhoods are the design.
+
+**Truncation is never silent.** The response carries `truncated` plus the reasons, and the UI prints *"Showing a 2-hop neighbourhood · 62 nodes · 72 edges · truncated (fan-out limit reached at …). Re-centre on a node to continue."* Edges that would point at a node the cap excluded are dropped rather than emitted as dangling references.
+
+Measured on the committed 552-fact / 15-relation store: projection index build **0.4 ms**; a fact-rooted neighbourhood is **0.1 ms at depth 1 (8 nodes)**, **0.2 ms at depth 2**, **0.6 ms at depth 3**. These are small-corpus numbers and are not a scale claim — the point is that traversal is bounded, not that the corpus is large.
+
+### Provenance chain
+
+Every evidence node carries its document in the same step, so no evidence node is ever a dangling leaf that cannot answer "which document did this come from?":
+
+```
+Fact ──SUPPORTED_BY──> Evidence (page 47, "Revenue increased…", verified)
+                            └──LOCATED_IN──> Document (annual-report.pdf)
+```
+
+Clicking an evidence node opens the **existing** evidence/PDF viewer at the right page with the existing quote and bbox highlighting — no second renderer was built.
+
+### Visualization technology: no graph library
+
+The canvas is hand-rolled SVG (`KnowledgeGraphCanvas.tsx`). The same test this project applies to every dependency applies here: the view is a bounded neighbourhood of tens of nodes, and the shape is a provenance chain, not an arbitrary network. A deterministic layered layout (entity → fact → evidence → document, left to right, ordered by stable id) reads that chain directly, where a force-directed library would produce the spider web this view exists to avoid, add 50–400 kB, and fight the keyboard/table accessibility requirements. Pan, zoom, fit and selection are a `viewBox` transform and a click handler. **Total bundle cost of the whole graph feature: +20.8 kB raw, +5.2 kB gzipped.**
+
+Accessibility: node type is conveyed by a glyph *and* a text label, never colour alone; nodes are keyboard-focusable with `Enter`/`Space` selection; every neighbourhood has a "Text view" table listing the same nodes and relationships, so the graph is not the only way to read the information.
+
+### Entry points
+
+Fact detail → *Explore in knowledge graph* · Relation Inspector → *Trace this relationship* · Retrieval candidate → *Investigate in graph*. Inside the graph, selecting a second fact offers *Investigate comparability*, which opens the existing Comparability Investigator (§8a) rather than a second comparison UI — completing the chain **retrieval → graph → comparability → relationship → evidence → source**.
+
+### Limitations
+
+- **The performance numbers above are from a 552-fact corpus.** They demonstrate that traversal is bounded, not that the system has been shown to scale; a corpus large enough to stress it has not been tested here.
+- **A dense root is still dense.** A document node with hundreds of facts truncates at the fan-out cap; the graph tells you it truncated and asks you to re-centre, rather than trying to draw it.
+- **The graph shows only what the store recorded.** An absent edge means no relationship was established — never that the facts are unrelated, and never that one could not exist outside the retrieval budget that produced the corpus.
+- **`CONTRADICTS` is rare in the committed corpus.** Demo scenarios 1, 2, 4 and 5 (entity walk, corroboration, supersession, incomparable candidate) are demonstrable on the pre-seeded store; a genuine `CONTRADICTS` pair appears among the 5-document store's own relations, and the IMF-vs-RBI `APPARENT_CONFLICT` showcase requires the live IMF ingest. No synthetic edge was added to make any demo look better.
+
+---
+
 ## 9. Measured Metrics & Corpus Statistics
 
 All metrics are transcribed from single-run audit logs (`data/extraction_report.json` and `data/resolution_log.json`):
@@ -851,7 +1025,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (431 tests, including the 107-test Retrieval + Scale layer suite in `tests/test_retrieval_*.py` — see §10a):
+Execute the full offline test suite (566 tests, including the 107-test Retrieval + Scale layer suite in `tests/test_retrieval_*.py` — see §10a — the 86-test Comparability Investigator suite in `tests/test_investigate*.py` — see §8a — and the 49-test knowledge-graph suite in `tests/test_graph*.py` — see §8b):
 ```bash
 pytest
 ```
@@ -877,6 +1051,9 @@ All endpoints return structured JSON. When mounted in production, static web ass
 | `GET` | `/rejected-facts` | `reason`, `doc_id`, `limit`, `offset` | Array of facts rejected during mechanical span verification. |
 | `GET` | `/retrieval/stats` | None | Retrieval + Scale layer diagnostics (§10a): indexed fact count, embedding model/dimension, lexical/vector index sizes, embedding cache hit/miss counts, configured top-K and fusion weights. Works whether or not `RETRIEVAL_ENABLED` is set. |
 | `GET` | `/facts/{fact_id}/candidates` | `fact_id` (path), `top_k` | The hybrid-ranked candidates retrieved for one fact, plus a full `diagnostics` object (§10a): adaptive policy (`k_ladder`, `initial_k`/`final_k`/`max_k`, rounds, per-rung `stages` with the deterministic expand/stop reason), candidate counts, blocking scope (`bucket_size`/`corpus_size`/`excluded_by_blocking`), overlapping per-channel counts plus their union, retrieval score ranges, **gate** verdict/reason histograms, **adjudicator** relationship counts, `termination` (reason + `budget_exhausted` + `bounded_search`), and per-stage timings. The legacy `funnel` object is preserved for backward compatibility. `503` if retrieval is unavailable — deliberately an error, never an empty candidate list that could be misread as "nothing is related". |
+| `GET` | `/facts/{fact_a_id}/comparability/{fact_b_id}` | both ids (path) | **Comparability Investigator** (§8a): a deterministic explanation of the gate's verdict for one ordered fact pair — `verdict` (copied verbatim from `comparability.gate()`), the 12-dimension status matrix, EVERY blocking reason (not just the first the gate short-circuits on), passing/ambiguous dimensions, `counterfactual_actions` describing what would need to be true, a `safe_conclusion`, non-blocking `caveats`, and `evidence_refs` (doc/page/quote/bbox). No LLM, no embedding, no network — safe to call inline and unchanged in replay. `404` unknown id, `400` same fact twice. |
+| `GET` | `/graph/{node_type}/{node_id}` | `node_type` ∈ entity/fact/evidence/document, `node_id` (path), `depth` (0-4), `index` (evidence only), `max_nodes`, `max_fanout` | **Knowledge graph** (§8b): a bounded, read-only neighbourhood projected from `Store.facts`/`Store.relations`/`Store.get_evidence()` — `root`, `nodes`, `edges` and `metadata` (depth, counts, `truncated` + reasons, `is_source_of_truth: false`). Relationship edges carry the adjudicator's own confidence/reason; the graph infers nothing. `404` unknown id, `400` bad node_type, `422` out-of-range depth. |
+| `GET` | `/graph/search` | `q`, `limit` | Jump-to search over entities, facts and documents for the graph view. |
 
 ### Reading `/facts/{fact_id}/candidates` correctly
 
@@ -988,5 +1165,5 @@ Two further honest bounds:
 - [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: **431** unit and integration tests passing cleanly via `pytest`, of which **107** cover the Retrieval + Scale layer (`tests/test_retrieval_*.py`: 16 adaptive-policy, 12 diagnostics, 11 differential, 12 blocking, 5 real-corpus recall, plus channel/index/API tests). *(Historical: this checklist previously read 283 tests, from the ingestion-job-model phase — that figure is retained here only as a record of that milestone, not as a current count.)*
+- [x] **Comprehensive Test Suite**: **566** unit and integration tests passing cleanly via `pytest`, of which **107** cover the Retrieval + Scale layer, **86** the Comparability Investigator (`tests/test_investigate.py` 73, `tests/test_investigate_api.py` 13) and **49** the knowledge graph (`tests/test_graph.py` 26, `tests/test_graph_api.py` 23) (`tests/test_retrieval_*.py`: 16 adaptive-policy, 12 diagnostics, 11 differential, 12 blocking, 5 real-corpus recall, plus channel/index/API tests). *(Historical: this checklist previously read 283 tests, from the ingestion-job-model phase — that figure is retained here only as a record of that milestone, not as a current count.)*
 - [x] **Retrieval + Scale Layer** (§10a): deterministic blocking, hybrid lexical/semantic retrieval, local embedding provider + vector store, incremental indexing, `rebuild_retrieval_index()`, two diagnostic API endpoints, a compact frontend panel, a 100-document/12,000-fact benchmark script, and 65 new tests (including a dedicated real-corpus Recall@K/known-relation-recovery suite) — all additive and disabled by default (`RETRIEVAL_ENABLED=false`), with the full pre-existing 324-test suite verified unchanged.

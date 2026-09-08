@@ -4,10 +4,11 @@ import { FactSummary, FactFull, RelationSummary } from '@/types';
 import { ConfidencePill } from '@/components/common/ConfidencePill';
 import { GateVerdictBadge } from '@/components/relations/GateVerdictBadge';
 import { RetrievalCandidatesPanel } from '@/components/facts/RetrievalCandidatesPanel';
+import { KnowledgeGraphModal } from '@/components/graph/KnowledgeGraphModal';
 import { fetchFact, fetchRelations } from '@/lib/api';
 import { deriveSpanVerification, deriveValueVerification, deriveContextVerification } from '@/lib/verification';
 import {
-  FileSearch, CheckCircle2, AlertCircle, HelpCircle, GitCompare, ArrowRight, Loader2,
+  FileSearch, CheckCircle2, AlertCircle, HelpCircle, GitCompare, ArrowRight, Loader2, Network,
 } from 'lucide-react';
 import { formatIssuer } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
@@ -80,6 +81,7 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
   const [relations, setRelations] = useState<RelationSummary[] | null>(null);
   const [loadingRelations, setLoadingRelations] = useState<boolean>(false);
   const [relationsError, setRelationsError] = useState<boolean>(false);
+  const [graphOpen, setGraphOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isOpen || !fact) {
@@ -369,7 +371,33 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
         {/* CANDIDATE RETRIEVAL — section 19: shows what retrieval found,
             never what it decided; the comparability gate above remains
             the sole authority for CORROBORATES/CONTRADICTS/etc. */}
+        {/* Graph entry point (spec §13B): start a provenance walk from
+            this fact — entity, evidence, document and any recorded
+            relationships, one hop at a time. */}
+        <button
+          type="button"
+          onClick={() => setGraphOpen(true)}
+          className={cn(
+            'w-full px-3 py-2 rounded-xl border text-[12px] font-medium flex items-center justify-center gap-1.5',
+            isDark
+              ? 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-sky-500/50'
+              : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-sky-500/50'
+          )}
+        >
+          <Network className="w-3.5 h-3.5 text-sky-500" aria-hidden="true" />
+          Explore in knowledge graph
+        </button>
+
         <RetrievalCandidatesPanel fact={fact} />
+
+        <KnowledgeGraphModal
+          isOpen={graphOpen}
+          onClose={() => setGraphOpen(false)}
+          rootType="fact"
+          rootId={fact.fact_id}
+          title={`${fact.subject} · ${fact.measure}`}
+          onOpenEvidence={onOpenEvidence}
+        />
       </div>
     </Modal>
   );
