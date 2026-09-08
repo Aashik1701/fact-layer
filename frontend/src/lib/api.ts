@@ -15,6 +15,9 @@ import {
   GraphSearchResult,
   GraphNodeType,
   FactCandidatesResponse,
+  EntityMeasures,
+  EntityHistory,
+  LineageResult,
 } from '@/types';
 
 const API_BASE = '';
@@ -116,7 +119,7 @@ export async function fetchRejectedFacts(limit: number = 200, reason?: string): 
 }
 
 // Starts ingestion and returns immediately with a job to poll (202
-// Accepted) — this never waits for the pipeline to finish. Use fetchJob()
+// Accepted) - this never waits for the pipeline to finish. Use fetchJob()
 // to follow progress; see DocumentUploadZone.tsx for the polling loop.
 export async function ingestDocument(file: File): Promise<IngestAcceptedResponse> {
   const formData = new FormData();
@@ -148,7 +151,7 @@ export function getPageImageUrl(docId: string, page: number): string {
 }
 
 // Retrieval + Scale layer diagnostics (fact_layer/retrieval/). Both
-// endpoints are read-only investigation views — see api.py's endpoint
+// endpoints are read-only investigation views - see api.py's endpoint
 // docstring for why they work regardless of RETRIEVAL_ENABLED.
 export async function fetchRetrievalStats(): Promise<RetrievalStats> {
   const res = await fetch(`${API_BASE}/retrieval/stats`);
@@ -204,4 +207,34 @@ export async function searchGraph(q: string, limit = 20): Promise<GraphSearchRes
   const res = await fetch(`${API_BASE}/graph/search?${query.toString()}`);
   if (!res.ok) throw new Error(`Graph search failed: ${res.statusText}`);
   return (await res.json()).results;
+}
+
+// Temporal Knowledge (fact_layer/temporal.py). With no measure, returns the
+// discovery list of measures this subject actually has facts for.
+export async function fetchEntityMeasures(subject: string): Promise<EntityMeasures> {
+  const res = await fetch(`${API_BASE}/entities/${encodeURIComponent(subject)}/history`);
+  if (!res.ok) throw new Error(`Failed to fetch measures for ${subject}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchEntityHistory(subject: string, measure: string): Promise<EntityHistory> {
+  const res = await fetch(
+    `${API_BASE}/entities/${encodeURIComponent(subject)}/history?measure=${encodeURIComponent(measure)}`
+  );
+  if (!res.ok) throw new Error(`Failed to fetch history for ${subject}::${measure}: ${res.statusText}`);
+  return res.json();
+}
+
+// Evidence Lineage (fact_layer/lineage.py) - the provenance chain behind
+// one fact or one adjudicated relation.
+export async function fetchFactLineage(factId: string): Promise<LineageResult> {
+  const res = await fetch(`${API_BASE}/facts/${encodeURIComponent(factId)}/lineage`);
+  if (!res.ok) throw new Error(`Failed to fetch lineage for fact ${factId}: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchRelationLineage(relationId: string): Promise<LineageResult> {
+  const res = await fetch(`${API_BASE}/relations/${encodeURIComponent(relationId)}/lineage`);
+  if (!res.ok) throw new Error(`Failed to fetch lineage for relation ${relationId}: ${res.statusText}`);
+  return res.json();
 }

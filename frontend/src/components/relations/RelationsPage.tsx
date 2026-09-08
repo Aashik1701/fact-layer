@@ -11,13 +11,18 @@ import { Search, GitCompare, RefreshCw } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
-export const RelationsPage: React.FC = () => {
+export interface RelationsPageProps {
+  /** Seed the type filter when navigated here from a TopBar relation chip. */
+  initialType?: string | null;
+}
+
+export const RelationsPage: React.FC<RelationsPageProps> = ({ initialType }) => {
   const { isDark } = useTheme();
   const [relations, setRelations] = useState<RelationSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedType, setSelectedType] = useState<string>('ALL');
+  const [selectedType, setSelectedType] = useState<string>(initialType ?? 'ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [minConfidence, setMinConfidence] = useState<number>(0);
 

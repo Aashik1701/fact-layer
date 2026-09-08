@@ -11,7 +11,17 @@ import { Database, Search, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-r
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
-export const FactsPage: React.FC = () => {
+export interface FactsPageProps {
+  /** Pre-filters facts to a single document when navigated to from the
+   *  Documents page. Applied once on mount; the user can clear it. */
+  initialDocId?: string | null;
+  /** Pre-filter subject (from a cluster selection). Applied on mount. */
+  initialSubject?: string | null;
+  /** Pre-filter measure (from a cluster selection). Applied on mount. */
+  initialMeasure?: string | null;
+}
+
+export const FactsPage: React.FC<FactsPageProps> = ({ initialDocId, initialSubject, initialMeasure }) => {
   const { isDark } = useTheme();
   const [facts, setFacts] = useState<FactSummary[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -20,9 +30,10 @@ export const FactsPage: React.FC = () => {
 
   const [page, setPage] = useState<number>(0);
   const pageSize = 25;
-  const [searchSubject, setSearchSubject] = useState<string>('');
-  const [searchMeasure, setSearchMeasure] = useState<string>('');
+  const [searchSubject, setSearchSubject] = useState<string>(initialSubject ?? '');
+  const [searchMeasure, setSearchMeasure] = useState<string>(initialMeasure ?? '');
   const [minConfidence, setMinConfidence] = useState<number>(0);
+  const [docFilter, setDocFilter] = useState<string | null>(initialDocId ?? null);
 
   const [selectedFact, setSelectedFact] = useState<FactSummary | null>(null);
   const [evidenceFact, setEvidenceFact] = useState<FactSummary | null>(null);
@@ -36,6 +47,7 @@ export const FactsPage: React.FC = () => {
         subject: searchSubject.trim() || undefined,
         measure: searchMeasure.trim() || undefined,
         min_confidence: minConfidence > 0 ? minConfidence : undefined,
+        doc_id: docFilter ?? undefined,
         limit: pageSize,
         offset: page * pageSize,
       });
@@ -49,7 +61,7 @@ export const FactsPage: React.FC = () => {
     }
   };
 
-  useEffect(() => { loadFacts(); }, [page, searchSubject, searchMeasure, minConfidence]);
+  useEffect(() => { loadFacts(); }, [page, searchSubject, searchMeasure, minConfidence, docFilter]);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -80,6 +92,34 @@ export const FactsPage: React.FC = () => {
           Refresh
         </button>
       </div>
+
+      {/* Document filter notice - shown only when navigated here from a
+          specific document, so it is never silently constraining the view. */}
+      {docFilter && (
+        <div
+          className={cn(
+            'flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border',
+            isDark
+              ? 'bg-sky-500/5 border-sky-500/20 text-slate-300'
+              : 'bg-sky-50 border-sky-200 text-slate-700'
+          )}
+        >
+          <span className="text-xs font-mono">
+            Filtered to document <span className="text-sky-500 font-semibold">{docFilter.slice(0, 12)}...</span>
+          </span>
+          <button
+            onClick={() => { setDocFilter(null); setPage(0); }}
+            className={cn(
+              'px-2 py-1 rounded text-[11px] font-mono border transition-colors',
+              isDark
+                ? 'bg-slate-900 border-slate-700 text-slate-300 hover:border-rose-500/50'
+                : 'bg-white border-slate-200 text-slate-500 hover:border-rose-400'
+            )}
+          >
+            Clear document filter
+          </button>
+        </div>
+      )}
 
       {/* Filter Controls */}
       <div
@@ -158,7 +198,7 @@ export const FactsPage: React.FC = () => {
           description="No facts matched the given filters. Try clearing the subject or measure filters."
           action={{
             label: 'Clear Filters',
-            onClick: () => { setSearchSubject(''); setSearchMeasure(''); setMinConfidence(0); setPage(0); },
+            onClick: () => { setSearchSubject(''); setSearchMeasure(''); setMinConfidence(0); setDocFilter(null); setPage(0); },
           }}
         />
       ) : (
@@ -177,7 +217,7 @@ export const FactsPage: React.FC = () => {
             )}
           >
             <span>
-              Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} of {total} facts
+              Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, total)} of {total} facts
             </span>
             <div className="flex items-center gap-2">
               <button

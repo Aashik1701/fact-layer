@@ -21,7 +21,7 @@ interface RequiredCasesPageProps {
 }
 
 // Which one relation "best" represents a case is decided from relation
-// TYPES and REASON CODES only — real backend classification fields, never
+// TYPES and REASON CODES only - real backend classification fields, never
 // a specific fact value, document id, or page number. `list` is already
 // confidence-sorted by GET /relations; among relations tied at the top
 // confidence, prefer one whose reason_code is `preferReasonCode` (a real,
@@ -35,7 +35,7 @@ function pickRelation(list: RelationSummary[], preferReasonCode?: string): Relat
   return topTier.find((r) => r.reason_code === preferReasonCode) || list[0];
 }
 
-// Human labels for gate.qualifier_diff / relation.qualifier_diff keys —
+// Human labels for gate.qualifier_diff / relation.qualifier_diff keys -
 // these are the literal field names Qualifiers.diff() (fact_layer/models.py)
 // emits, not guessed.
 const QUALIFIER_LABELS: Record<string, string> = {
@@ -56,7 +56,7 @@ function describeDifferingContext(qualifierDiff: Record<string, unknown> | undef
 }
 
 // All four cards render exclusively from live API responses (GET /relations,
-// GET /relations/{id}, GET /rejected-facts) — nothing on this page is a
+// GET /relations/{id}, GET /rejected-facts) - nothing on this page is a
 // hard-coded fact, value, or relation. If the pipeline's output changes, so
 // does everything shown here.
 export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigateToIngest }) => {
@@ -87,7 +87,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
 
       // Case 3 (the hero case) prefers a cross-institution forecast
       // disagreement over a bare period mismatch when both tie at the top
-      // confidence — a real backend reason_code, not a fact value, decides
+      // confidence - a real backend reason_code, not a fact value, decides
       // this, per the "category selection may use relation types/reason
       // codes" allowance.
       const corrPick = pickRelation(corrRes.relations);
@@ -197,7 +197,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-xs font-mono font-bold text-emerald-500 uppercase tracking-wide flex items-center gap-1.5">
             <CheckCircle2 className="w-4 h-4" />
-            Case 1 — Corroboration
+            Case 1 - Corroboration
           </span>
           {corroboration && <GateVerdictBadge verdict="CORROBORATES" size="sm" />}
         </div>
@@ -206,7 +206,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         </h3>
         <p className={cn('text-xs mt-1 leading-relaxed max-w-2xl', isDark ? 'text-slate-400' : 'text-slate-500')}>
           Corroboration does not require the two source statements to be worded identically, or even to
-          share every qualifier — it requires the values to agree on a basis the comparability gate has
+          share every qualifier - it requires the values to agree on a basis the comparability gate has
           actually checked. Two institutions can corroborate a figure while still differing on issuer or
           period; when that happens, this system says so explicitly rather than hiding it behind a green badge.
         </p>
@@ -243,7 +243,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
               {corroboration.gate && corroboration.gate.verdict !== 'comparable' && (
                 <p className="text-[11px] font-mono text-indigo-500">
                   Comparability gate verdict: <span className="uppercase font-semibold">{corroboration.gate.verdict.replace(/_/g, ' ')}</span>
-                  {corroboration.gate.cross_issuer && ' — the two facts come from different issuers'}
+                  {corroboration.gate.cross_issuer && ' - the two facts come from different issuers'}
                 </p>
               )}
             </div>
@@ -278,7 +278,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-xs font-mono font-bold text-rose-500 uppercase tracking-wide flex items-center gap-1.5">
             <XCircle className="w-4 h-4" />
-            Case 2 — Contradiction
+            Case 2 - Contradiction
           </span>
           {contradiction && <GateVerdictBadge verdict="CONTRADICTS" size="sm" />}
         </div>
@@ -287,7 +287,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         </h3>
         <p className={cn('text-xs mt-1 leading-relaxed max-w-2xl', isDark ? 'text-slate-400' : 'text-slate-500')}>
           This is only ever flagged once the gate confirms the two figures share subject, measure, scope and
-          period — never from unequal values alone. Even then, the UI states exactly what the values disagree
+          period - never from unequal values alone. Even then, the UI states exactly what the values disagree
           on and surfaces any real caveat the backend attaches, rather than asserting these are definitely
           contradictory facts.
         </p>
@@ -324,7 +324,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
               {contradiction.reason_code.includes('period_unverified') && (
                 <p className="text-[11px] font-mono text-amber-500 flex items-center gap-1.5">
                   <AlertTriangle className="w-3 h-3 shrink-0" />
-                  Period incomplete on at least one side — confidence is reduced accordingly, not hidden.
+                  Period incomplete on at least one side - confidence is reduced accordingly, not hidden.
                 </p>
               )}
             </div>
@@ -344,7 +344,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         )}
       </div>
 
-      {/* ================= CASE 3: APPARENT CONFLICT — HERO ================= */}
+      {/* ================= CASE 3: APPARENT CONFLICT - HERO ================= */}
       <div
         ref={case3Ref}
         className={cn(
@@ -356,7 +356,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-xs font-mono font-bold text-amber-500 uppercase tracking-wide flex items-center gap-1.5">
             <AlertTriangle className="w-4 h-4" />
-            Case 3 — Apparent Conflict · The Central Thesis
+            Case 3 - Apparent Conflict · The Central Thesis
           </span>
           {apparentConflict && <GateVerdictBadge verdict="APPARENT_CONFLICT" size="sm" />}
         </div>
@@ -374,7 +374,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
               const diffContext = describeDifferingContext(apparentConflict.gate?.qualifier_diff || apparentConflict.qualifier_diff);
               return (
                 <p className={cn('text-xs font-mono uppercase tracking-wide text-center', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                  {sameSubject && sameMeasure ? 'Same subject & measure' : 'Related subject & measure'} — different {diffContext}
+                  {sameSubject && sameMeasure ? 'Same subject & measure' : 'Related subject & measure'} - different {diffContext}
                 </p>
               );
             })()}
@@ -486,9 +486,9 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         <div className="flex items-center justify-between flex-wrap gap-2">
           <span className={cn('text-xs font-mono font-bold uppercase tracking-wide flex items-center gap-1.5', isDark ? 'text-slate-300' : 'text-slate-600')}>
             <FileX className="w-4 h-4" />
-            Case 4 — Extraction Failure
+            Case 4 - Extraction Failure
           </span>
-          <UncertaintyBadge label="REJECTED" detail="Excluded from the trusted store — never presented as a fact." />
+          <UncertaintyBadge label="REJECTED" detail="Excluded from the trusted store - never presented as a fact." />
         </div>
         <h3 className={cn('text-sm font-semibold mt-2', isDark ? 'text-slate-200' : 'text-slate-800')}>
           The system refused to guess
@@ -496,7 +496,7 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
         <p className={cn('text-xs mt-1 leading-relaxed max-w-2xl', isDark ? 'text-slate-400' : 'text-slate-500')}>
           When evidence could not be reliably grounded to source text, or an extracted value disagreed with
           its own cited quote, the candidate was rejected rather than presented as a trusted fact. This is
-          not a bug being hidden — it is the system's evidence discipline working as intended.
+          not a bug being hidden - it is the system's evidence discipline working as intended.
         </p>
 
         <div
@@ -545,25 +545,25 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px] font-mono">
               <div>
                 <span className={cn('block text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>ATTEMPTED SUBJECT</span>
-                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.raw_fact?.subject_raw || '—'}</span>
+                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.raw_fact?.subject_raw || '-'}</span>
               </div>
               <div>
                 <span className={cn('block text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>ATTEMPTED MEASURE</span>
-                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.raw_fact?.measure_raw || '—'}</span>
+                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.raw_fact?.measure_raw || '-'}</span>
               </div>
               <div>
                 <span className={cn('block text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>ATTEMPTED VALUE</span>
-                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.raw_fact?.value_raw || '—'}</span>
+                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.raw_fact?.value_raw || '-'}</span>
               </div>
               <div>
                 <span className={cn('block text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>DOCUMENT</span>
                 <span className={cn('truncate block', isDark ? 'text-slate-300' : 'text-slate-700')}>
-                  {rejectedSample.doc_filename || rejectedSample.doc_id || '—'}
+                  {rejectedSample.doc_filename || rejectedSample.doc_id || '-'}
                 </span>
               </div>
               <div>
                 <span className={cn('block text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>PAGE</span>
-                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.page_no ?? '—'}</span>
+                <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{rejectedSample.page_no ?? '-'}</span>
               </div>
             </div>
 

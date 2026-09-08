@@ -7,7 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 interface QualifierDiffTableProps {
   factA: FactFull | FactSummary;
   factB: FactFull | FactSummary;
-  // The backend-computed diff (Qualifiers.diff(), fact_layer/models.py) —
+  // The backend-computed diff (Qualifiers.diff(), fact_layer/models.py) -
   // whichever key names a dimension is the ONLY signal used to decide
   // "aligned" vs "different" below. Nothing here re-derives comparability
   // from the raw qualifier values; the gate already did that.
@@ -18,7 +18,7 @@ interface QualifierDiffTableProps {
 
 // Every dimension shown is either read directly off the backend's
 // qualifier_diff dict (presence of the key = the gate found a difference)
-// or, for period, off the gate's own period_relation enum — never a
+// or, for period, off the gate's own period_relation enum - never a
 // frontend string comparison of the two raw values.
 export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
   factA,
@@ -41,23 +41,23 @@ export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
     : 'period' in qualifierDiff;
   const periodNote: Record<string, string> = {
     equal: 'Identical reporting period',
-    subsumes: "Source A's period contains Source B's — expect a component, not equality",
-    subsumed_by: "Source B's period contains Source A's — expect a component, not equality",
-    overlaps: 'Periods partially overlap — not on a strictly like-for-like basis',
+    subsumes: "Source A's period contains Source B's - expect a component, not equality",
+    subsumed_by: "Source B's period contains Source A's - expect a component, not equality",
+    overlaps: 'Periods partially overlap - not on a strictly like-for-like basis',
     disjoint: 'Different reporting periods entirely',
-    succeeds: 'Point-in-time claims at different dates — the later one updates the earlier',
-    precedes: 'Point-in-time claims at different dates — the later one updates the earlier',
-    unknown: 'At least one side states no reporting period — unverifiable, not confirmed aligned',
+    succeeds: 'Point-in-time claims at different dates - the later one updates the earlier',
+    precedes: 'Point-in-time claims at different dates - the later one updates the earlier',
+    unknown: 'At least one side states no reporting period - unverifiable, not confirmed aligned',
   };
 
-  // Unit compatibility isn't in Qualifiers.diff() — it's checked by
+  // Unit compatibility isn't in Qualifiers.diff() - it's checked by
   // comparability.gate()'s own _unit_compatible() step, and that step only
   // RUNS if nothing earlier in gate()'s fixed sequence (value_kind -> scope
   // -> issuer/forecast -> segment -> UNIT -> period -> basis -> comparable)
   // already short-circuited. So the verdict alone tells us, honestly,
   // whether the unit check ran: reaching any of these verdicts requires
   // having passed it; INCOMPARABLE_UNIT is the check itself failing;
-  // anything earlier in the sequence means the gate never got there —
+  // anything earlier in the sequence means the gate never got there -
   // "aligned" would be a guess, not something the backend established.
   const UNIT_CHECK_PASSED_VERDICTS = new Set([
     'temporal_succession', 'incomparable_period', 'aggregation_candidate', 'incomparable_basis', 'comparable',
@@ -75,7 +75,7 @@ export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
       isDiff: unitDiff,
       unverifiable: unitUnverifiable,
       note: unitDiff
-        ? 'Units or currencies differ — no exchange rate is stated in either source, so this is never silently converted'
+        ? 'Units or currencies differ - no exchange rate is stated in either source, so this is never silently converted'
         : unitUnverifiable
           ? 'The gate stopped on an earlier check before it ever compared units'
           : 'Gate confirms compatible units',
@@ -93,7 +93,7 @@ export const QualifierDiffTable: React.FC<QualifierDiffTableProps> = ({
       sourceA: factA.qualifiers?.scope || 'unknown',
       sourceB: factB.qualifiers?.scope || 'unknown',
       isDiff: 'scope' in qualifierDiff,
-      note: 'scope' in qualifierDiff ? 'Reported on different bases — both can be correct for the same period' : 'Aligned reporting boundary',
+      note: 'scope' in qualifierDiff ? 'Reported on different bases - both can be correct for the same period' : 'Aligned reporting boundary',
     },
     {
       dimension: 'Reporting Issuer',

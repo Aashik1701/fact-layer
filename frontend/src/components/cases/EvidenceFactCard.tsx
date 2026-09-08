@@ -61,7 +61,7 @@ export const EvidenceFactCard: React.FC<EvidenceFactCardProps> = ({ role, fact, 
   const periodLabel =
     fact.qualifiers.period?.label ||
     (fact.qualifiers.period?.start || fact.qualifiers.period?.end
-      ? `${fact.qualifiers.period?.start || ''} – ${fact.qualifiers.period?.end || ''}`.trim()
+      ? `${fact.qualifiers.period?.start || ''} - ${fact.qualifiers.period?.end || ''}`.trim()
       : 'Not stated');
 
   return (
@@ -112,7 +112,7 @@ export const EvidenceFactCard: React.FC<EvidenceFactCardProps> = ({ role, fact, 
         <div className="col-span-2">
           <span className={cn('block text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>SOURCE</span>
           <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
-            Page {fact.page ?? primaryEvidence?.page ?? '—'}
+            Page {fact.page ?? primaryEvidence?.page ?? '-'}
           </span>
         </div>
       </div>

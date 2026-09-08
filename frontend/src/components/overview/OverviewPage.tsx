@@ -6,7 +6,7 @@ import { LatestFindings } from './LatestFindings';
 import { ArchitecturePipeline } from './ArchitecturePipeline';
 import { RelationInspectorModal } from '@/components/relations/RelationInspectorModal';
 import { EvidenceModal } from '@/components/evidence/EvidenceModal';
-import { Sparkles, ArrowRight, RefreshCw } from 'lucide-react';
+import { Sparkles, ArrowRight, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 
@@ -24,17 +24,20 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [relations, setRelations] = useState<RelationSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null);
   const [evidenceFact, setEvidenceFact] = useState<FactFull | FactSummary | null>(null);
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [s, r] = await Promise.all([fetchStats(), fetchRelations({})]);
       setStats(s);
       setRelations(r.relations);
     } catch (err) {
       console.error('Failed to load overview data:', err);
+      setError('Unable to reach the knowledge layer. The backend may be offline or still starting.');
     } finally {
       setLoading(false);
     }
@@ -101,6 +104,35 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
           </button>
         </div>
       </div>
+
+      {error && (
+        <div
+          className={cn(
+            'rounded-xl border px-4 py-3 flex items-center justify-between gap-3',
+            isDark
+              ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              : 'bg-rose-50 border-rose-200 text-rose-700'
+          )}
+          role="alert"
+        >
+          <span className="flex items-center gap-2 text-xs">
+            <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            {error}
+          </span>
+          <button
+            onClick={loadData}
+            className={cn(
+              'shrink-0 px-3 py-1.5 rounded-lg text-xs font-mono flex items-center gap-1.5 border transition-colors',
+              isDark
+                ? 'bg-slate-900 border-slate-700 text-slate-200 hover:border-rose-500/50'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-rose-400'
+            )}
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Retry
+          </button>
+        </div>
+      )}
 
       <KpiGrid stats={stats} loading={loading} />
 

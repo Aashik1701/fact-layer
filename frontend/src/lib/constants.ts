@@ -61,30 +61,30 @@ export const RELATION_CONFIG: Record<
 
 // Keyed on the ACTUAL reason_code strings fact_layer/comparability.py and
 // fact_layer/adjudicate.py produce (verified against the real backend
-// source, not guessed) — a previous version of this table used invented,
+// source, not guessed) - a previous version of this table used invented,
 // never-matching codes (e.g. "LOW_OCR_CONFIDENCE", on a system with no OCR
 // at all), so every relation silently fell through to a generic fallback
 // with no user-visible error. Two of adjudicate.py's reason codes are
 // DYNAMIC, not literal, and are handled separately in getCaveatExplanation:
-//   "value_match_despite_<gate_reason_code>" — a corroboration whose gate
+//   "value_match_despite_<gate_reason_code>" - a corroboration whose gate
 //     verdict was actually incomparable for some reason, composited in;
-//   "<reason_code>_period_unverified" — appended whenever at least one side
+//   "<reason_code>_period_unverified" - appended whenever at least one side
 //     has no parsed period, so the like-for-like check itself is unverified.
 export const REASON_CODE_CAVEATS: Record<string, string> = {
-  comparable: 'Same subject, measure, scope, unit and period — a direct like-for-like comparison.',
+  comparable: 'Same subject, measure, scope, unit and period - a direct like-for-like comparison.',
   value_match: 'Both sources state the same value on a like-for-like basis.',
   value_mismatch: 'Same subject, measure, scope and period, but the reported values genuinely differ.',
   restated_unchanged: 'A later point-in-time statement restates the same value as an earlier one.',
   temporal_succession: 'These are point-in-time claims made at different dates; the later statement updates rather than contradicts the earlier one.',
-  period_disjoint: 'Reported periods do not overlap at all (e.g. FY24 vs FY25) — the figures measure different windows of time.',
+  period_disjoint: 'Reported periods do not overlap at all (e.g. FY24 vs FY25) - the figures measure different windows of time.',
   period_overlap: 'Reported periods partially overlap, so the figures are not on a strictly like-for-like basis.',
-  period_subsumption: 'One period contains the other (e.g. a quarter within its fiscal year) — the smaller figure is expected to be a component, not equal to it.',
-  scope_mismatch: 'Reported on different bases (e.g. standalone vs consolidated) — both figures can be correct for the same period.',
+  period_subsumption: 'One period contains the other (e.g. a quarter within its fiscal year) - the smaller figure is expected to be a component, not equal to it.',
+  scope_mismatch: 'Reported on different bases (e.g. standalone vs consolidated) - both figures can be correct for the same period.',
   segment_mismatch: 'The figures refer to different business or product segments.',
-  unit_mismatch: 'Units or currencies differ, and no exchange rate is stated in either source — never silently converted.',
-  basis_mismatch: 'One figure is audited and the other unaudited — a revision is expected, not a contradiction.',
-  value_kind_mismatch: 'One side is a quantity and the other a different kind of claim entirely — not numerically comparable.',
-  forecast_disagreement: 'Different institutions project different values for the same period — a forecast disagreement between sources, not a factual error.',
+  unit_mismatch: 'Units or currencies differ, and no exchange rate is stated in either source - never silently converted.',
+  basis_mismatch: 'One figure is audited and the other unaudited - a revision is expected, not a contradiction.',
+  value_kind_mismatch: 'One side is a quantity and the other a different kind of claim entirely - not numerically comparable.',
+  forecast_disagreement: 'Different institutions project different values for the same period - a forecast disagreement between sources, not a factual error.',
 };
 
 const _GENERIC_FALLBACK = 'Contextual qualifier difference detected by the comparability gate.';
@@ -117,17 +117,17 @@ export function getCaveatExplanation(reasonCode: string): string {
 // smoothed over.
 const VALUE_VERIFICATION_EXPLANATIONS: Record<string, string> = {
   non_numeric_value_no_deterministic_verifier:
-    'This is a text/entity claim, not a number — there is no deterministic numeric check to run against it. Unverified here means "not checked", not a quality warning.',
+    'This is a text/entity claim, not a number - there is no deterministic numeric check to run against it. Unverified here means "not checked", not a quality warning.',
   quote_contains_no_numeric_literal:
     'The cited source region contains no numeric value at all to check the extracted figure against.',
   multiple_numeric_candidates_in_quote_ambiguous:
     'Multiple numeric candidates exist in the cited source region, and the available document structure is insufficient to determine which value represents the fact. No value was guessed.',
   percent_vs_non_percent_ambiguous:
-    'The source expresses this figure differently as a percentage on one side and a plain number on the other — treating them as the same value would require an assumption the source does not state.',
+    'The source expresses this figure differently as a percentage on one side and a plain number on the other - treating them as the same value would require an assumption the source does not state.',
   incomplete_currency_context_magnitude_differs:
-    'The extracted value and the cited source disagree in magnitude, and currency information is only available on one side — this could be a real disagreement or an incomplete read, so it is not resolved either way.',
+    'The extracted value and the cited source disagree in magnitude, and currency information is only available on one side - this could be a real disagreement or an incomplete read, so it is not resolved either way.',
   scale_context_asymmetry_same_digits_different_scale:
-    'The same digits appear on both sides but a scale word (e.g. "million") is only available in one context — resolved as unverified rather than assuming which scale applies.',
+    'The same digits appear on both sides but a scale word (e.g. "million") is only available in one context - resolved as unverified rather than assuming which scale applies.',
 };
 
 export function getValueVerificationExplanation(reason: string): string {
@@ -142,15 +142,15 @@ export function getValueVerificationExplanation(reason: string): string {
 // Keyed on the ACTUAL reason strings fact_layer/extract.py's
 // _append_rejected() call sites produce (verified against the real backend
 // source: "no_subject", "no_measure", "quote_not_found", "unparseable_value",
-// "value_mismatch" — the complete set, no others exist). Every one of these
+// "value_mismatch" - the complete set, no others exist). Every one of these
 // is a candidate the pipeline extracted and then deliberately refused to
 // admit into the trusted store, rather than a system failure being hidden.
 const REJECTION_REASON_EXPLANATIONS: Record<string, string> = {
-  no_subject: 'The extracted candidate had no subject at all — there is nothing to anchor this claim to, so it was never admitted.',
-  no_measure: 'The extracted candidate had no measure at all — a value with no named attribute is not a usable fact.',
-  quote_not_found: 'The quote this candidate claims to be grounded in could not be matched back to the source PDF text with sufficient confidence — the fact would have had no verifiable evidence span.',
-  unparseable_value: 'The stated value could not be parsed into a number by the same deterministic parser every accepted fact uses — accepting it would have meant guessing what it means.',
-  value_mismatch: 'The value disagreed with the sole number the verified source quote actually supports — the candidate was not admitted rather than trusted against its own cited evidence.',
+  no_subject: 'The extracted candidate had no subject at all - there is nothing to anchor this claim to, so it was never admitted.',
+  no_measure: 'The extracted candidate had no measure at all - a value with no named attribute is not a usable fact.',
+  quote_not_found: 'The quote this candidate claims to be grounded in could not be matched back to the source PDF text with sufficient confidence - the fact would have had no verifiable evidence span.',
+  unparseable_value: 'The stated value could not be parsed into a number by the same deterministic parser every accepted fact uses - accepting it would have meant guessing what it means.',
+  value_mismatch: 'The value disagreed with the sole number the verified source quote actually supports - the candidate was not admitted rather than trusted against its own cited evidence.',
 };
 
 export function getRejectionReasonExplanation(reason: string): string {

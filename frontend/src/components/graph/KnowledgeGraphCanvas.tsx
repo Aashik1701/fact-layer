@@ -6,12 +6,12 @@ import { cn } from '@/lib/utils';
 // Hand-rolled SVG canvas. No graph library.
 //
 // Justification (the project applies the same test to every dependency):
-// the view is a BOUNDED neighbourhood — tens of nodes, never the whole
-// corpus — and the shape being drawn is a provenance chain, not an arbitrary
+// the view is a BOUNDED neighbourhood - tens of nodes, never the whole
+// corpus - and the shape being drawn is a provenance chain, not an arbitrary
 // network. A deterministic layered layout (entity → fact → evidence →
 // document, left to right) reads that chain directly, where a force-directed
 // library would produce the spider web this view exists to avoid, ship
-// 50–400 kB, and fight the keyboard/table accessibility requirements. Pan,
+// 50-400 kB, and fight the keyboard/table accessibility requirements. Pan,
 // zoom, fit and selection are a viewBox transform and a click handler.
 // --------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ export interface Positioned extends GraphNode {
 }
 
 /** Deterministic layered layout: column by node type, row by stable id order.
- *  Same payload always yields the same picture — no physics, no jitter, no
+ *  Same payload always yields the same picture - no physics, no jitter, no
  *  re-settling between two identical requests. */
 export function layout(nodes: GraphNode[]): { positioned: Positioned[]; width: number; height: number } {
   const columns = new Map<GraphNodeType, GraphNode[]>();

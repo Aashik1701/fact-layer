@@ -5,6 +5,8 @@ import { ConfidencePill } from '@/components/common/ConfidencePill';
 import { GateVerdictBadge } from '@/components/relations/GateVerdictBadge';
 import { RetrievalCandidatesPanel } from '@/components/facts/RetrievalCandidatesPanel';
 import { KnowledgeGraphModal } from '@/components/graph/KnowledgeGraphModal';
+import { LineagePanel } from '@/components/lineage/LineagePanel';
+import { HistoryTimeline } from '@/components/history/HistoryTimeline';
 import { fetchFact, fetchRelations } from '@/lib/api';
 import { deriveSpanVerification, deriveValueVerification, deriveContextVerification } from '@/lib/verification';
 import {
@@ -24,7 +26,7 @@ interface FactDetailDrawerProps {
 
 // A small checklist row for the VERIFICATION section. Three distinct states,
 // never collapsed into a single boolean: confirmed (backend said so),
-// contradicted (backend said so), and "not evaluated" / "not applicable" —
+// contradicted (backend said so), and "not evaluated" / "not applicable" -
 // which must never be rendered as a green success state (Phase 9).
 const VerificationRow: React.FC<{
   label: string;
@@ -167,7 +169,7 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
       maxWidth="3xl"
     >
       <div className="space-y-6 text-xs">
-        {/* FACT — headline value */}
+        {/* FACT - headline value */}
         <div className={cn(cardCls, 'text-center py-6')}>
           <span className={labelCls}>Canonical Value</span>
           <div className="text-3xl font-mono font-bold text-emerald-500 mt-1">
@@ -291,7 +293,7 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
             </div>
             <span className={cn('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
               {!loadingFact && !hasBbox
-                ? 'Page-level evidence only — no exact bounding box recorded for this span.'
+                ? 'Page-level evidence only - no exact bounding box recorded for this span.'
                 : `PDF Page ${fact.page ?? 1}`}
             </span>
           </div>
@@ -304,6 +306,26 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
             Inspect Evidence
           </button>
         </div>
+
+        {/* TEMPORAL KNOWLEDGE - the full history of this subject::measure,
+            chronologically ordered and grouped by scope/modality, with any
+            adjudicated relations between points surfaced as-is (see
+            fact_layer/temporal.py). Never interpolated. */}
+        {fact.subject && (
+          <HistoryTimeline
+            subject={fact.subject}
+            measure={fact.measure}
+            onOpenEvidence={onOpenEvidence}
+          />
+        )}
+
+        {/* EVIDENCE LINEAGE - the provenance chain this fact rests on
+            (fact -> evidence -> page -> document). A read-only projection,
+            never invented confidence or relationships. */}
+        <LineagePanel
+          factId={fact.fact_id}
+          onOpenEvidence={onOpenEvidence}
+        />
 
         {/* COMPARE THIS FACT */}
         <div
@@ -362,17 +384,17 @@ export const FactDetailDrawer: React.FC<FactDetailDrawerProps> = ({
             </div>
           ) : (
             <p className={cn('text-xs py-2', isDark ? 'text-slate-500' : 'text-slate-400')}>
-              No relations have been formed for this fact yet — either no comparable
+              No relations have been formed for this fact yet - either no comparable
               fact exists in the corpus, or nothing has been evaluated against it.
             </p>
           )}
         </div>
 
-        {/* CANDIDATE RETRIEVAL — section 19: shows what retrieval found,
+        {/* CANDIDATE RETRIEVAL - section 19: shows what retrieval found,
             never what it decided; the comparability gate above remains
             the sole authority for CORROBORATES/CONTRADICTS/etc. */}
         {/* Graph entry point (spec §13B): start a provenance walk from
-            this fact — entity, evidence, document and any recorded
+            this fact - entity, evidence, document and any recorded
             relationships, one hop at a time. */}
         <button
           type="button"

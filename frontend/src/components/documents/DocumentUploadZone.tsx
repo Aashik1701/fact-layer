@@ -10,21 +10,21 @@ interface DocumentUploadZoneProps {
 }
 
 // How often to poll GET /jobs/{id} while a job is in flight. Deliberately
-// not aggressive — this is a demo-scale, single-user local app, not a
+// not aggressive - this is a demo-scale, single-user local app, not a
 // system where sub-second staleness matters.
 const POLL_INTERVAL_MS = 1200;
 
-// A page refresh loses React state but not localStorage — remembering the
+// A page refresh loses React state but not localStorage - remembering the
 // active job id here means "handle browser refresh gracefully" doesn't
 // require any server-side session; GET /jobs/{id} is stateless and safe to
 // resume polling against after a reload.
 const ACTIVE_JOB_STORAGE_KEY = 'fact_layer_active_ingest_job';
 
-// Backend stages the job model can honestly report (fact_layer/jobs.py) —
+// Backend stages the job model can honestly report (fact_layer/jobs.py) -
 // mapped to display text. There is deliberately no separate "Verifying"
 // stage: span/value verification happen fact-by-fact, inline inside
 // extraction, not as a discrete pass the backend could report a
-// transition for (see Store.ingest()'s on_stage docstring) — one combined
+// transition for (see Store.ingest()'s on_stage docstring) - one combined
 // "Extracting & Verifying" step is more honest than inventing a boundary
 // that doesn't exist.
 const STAGE_LABELS: Record<JobStage, string> = {
@@ -55,7 +55,7 @@ function writeActiveJob(jobId: string, filename: string) {
   try {
     localStorage.setItem(ACTIVE_JOB_STORAGE_KEY, JSON.stringify({ jobId, filename }));
   } catch {
-    // localStorage can throw in private-browsing contexts — polling still
+    // localStorage can throw in private-browsing contexts - polling still
     // works within the current page load, refresh-recovery just won't.
   }
 }
@@ -106,8 +106,8 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({ onIngest
   }, [onIngestSuccess, stopPolling]);
 
   // Resume polling a job that was in flight when the page was last loaded
-  // (e.g. the user refreshed mid-ingestion) — GET /jobs/{id} is stateless
-  // and safe to poll again; if the job is gone (server restarted — jobs
+  // (e.g. the user refreshed mid-ingestion) - GET /jobs/{id} is stateless
+  // and safe to poll again; if the job is gone (server restarted - jobs
   // are in-memory only, see README), the fetch failure clears local state
   // cleanly rather than polling forever.
   useEffect(() => {
@@ -191,7 +191,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({ onIngest
           Extracts numerical &amp; semantic facts, verifies each one against verbatim source spans, normalizes units, and runs the comparability gate.
         </p>
 
-        {/* Stage progress — discrete steps, never a fabricated percentage */}
+        {/* Stage progress - discrete steps, never a fabricated percentage */}
         {isActive && job && (
           <div className="mt-4 flex items-center gap-1.5 flex-wrap justify-center max-w-md">
             {STAGE_ORDER.slice(0, -1).map((s, i) => (
@@ -243,7 +243,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({ onIngest
           ) : (
             <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
           )}
-          <div className="space-y-1">
+          <div className="space-y-1 w-full">
             <div className="font-semibold text-sm font-mono">
               {job.already_ingested
                 ? 'Document Already Ingested (No Double Counting)'
@@ -252,8 +252,42 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({ onIngest
             <p className="leading-relaxed">
               {`File "${job.filename}" parsed with ${job.result?.counts?.facts_verified ?? 0} facts verified and ${job.result?.new_relations?.length ?? 0} new relations formed.`}
             </p>
-            <div className={cn('text-[11px] font-mono pt-1', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Doc ID: {job.doc_id}
+
+            {/* Ingest metrics the backend actually reports, surfaced rather
+                than hidden: pipeline counts, clusters touched, LLM calls and
+                elapsed time are real job fields, not estimates. */}
+            <div
+              className={cn(
+                'grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2',
+                isDark ? 'text-slate-200' : 'text-slate-700'
+              )}
+            >
+              <div className={cn('rounded-md border px-2 py-1.5', isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-white/60 border-slate-200')}>
+                <span className={cn('block text-[10px] font-mono uppercase', isDark ? 'text-slate-500' : 'text-slate-400')}>Verified</span>
+                <span className="font-mono text-sm font-bold">{job.result?.counts?.facts_verified ?? 0}</span>
+              </div>
+              <div className={cn('rounded-md border px-2 py-1.5', isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-white/60 border-slate-200')}>
+                <span className={cn('block text-[10px] font-mono uppercase', isDark ? 'text-slate-500' : 'text-slate-400')}>Proposed</span>
+                <span className="font-mono text-sm font-bold">{job.result?.counts?.facts_proposed ?? 0}</span>
+              </div>
+              <div className={cn('rounded-md border px-2 py-1.5', isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-white/60 border-slate-200')}>
+                <span className={cn('block text-[10px] font-mono uppercase', isDark ? 'text-slate-500' : 'text-slate-400')}>Clusters touched</span>
+                <span className="font-mono text-sm font-bold">{job.result?.clusters_touched ?? 0}</span>
+              </div>
+              <div className={cn('rounded-md border px-2 py-1.5', isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-white/60 border-slate-200')}>
+                <span className={cn('block text-[10px] font-mono uppercase', isDark ? 'text-slate-500' : 'text-slate-400')}>LLM calls</span>
+                <span className="font-mono text-sm font-bold">{job.result?.llm_calls_made ?? 0}</span>
+              </div>
+            </div>
+
+            <div className={cn('text-[11px] font-mono pt-1 flex items-center gap-3 flex-wrap', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              <span>Doc ID: {job.doc_id}</span>
+              {job.result?.counts?.pages != null && <span>· pages {job.result.counts.pages}</span>}
+              {job.result?.counts?.pages_selected != null && <span>· selected {job.result.counts.pages_selected}</span>}
+              {job.result?.counts?.facts_rejected != null && <span>· rejected {job.result.counts.facts_rejected}</span>}
+              {job.result?.elapsed_seconds != null && (
+                <span>· {job.result.elapsed_seconds.toFixed(1)}s</span>
+              )}
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { GateInfo } from '@/types';
 
 // A single honest-uncertainty vocabulary layered on top of real backend
-// signals — never a judgment about content, only a deterministic function of
+// signals - never a judgment about content, only a deterministic function of
 // fields the API already returns (relation.confidence, gate.verdict,
 // reason_code). Priority order matters: a gate that never found the two
 // facts comparable (INCOMPARABLE) or a comparison whose basis is itself

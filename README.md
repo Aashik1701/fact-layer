@@ -53,6 +53,7 @@ The repository includes:
   - [Case 4: Extraction Failure (Mechanically Logged Rejections)](#case-4-extraction-failure-mechanically-logged-rejections)
 - [8a. The Comparability Investigator & Counterfactual Readiness](#8a-the-comparability-investigator--counterfactual-readiness)
 - [8b. The Knowledge Graph (a projection, not a database)](#8b-the-knowledge-graph-a-projection-not-a-database)
+- [8c. Temporal Knowledge & Evidence Lineage](#8c-temporal-knowledge--evidence-lineage)
 - [9. Measured Metrics & Corpus Statistics](#9-measured-metrics--corpus-statistics)
 - [10. Empirical Scale & Stress Testing](#10-empirical-scale--stress-testing)
   - [10a. Retrieval + Scale Layer (Candidate Generation Before the Gate)](#10a-retrieval--scale-layer-candidate-generation-before-the-gate)
@@ -123,6 +124,7 @@ Fact Layer separates mechanical reading from deterministic reasoning:
 - **Evidence-Grounded Knowledge Graph** (`fact_layer/graph.py`): a bounded, read-only projection connecting resolved entities, facts, evidence spans, source documents and established relationships, so a full provenance chain (entity → fact → evidence → document → page) can be traced by clicking. It has no database of its own and infers nothing. See [§8b](#8b-the-knowledge-graph-a-projection-not-a-database).
 - **Comparability Investigator & Counterfactual Readiness** (`fact_layer/investigate.py`): a deterministic, evidence-linked explanation of why any two facts do or do not satisfy the comparability gate — every blocking dimension, not just the first — plus a structured statement of what would need to be true before a valid comparison could be made. It never modifies a fact. See [§8a](#8a-the-comparability-investigator--counterfactual-readiness).
 - **Retrieval + Scale Layer** (`fact_layer/retrieval/`, optional, `RETRIEVAL_ENABLED=false` by default): deterministic candidate blocking, hybrid lexical (BM25/FTS5) + semantic (local embedding) retrieval, and a local vector store narrow which fact pairs are even considered before they reach the unmodified comparability gate — see [§10a](#10a-retrieval--scale-layer-candidate-generation-before-the-gate).
+- **Temporal Knowledge & Evidence Lineage** (`fact_layer/temporal.py`, `fact_layer/lineage.py`): a chronologically-ordered, scope/modality-grouped fact history per entity+measure that is never interpolated and never invents a relationship, plus a provenance-chain trace — conclusion → fact(s) → evidence → page → document — built entirely on the existing Knowledge Graph projection. See [§8c](#8c-temporal-knowledge--evidence-lineage).
 
 ---
 
@@ -755,6 +757,64 @@ Fact detail → *Explore in knowledge graph* · Relation Inspector → *Trace th
 
 ---
 
+## 8c. Temporal Knowledge & Evidence Lineage
+
+Two more investigation questions the graph and the Comparability Investigator don't answer on their own: **"what did we know, and when did it change?"** (Temporal Knowledge, `fact_layer/temporal.py`) and **"trace this specific conclusion down to the exact source page"** (Evidence Lineage, `fact_layer/lineage.py`). Both are projections in the same sense as §8b's graph — no second store, nothing to keep in sync, an incremental ingest is reflected on the next request.
+
+```
+                WHAT DO WE KNOW, AND WHEN?
+                          │
+                   TEMPORAL HISTORY
+             (fact_layer/temporal.py — entity + measure,
+              scope/modality-grouped, chronologically ordered)
+                          │
+                    FACT DETAIL
+                          │
+                   WHY TRUST IT?
+                          │
+                  EVIDENCE LINEAGE
+     (fact_layer/lineage.py — built on fact_layer.graph.GraphProjection,
+      never a second graph engine)
+                          │
+              CONCLUSION → FACT(S) → EVIDENCE → PAGE → DOCUMENT
+```
+
+### Temporal Knowledge
+
+`GET /entities/{subject}/history?measure={measure}` filters `Store.facts` by exact canonical `(subject, measure)` — literally `Fact.cluster_key()`, so entity/measure resolution is reused, never re-derived — and groups the result into series that are never silently merged:
+
+- **Grouped by `(scope, modality)`.** Standalone and consolidated never share a series (§7/§37); `ASSERTED` ("reported") never shares a series with `ESTIMATED`/`PROJECTED` ("guidance") (§38). Both fields already exist on `Fact`; nothing new was added to the model.
+- **Ordered by `Period.start`/`.end`** — dates `normalize.parse_period()` already computed. A fact whose period could not be parsed to a start date is never guessed onto the axis: it is reported separately under `ambiguous_period_points`. `period_kind` (fiscal year / quarter / half-year / as-of / unknown) is a display label derived from `PeriodKind` + the period's own verbatim text — it never feeds the ordering.
+- **Never interpolated.** A period with no fact is simply absent from the series; there is no synthetic point.
+- **Relations are copied, never inferred.** Each point's `related_points` lists only relations `Store.relations` already recorded between it and another point in the *same* history — a `SUPERSEDES` edge is shown as supersession because the adjudicator recorded it, not because one fact happens to be newer. Two points with no stored relation between them show none.
+- **Fact period ≠ source publication date.** A point exposes `period` (the claim's own qualifiers) and `source.doc_id`/`source.page` (where it was read) as two independent fields — an annual report published in 2025 reporting FY2024 never gets placed on a 2025 axis position.
+
+Measured on the committed 552-fact store: `entity_history()` for a real 6-point, 3-series history (`"total income"` / `"revenue"`) averages **0.17 ms**.
+
+### Evidence Lineage
+
+`GET /facts/{fact_id}/lineage` and `GET /relations/{relation_id}/lineage` build the provenance chain for one fact, or one adjudicated relation, **entirely out of `fact_layer.graph.GraphProjection`** — `lineage.py` calls its existing, unmodified `neighborhood()` method (once per fact, unioned by node/edge id for a relation's two sides) and never constructs a graph node or edge itself. Section 23 of the brief ("reuse the Knowledge Graph projection... do not create two independent graph representations") is enforced by import, not by convention — `tests/test_lineage.py` pins that every node/edge lineage returns is a strict subset of what `GraphProjection` would independently produce for the same facts.
+
+The response separates the raw `nodes[]`/`edges[]` (for a focused graph view, reusing `KnowledgeGraphCanvas` — no second rendering engine) from `facts[]`/`evidence[]`/`documents[]` flat lists (the same nodes, re-categorized for a left-to-right "what does this rest on?" reading), plus a `root_conclusion` block. For a relation, `root_conclusion` carries that relation's own `confidence`/`reason_code`/`explanation`/`decided_by`, copied verbatim — **no lineage confidence score is computed** (§30's explicit requirement: verification state, adjudication confidence, retrieval relevance and comparability result stay separate concepts, never combined into one number).
+
+**An incomparable pair has no lineage endpoint, on purpose.** `adjudicate_cluster()` never persists an `UNRELATED` verdict to `Store.relations` — it is computed and discarded — so there is no relation row to build lineage from. That case routes to the *existing* Comparability Investigator (§8a) instead, which already explains blocking dimensions without pretending a relationship was found.
+
+Measured on the committed store: `relation_lineage()` for a real `APPARENT_CONFLICT` (5 facts, 2 evidence, 1 document in the resulting chain) averages **0.86 ms**; `fact_lineage()` for a single fact averages **0.73 ms**.
+
+### Entry points
+
+Fact detail → collapsible *Temporal history* panel (measure picker if more than one measure exists) and *Evidence lineage* panel · Relation Inspector → *Evidence lineage* panel showing both sides of the relation. No new page or route — both hang off the existing fact/relation investigation surfaces (§41 of the brief: no dashboard).
+
+### What the committed demo corpus can show, and what it honestly cannot
+
+- **Multi-year history**: real — `("total income", "revenue")` has 6 facts across 3 scope/modality series in the committed store.
+- **Multi-source corroboration / apparent conflict**: real — 13 of the corpus's 15 relations are `APPARENT_CONFLICT` (mostly cross-scope), directly visible in both the timeline's `related_points` and evidence lineage.
+- **Contradiction**: real — 1 genuine `CONTRADICTS` relation exists in the committed store and is reachable through both features.
+- **Supersession**: **not present in the committed corpus** — `0` `SUPERSEDES` relations exist in `data/store.json` today. Both `entity_history()` and the frontend timeline correctly render "no established relationship" for chronologically adjacent points that were never adjudicated as superseding, and `tests/test_temporal.py::test_newer_fact_alone_is_not_marked_superseded` pins that a merely-newer fact is never mislabeled. This is reported honestly rather than manufacturing a relation to make the demo look complete.
+- **Incomparable pair**: real — any cross-scope or cross-currency pair the Comparability Investigator (§8a) already blocks is reachable from the same investigation flow.
+
+---
+
 ## 9. Measured Metrics & Corpus Statistics
 
 All metrics are transcribed from single-run audit logs (`data/extraction_report.json` and `data/resolution_log.json`):
@@ -1025,7 +1085,7 @@ npm run dev
 Access the Vite dev server with HMR at `http://localhost:5173`.
 
 ### 6. Running Test Suite
-Execute the full offline test suite (566 tests, including the 107-test Retrieval + Scale layer suite in `tests/test_retrieval_*.py` — see §10a — the 86-test Comparability Investigator suite in `tests/test_investigate*.py` — see §8a — and the 49-test knowledge-graph suite in `tests/test_graph*.py` — see §8b):
+Execute the full offline test suite (610 tests, including the 107-test Retrieval + Scale layer suite in `tests/test_retrieval_*.py` — see §10a — the 86-test Comparability Investigator suite in `tests/test_investigate*.py` — see §8a — the 49-test knowledge-graph suite in `tests/test_graph*.py` — see §8b — and the 44-test Temporal Knowledge / Evidence Lineage suite in `tests/test_temporal*.py` / `tests/test_lineage*.py` — see §8c):
 ```bash
 pytest
 ```
@@ -1054,6 +1114,9 @@ All endpoints return structured JSON. When mounted in production, static web ass
 | `GET` | `/facts/{fact_a_id}/comparability/{fact_b_id}` | both ids (path) | **Comparability Investigator** (§8a): a deterministic explanation of the gate's verdict for one ordered fact pair — `verdict` (copied verbatim from `comparability.gate()`), the 12-dimension status matrix, EVERY blocking reason (not just the first the gate short-circuits on), passing/ambiguous dimensions, `counterfactual_actions` describing what would need to be true, a `safe_conclusion`, non-blocking `caveats`, and `evidence_refs` (doc/page/quote/bbox). No LLM, no embedding, no network — safe to call inline and unchanged in replay. `404` unknown id, `400` same fact twice. |
 | `GET` | `/graph/{node_type}/{node_id}` | `node_type` ∈ entity/fact/evidence/document, `node_id` (path), `depth` (0-4), `index` (evidence only), `max_nodes`, `max_fanout` | **Knowledge graph** (§8b): a bounded, read-only neighbourhood projected from `Store.facts`/`Store.relations`/`Store.get_evidence()` — `root`, `nodes`, `edges` and `metadata` (depth, counts, `truncated` + reasons, `is_source_of_truth: false`). Relationship edges carry the adjudicator's own confidence/reason; the graph infers nothing. `404` unknown id, `400` bad node_type, `422` out-of-range depth. |
 | `GET` | `/graph/search` | `q`, `limit` | Jump-to search over entities, facts and documents for the graph view. |
+| `GET` | `/entities/{subject}/history` | `subject` (path), `measure` (optional) | **Temporal Knowledge** (§8c): `measure` omitted returns `{subject, measures}` (discovery); given, returns the chronologically-ordered, scope/modality-grouped timeline (`series[]`, `ambiguous_period_points[]`, `metadata`). Never interpolated. `404` for a subject with zero facts; a known subject with no facts for the given measure is `200` with an empty series (a legitimate empty result, not an error). |
+| `GET` | `/facts/{fact_id}/lineage` | `fact_id` (path) | **Evidence Lineage** (§8c): the provenance chain for one fact, built from `fact_layer.graph.GraphProjection` — `root_conclusion`, `nodes`/`edges`, and `facts`/`evidence`/`documents` flat lists. `404` unknown id, never synthesized. |
+| `GET` | `/relations/{relation_id}/lineage` | `relation_id` (path) | **Evidence Lineage** (§8c): the provenance chain for one adjudicated relation — both facts, their evidence, their documents, and the relation's own confidence/reason/explanation copied verbatim into `root_conclusion`. `404` unknown id; never built from two arbitrary fact ids. |
 
 ### Reading `/facts/{fact_id}/candidates` correctly
 
@@ -1156,6 +1219,9 @@ Two further honest bounds:
 ### 13. The Vector Store Is a ~150-Line Local Module, Not a Vector Database Product
 `fact_layer/retrieval/vector_store.py`'s `LocalNumpyVectorStore` is an in-memory `float32` matrix with `.npz`/JSON persistence and brute-force cosine search — not FAISS, Chroma, or Qdrant. This was a deliberate scope call, not an oversight: at the scale this task specifies (the 12,000-fact synthetic benchmark; the real corpus is 552 facts), a dense `(N, 384)` matrix-vector product is sub-millisecond, so an approximate-nearest-neighbour index has no measurable benefit to buy with a new binary dependency. `VectorStore` is still a genuine interface — the same `FactStore`/`JsonFactStore`/documented-`PostgresFactStore`-skeleton shape `storage.py` already uses — so a real ANN backend could be dropped in behind it if a corpus ever grew past the point brute-force cosine search stays cheap, without any caller (`retrieval/index.py`, `api.py`) changing.
 
+### 15. Temporal History Has No Supersession Case in the Committed Corpus
+§8c's timeline correctly shows a `SUPERSEDES` relation between two points whenever `Store.relations` actually recorded one — but the committed 552-fact / 15-relation corpus contains **zero** `SUPERSEDES` relations today (13 `APPARENT_CONFLICT`, 1 `AGGREGATES_INTO`, 1 `CONTRADICTS`). This is a property of the real 6-document corpus this project ships (no document in it happens to restate an earlier point-in-time figure at a later date in a way `comparability.gate()`'s `TEMPORAL_SUCCESSION` path catches), not a gap in `entity_history()`'s logic: `tests/test_temporal.py::test_supersession_relation_surfaced_on_both_points` proves the surfacing works correctly against a hand-built fixture, and `test_newer_fact_alone_is_not_marked_superseded` proves a merely-newer fact is never mislabeled as one. No synthetic relation was added to the demo store to manufacture a supersession showcase.
+
 ---
 
 ## 14. Developer Submission Checklist
@@ -1165,5 +1231,6 @@ Two further honest bounds:
 - [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: **566** unit and integration tests passing cleanly via `pytest`, of which **107** cover the Retrieval + Scale layer, **86** the Comparability Investigator (`tests/test_investigate.py` 73, `tests/test_investigate_api.py` 13) and **49** the knowledge graph (`tests/test_graph.py` 26, `tests/test_graph_api.py` 23) (`tests/test_retrieval_*.py`: 16 adaptive-policy, 12 diagnostics, 11 differential, 12 blocking, 5 real-corpus recall, plus channel/index/API tests). *(Historical: this checklist previously read 283 tests, from the ingestion-job-model phase — that figure is retained here only as a record of that milestone, not as a current count.)*
+- [x] **Comprehensive Test Suite**: **610** unit and integration tests passing cleanly via `pytest`, of which **107** cover the Retrieval + Scale layer, **86** the Comparability Investigator (`tests/test_investigate.py` 73, `tests/test_investigate_api.py` 13), **49** the knowledge graph (`tests/test_graph.py` 26, `tests/test_graph_api.py` 23), and **44** Temporal Knowledge / Evidence Lineage (`tests/test_temporal.py` 17, `tests/test_temporal_api.py` 5, `tests/test_lineage.py` 15, `tests/test_lineage_api.py` 7) (`tests/test_retrieval_*.py`: 16 adaptive-policy, 12 diagnostics, 11 differential, 12 blocking, 5 real-corpus recall, plus channel/index/API tests). *(Historical: this checklist previously read 283 tests, from the ingestion-job-model phase — that figure is retained here only as a record of that milestone, not as a current count.)*
 - [x] **Retrieval + Scale Layer** (§10a): deterministic blocking, hybrid lexical/semantic retrieval, local embedding provider + vector store, incremental indexing, `rebuild_retrieval_index()`, two diagnostic API endpoints, a compact frontend panel, a 100-document/12,000-fact benchmark script, and 65 new tests (including a dedicated real-corpus Recall@K/known-relation-recovery suite) — all additive and disabled by default (`RETRIEVAL_ENABLED=false`), with the full pre-existing 324-test suite verified unchanged.
+- [x] **Temporal Knowledge & Evidence Lineage** (§8c): `fact_layer/temporal.py` (chronologically-ordered, scope/modality-grouped fact history — never interpolated, never merges scope or modality, only ever surfaces relations `Store.relations` actually recorded) and `fact_layer/lineage.py` (fact/relation provenance chains built entirely from `fact_layer.graph.GraphProjection`, no second graph engine), three new API endpoints, and 44 new tests including real-corpus integrity checks — additive, built entirely on the existing Comparability Investigator and Knowledge Graph rather than duplicating either.

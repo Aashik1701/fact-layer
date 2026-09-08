@@ -151,7 +151,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onNavigateToFacts 
                     </td>
 
                     <td className={cn('py-3.5 px-4 font-mono', isDark ? 'text-slate-300' : 'text-slate-600')}>
-                      {doc.n_pages ?? '—'}
+                      {doc.n_pages ?? '-'}
                     </td>
 
                     <td className={cn('py-3.5 px-4 font-mono text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
@@ -194,7 +194,7 @@ export const DocumentsPage: React.FC<DocumentsPageProps> = ({ onNavigateToFacts 
                           );
                         })()
                       ) : (
-                        <span className={cn('font-mono text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>—</span>
+                        <span className={cn('font-mono text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>-</span>
                       )}
                     </td>
 

@@ -1,19 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/common/Modal';
 import {
-  GraphEdge, GraphNeighborhood, GraphNode, GraphNodeType, FactSummary,
+  GraphEdge, GraphNeighborhood, GraphNode, GraphNodeType, FactSummary, GraphSearchResult,
 } from '@/types';
-import { fetchGraphNeighborhood, fetchFact } from '@/lib/api';
+import { fetchGraphNeighborhood, fetchFact, searchGraph } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
 import { KnowledgeGraphCanvas, NODE_STYLE, isStructural } from './KnowledgeGraphCanvas';
 import { ComparabilityInvestigator } from '@/components/facts/ComparabilityInvestigator';
-import { Loader2, Network, FileText, Scale, CornerDownRight } from 'lucide-react';
+import { Loader2, Network, FileText, Scale, CornerDownRight, Search } from 'lucide-react';
 
 // --------------------------------------------------------------------------
 // The investigation surface over the graph projection.
 //
-// Everything shown here is derived from GET /graph/... — a read-only view of
+// Everything shown here is derived from GET /graph/... - a read-only view of
 // Store.facts / Store.relations / Store.get_evidence(). The graph reports
 // relationships; it never decides them, and a retrieval candidate is never
 // drawn as one.
@@ -38,7 +38,7 @@ const Row: React.FC<{ label: string; value: React.ReactNode; isDark: boolean }> 
   <div className="flex items-baseline justify-between gap-3 text-[11px] leading-5">
     <span className={cn('font-mono shrink-0', isDark ? 'text-slate-500' : 'text-slate-400')}>{label}</span>
     <span className={cn('font-mono text-right break-words', isDark ? 'text-slate-200' : 'text-slate-700')}>
-      {value ?? '—'}
+      {value ?? '-'}
     </span>
   </div>
 );
@@ -66,6 +66,32 @@ export const KnowledgeGraphModal: React.FC<Props> = ({
   const [investigatePair, setInvestigatePair] = useState<{ a: FactSummary; bId: string } | null>(null);
   const [nodeTypes, setNodeTypes] = useState<Set<GraphNodeType>>(new Set(ALL_NODE_TYPES));
   const [relationTypes, setRelationTypes] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<GraphSearchResult[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchTouched, setSearchTouched] = useState(false);
+
+  // Debounced node search (spec §13B): find any node in the projection and
+  // re-centre the graph on it. Search is a READ-ONLY lookup - selecting a
+  // result never fabricates an edge; it only re-roots the walk.
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!isOpen || !q) { setSearchResults(null); setSearching(false); return; }
+    setSearching(true);
+    setSearchTouched(true);
+    const handle = window.setTimeout(async () => {
+      try {
+        const results = await searchGraph(q, 10);
+        setSearchResults(results);
+      } catch (err) {
+        console.error('Graph search failed:', err);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery, isOpen]);
 
   useEffect(() => {
     setRoot({ type: rootType, id: rootId, index: rootIndex });
@@ -115,6 +141,17 @@ export const KnowledgeGraphModal: React.FC<Props> = ({
     }
   }, []);
 
+  const jumpToResult = useCallback((result: GraphSearchResult) => {
+    if (result.type === 'evidence') {
+      const [factId, idx] = result.id.replace(/^evidence:/, '').split('#');
+      setRoot({ type: 'evidence', id: factId, index: Number(idx) || 0 });
+    } else {
+      setRoot({ type: result.type, id: result.id });
+    }
+    setSearchQuery('');
+    setSearchResults(null);
+  }, []);
+
   const openComparability = useCallback(async (node: GraphNode) => {
     if (!data || node.type !== 'fact') return;
     const rootFactId = data.root.type === 'fact' ? data.root.source_id : null;
@@ -162,6 +199,56 @@ export const KnowledgeGraphModal: React.FC<Props> = ({
         {/* Legend + filters */}
         <div className={cn('flex flex-wrap gap-x-4 gap-y-2 p-2 rounded-lg border text-[10px]',
           isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200')}>
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" aria-hidden="true" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Jump to a node in the projection (entity, fact, evidence, document)…"
+              className={cn(
+                'w-full pl-7 pr-2 py-1.5 rounded border text-[11px] focus:outline-none focus:border-sky-500/60',
+                isDark
+                  ? 'bg-slate-950 border-slate-800 text-slate-200 placeholder-slate-500'
+                  : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'
+              )}
+            />
+            {searching && (
+              <Loader2 className="w-3 h-3 animate-spin text-sky-500 absolute right-2 top-1/2 -translate-y-1/2" aria-hidden="true" />
+            )}
+            {!searching && searchTouched && searchQuery.trim() && searchResults && searchResults.length === 0 && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]">no matches</span>
+            )}
+            {!searching && searchQuery.trim() && searchResults && searchResults.length > 0 && (
+              <div
+                className={cn(
+                  'absolute z-20 left-0 right-0 top-full mt-1 rounded-lg border shadow-xl max-h-56 overflow-y-auto',
+                  isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                )}
+              >
+                {searchResults.map((r) => (
+                  <button
+                    key={`${r.type}:${r.id}`}
+                    type="button"
+                    onClick={() => jumpToResult(r)}
+                    className={cn(
+                      'w-full text-left px-2.5 py-2 flex items-center gap-2 hover:bg-sky-500/10',
+                      isDark ? 'text-slate-200' : 'text-slate-700'
+                    )}
+                  >
+                    <span className={NODE_STYLE[r.type].text} aria-hidden="true">{NODE_STYLE[r.type].glyph}</span>
+                    <span className="min-w-0">
+                      <span className="block font-mono text-[11px] truncate">{r.label}</span>
+                      <span className={cn('block text-[10px] font-mono truncate', isDark ? 'text-slate-500' : 'text-slate-400')}>{r.subtitle}</span>
+                    </span>
+                    <span className={cn('ml-auto shrink-0 text-[9px] font-mono uppercase', NODE_STYLE[r.type].text)}>
+                      {NODE_STYLE[r.type].label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <fieldset className="flex items-center gap-2 flex-wrap">
             <legend className="sr-only">Node types</legend>
             {ALL_NODE_TYPES.map((t) => (
@@ -308,7 +395,7 @@ export const KnowledgeGraphModal: React.FC<Props> = ({
                         </p>
                         <Row
                           label="location"
-                          value={`chars ${selectedNode.metadata.char_start}–${selectedNode.metadata.char_end}`}
+                          value={`chars ${selectedNode.metadata.char_start}-${selectedNode.metadata.char_end}`}
                           isDark={isDark}
                         />
                       </div>
@@ -378,7 +465,7 @@ export const KnowledgeGraphModal: React.FC<Props> = ({
               </aside>
             </div>
 
-            {/* Truncation notice — never silent */}
+            {/* Truncation notice - never silent */}
             <p className={cn('text-[10px] font-mono px-1',
               data.metadata.truncated
                 ? (isDark ? 'text-amber-400' : 'text-amber-700')

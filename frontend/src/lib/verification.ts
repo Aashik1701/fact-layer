@@ -10,7 +10,7 @@ export interface VerificationRowInfo {
 }
 
 // Span verification is per-evidence (Evidence.verified, set only by the span
-// verifier) — meaningless until the fact's evidence array has loaded, so
+// verifier) - meaningless until the fact's evidence array has loaded, so
 // `loading` renders a distinct "unknown, still loading" state rather than a
 // false negative.
 export function deriveSpanVerification(
@@ -29,7 +29,7 @@ export function deriveSpanVerification(
 }
 
 // value_verification is "" / null / undefined (not "unverified") when the
-// deterministic check never ran against this fact — that must render as
+// deterministic check never ran against this fact - that must render as
 // "not evaluated", never as a failure. See fact_layer/models.py's
 // Fact.value_verification docstring and value_verify.py's status enum.
 export function deriveValueVerification(fact: FactSummary): VerificationRowInfo {
@@ -52,7 +52,7 @@ export function deriveValueVerification(fact: FactSummary): VerificationRowInfo 
 }
 
 // Context Verified is exactly value_verification === 'verified_with_context'
-// — never implied by the presence of row/column labels alone, and there is
+// - never implied by the presence of row/column labels alone, and there is
 // no "failed" outcome for this check, only "confirmed" or "not established".
 export function deriveContextVerification(fact: FactSummary): VerificationRowInfo {
   const vv = fact.value_verification;
@@ -68,7 +68,7 @@ export function deriveContextVerification(fact: FactSummary): VerificationRowInf
     state: 'unknown',
     detail:
       vv === 'verified'
-        ? 'Value confirmed, but no single table cell could be confidently attributed — no row/column context to show.'
+        ? 'Value confirmed, but no single table cell could be confidently attributed - no row/column context to show.'
         : 'Not applicable until the value itself is verified.',
   };
 }

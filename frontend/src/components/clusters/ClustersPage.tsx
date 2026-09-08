@@ -136,7 +136,7 @@ export const ClustersPage: React.FC<ClustersPageProps> = ({ onSelectCluster }) =
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredClusters.map((cluster) => {
             // cluster_key is Fact.cluster_key() from fact_layer/models.py,
-            // always "<subject>::<measure>" — split on the first occurrence
+            // always "<subject>::<measure>" - split on the first occurrence
             // in case a measure name itself ever contains "::".
             const sepIdx = cluster.cluster_key.indexOf('::');
             const subjectLabel = sepIdx >= 0 ? cluster.cluster_key.slice(0, sepIdx) : cluster.cluster_key;
@@ -175,10 +175,81 @@ export const ClustersPage: React.FC<ClustersPageProps> = ({ onSelectCluster }) =
                     </h4>
                   </div>
 
-                  <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20 shrink-0">
-                    {cluster.size} {cluster.size === 1 ? 'fact' : 'facts'}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {cluster.relations && cluster.relations.length > 0 && (
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] font-mono text-rose-500 border border-rose-500/20 bg-rose-500/10"
+                        title={`${cluster.relations.length} recorded relations`}
+                      >
+                        {cluster.relations.length} rel
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-sky-500/10 text-sky-500 border border-sky-500/20">
+                      {cluster.size} {cluster.size === 1 ? 'fact' : 'facts'}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Nested facts + relations, surfaced inline (spec: a cluster's
+                    facts/relations should be visible, not just discoverable by
+                    navigating away). Read from /clusters' own payload. */}
+                <details
+                  className="group/facts"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <summary
+                    className={cn(
+                      'cursor-pointer list-none text-[11px] font-mono flex items-center gap-1.5 transition-colors',
+                      isDark ? 'text-slate-400 hover:text-sky-400' : 'text-slate-500 hover:text-sky-600'
+                    )}
+                  >
+                    {cluster.facts && cluster.facts.length > 0
+                      ? `Inspect this cluster's ${cluster.facts.length} facts`
+                      : 'No fact detail in this projection'}
+                  </summary>
+                  {cluster.facts && cluster.facts.length > 0 && (
+                    <div className="pt-2 space-y-1.5">
+                      {cluster.facts.map((f) => (
+                        <div
+                          key={f.fact_id}
+                          className={cn(
+                            'rounded-md border px-2 py-1.5 flex items-center justify-between gap-2',
+                            isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-white border-slate-200'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'font-mono text-[11px]',
+                              isDark ? 'text-slate-200' : 'text-slate-700'
+                            )}
+                          >
+                            {f.value.normalized} {f.value.unit || ''}
+                          </span>
+                          <span className={cn('font-mono text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                            {f.qualifiers.period?.label || 'period n/a'}
+                          </span>
+                        </div>
+                      ))}
+                      {cluster.relations && cluster.relations.length > 0 && (
+                        <div
+                          className={cn(
+                            'rounded-md border px-2 py-1.5',
+                            isDark ? 'bg-slate-950/40 border-slate-800 text-rose-400' : 'bg-white border-slate-200 text-rose-600'
+                          )}
+                        >
+                          {cluster.relations.map((r) => (
+                            <div key={r.relation_id} className="flex items-center gap-2 font-mono text-[11px] py-0.5">
+                              <span className="uppercase">{r.relation.replace(/_/g, ' ')}</span>
+                              <span className={cn('opacity-60', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                                confidence {r.confidence}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </details>
               </div>
             );
           })}

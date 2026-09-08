@@ -33,9 +33,9 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenAbout, onSelectRelationTyp
     return () => clearInterval(interval);
   }, []);
 
-  const passRate = stats?.span_verification.pass_rate
+  const passRate = stats?.span_verification.pass_rate != null
     ? `${(stats.span_verification.pass_rate * 100).toFixed(1)}%`
-    : '81.1%';
+    : 'n/a';
 
   return (
     <header
@@ -150,7 +150,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onOpenAbout, onSelectRelationTyp
             {(Object.keys(RELATION_CONFIG) as RelationType[]).map((type) => {
               // GET /stats returns by_type keyed on the backend's lowercase
               // RelationType.value (e.g. "apparent_conflict"), not the
-              // uppercase RelationType used for display config — looking up
+              // uppercase RelationType used for display config - looking up
               // the uppercase key directly always missed, silently showing
               // 0 for every real count.
               const count = stats.relations.by_type[type.toLowerCase()] ?? 0;

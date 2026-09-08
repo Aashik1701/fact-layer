@@ -1,10 +1,21 @@
-import React from 'react';
-import { FileSearch, Layers, GitCompare, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileSearch, Layers, GitCompare, ShieldCheck, Radar } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { cn } from '@/lib/utils';
+import { fetchRetrievalStats } from '@/lib/api';
+import { RetrievalStats } from '@/types';
 
 export const ArchitecturePipeline: React.FC = () => {
   const { isDark } = useTheme();
+  const [retrieval, setRetrieval] = useState<RetrievalStats | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRetrievalStats()
+      .then((r) => { if (!cancelled) setRetrieval(r); })
+      .catch(() => { if (!cancelled) setRetrieval(null); });
+    return () => { cancelled = true; };
+  }, []);
 
   const steps = [
     {
@@ -18,12 +29,17 @@ export const ArchitecturePipeline: React.FC = () => {
       icon: Layers, color: isDark ? 'text-indigo-400' : 'text-indigo-600',
     },
     {
-      num: '03', title: 'Comparability Gate', badge: 'Qualifier Guard',
+      num: '03', title: 'Retrieval + Scale', badge: 'Candidate Generation',
+      desc: 'Blocking, lexical (BM25) and semantic (embedding) retrieval narrow which fact pairs ever reach the gate - it never decides comparability itself.',
+      icon: Radar, color: isDark ? 'text-fuchsia-400' : 'text-fuchsia-600',
+    },
+    {
+      num: '04', title: 'Comparability Gate', badge: 'Qualifier Guard',
       desc: 'Deterministic rules verify qualifier alignment (period, scope, modality) before comparison.',
       icon: GitCompare, color: isDark ? 'text-amber-400' : 'text-amber-600',
     },
     {
-      num: '04', title: 'Adjudication', badge: 'Audit Provenance',
+      num: '05', title: 'Adjudication', badge: 'Audit Provenance',
       desc: 'Classify 5 relational verdicts; penalize true contradictions by halving confidence to 0.50.',
       icon: ShieldCheck, color: isDark ? 'text-emerald-400' : 'text-emerald-600',
     },
@@ -56,7 +72,7 @@ export const ArchitecturePipeline: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {steps.map((step, idx) => {
           const Icon = step.icon;
           return (
@@ -93,6 +109,28 @@ export const ArchitecturePipeline: React.FC = () => {
           );
         })}
       </div>
+
+      {retrieval && (
+        <div
+          className={cn(
+            'flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 rounded-lg border text-[11px] font-mono',
+            isDark ? 'bg-slate-950/40 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-500'
+          )}
+        >
+          <span className={cn('font-semibold', isDark ? 'text-fuchsia-400' : 'text-fuchsia-600')}>
+            Retrieval index -
+          </span>
+          <span>{retrieval.indexed_facts.toLocaleString()} facts indexed</span>
+          <span>·</span>
+          <span>{retrieval.embedding_model} ({retrieval.embedding_dimension}d)</span>
+          <span>·</span>
+          <span>
+            cache {retrieval.embedding_cache_hits}/{retrieval.embedding_cache_hits + retrieval.embedding_cache_misses || 1} hits
+          </span>
+          <span>·</span>
+          <span>{retrieval.retrieval_enabled ? 'enabled' : 'disabled'}</span>
+        </div>
+      )}
     </div>
   );
 };

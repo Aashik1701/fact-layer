@@ -12,7 +12,7 @@ export interface EvidenceItem {
   page_image_resolution: number;
   extractor: string;
   verified: boolean;
-  // A8 — additive table-context fields; null when the fact's value wasn't
+  // A8 - additive table-context fields; null when the fact's value wasn't
   // confidently attributed to exactly one table cell.
   table_id?: string | null;
   row_index?: number | null;
@@ -62,7 +62,7 @@ export interface FactSummary {
   page: number | null;
   evidence_count?: number;
   // Deterministic check that value_raw is the number the verified quote
-  // actually supports — distinct from (and stronger than) span/quote
+  // actually supports - distinct from (and stronger than) span/quote
   // verification. null/undefined on facts persisted before this existed.
   value_verification?: 'verified' | 'verified_with_context' | 'unverified' | 'mismatch' | null;
   value_verification_reason?: string | null;
@@ -130,7 +130,7 @@ export interface DocumentInfo {
 }
 
 // Matches the real JSON shape served by GET /clusters (api.py's
-// list_clusters()) verbatim — a previous version of this type declared
+// list_clusters()) verbatim - a previous version of this type declared
 // `key`/`subject`/`measure`/`fact_ids`/`sample_values`/`issuers`/
 // `relation_count` fields that the backend has never sent (the actual
 // payload is `cluster_key`/`size`/`facts`/`relations`), so every cluster
@@ -182,7 +182,7 @@ export interface StatsResponse {
 }
 
 // Matches the real JSONL row shape written by extract.py's _append_rejected()
-// and served verbatim by GET /rejected-facts — a previous version of this
+// and served verbatim by GET /rejected-facts - a previous version of this
 // type declared top-level `raw_quote`/`page`/`subject`/`measure` fields that
 // don't exist on the actual record (the real quote/subject/measure live
 // nested under `raw_fact`), so every rejected-fact card silently fell back
@@ -204,7 +204,7 @@ export interface RejectedFact {
   [key: string]: any;
 }
 
-// POST /ingest's immediate response — a job to poll, not the ingest result
+// POST /ingest's immediate response - a job to poll, not the ingest result
 // itself. The result (facts/relations/counts) only exists once the job
 // reaches "completed"; see IngestJob.result below.
 export interface IngestAcceptedResponse {
@@ -215,7 +215,7 @@ export interface IngestAcceptedResponse {
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
-// Mirrors fact_layer/jobs.py's JobStage exactly — only stages the backend
+// Mirrors fact_layer/jobs.py's JobStage exactly - only stages the backend
 // can honestly report a real, observable pipeline boundary for. There is
 // deliberately no separate "verifying" value: span/value verification
 // happen fact-by-fact, inline inside "extracting", not as a discrete pass
@@ -253,7 +253,7 @@ export interface IngestJob {
   updated_at: string;
 }
 
-// Retrieval + Scale layer (fact_layer/retrieval/) — matches GET
+// Retrieval + Scale layer (fact_layer/retrieval/) - matches GET
 // /retrieval/stats and GET /facts/{fact_id}/candidates verbatim.
 // Retrieval only ever narrows which pairs reach the comparability gate;
 // it never itself decides comparable/corroborates/contradicts, so these
@@ -295,14 +295,14 @@ export interface CandidateFunnel {
   final_top_k_count: number;
 }
 
-// Adaptive retrieval diagnostics — matches RetrievalDiagnostics.to_dict()
+// Adaptive retrieval diagnostics - matches RetrievalDiagnostics.to_dict()
 // in fact_layer/retrieval/adaptive.py verbatim.
 //
 // Terminology boundary, enforced by the field names themselves: `scores`
 // are RETRIEVAL RELEVANCE (how a candidate was ranked), `gate` is the
 // COMPARABILITY verdict, and `relationships` is what the ADJUDICATOR
 // established. A high hybrid_score is not confidence, and a candidate the
-// search never reached is not "unrelated" — it is unexamined.
+// search never reached is not "unrelated" - it is unexamined.
 export interface RetrievalStage {
   round_index: number;
   k: number;
@@ -345,7 +345,7 @@ export interface RetrievalBlockingScope {
   note: string;
 }
 
-// lexical_unique and semantic_unique OVERLAP — never sum them. union_unique
+// lexical_unique and semantic_unique OVERLAP - never sum them. union_unique
 // is the only "how many distinct candidates" number.
 export interface RetrievalChannels {
   lexical_unique: number;
@@ -417,11 +417,11 @@ export interface FactCandidatesResponse {
 }
 
 // --------------------------------------------------------------------------
-// Comparability Investigator (fact_layer/investigate.py) — matches
+// Comparability Investigator (fact_layer/investigate.py) - matches
 // GET /facts/{fact_a_id}/comparability/{fact_b_id} verbatim.
 //
 // The verdict is copied from comparability.gate(); this layer only EXPLAINS
-// it. Counterfactual actions state what would need to be true — no fact is
+// it. Counterfactual actions state what would need to be true - no fact is
 // ever modified. And "incomparable" never means "unrelated".
 // --------------------------------------------------------------------------
 
@@ -506,7 +506,7 @@ export interface ComparabilityExplanation {
 }
 
 // --------------------------------------------------------------------------
-// Knowledge graph projection (fact_layer/graph.py) — matches
+// Knowledge graph projection (fact_layer/graph.py) - matches
 // GET /graph/{node_type}/{node_id} verbatim.
 //
 // The graph is a READ-ONLY projection of the fact layer, never a source of
@@ -566,4 +566,124 @@ export interface GraphSearchResult {
   id: string;
   label: string;
   subtitle: string;
+}
+
+// --------------------------------------------------------------------------
+// Evidence Lineage (fact_layer/lineage.py) - matches
+// GET /facts/{fact_id}/lineage and GET /relations/{relation_id}/lineage
+// verbatim.
+//
+// A provenance-chain PROJECTION over the existing GraphProjection; it is
+// not a second graph engine and never invents confidence. `nodes`/`edges`
+// are the underlying graph neighborhood; `facts`/`evidence`/`documents`
+// are the same nodes re-categorized for a conclusion -> fact -> evidence
+// -> page -> document reading.
+// --------------------------------------------------------------------------
+
+export interface LineageRootConclusion {
+  kind: 'fact' | 'relation';
+  fact_id?: string | null;
+  relation_id?: string | null;
+  relation?: string | null;
+  confidence?: number | null;
+  reason_code?: string | null;
+  explanation?: string | null;
+  decided_by?: string | null;
+  source_fact_id?: string | null;
+  target_fact_id?: string | null;
+}
+
+export interface LineageResult {
+  root_conclusion: LineageRootConclusion;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  facts: GraphNode[];
+  evidence: GraphNode[];
+  documents: GraphNode[];
+  metadata: {
+    node_count: number;
+    edge_count: number;
+    truncated: boolean;
+    truncation_reasons: string[];
+    projection_of: string;
+    is_source_of_truth: boolean;
+    root_kind: string;
+  };
+}
+
+// --------------------------------------------------------------------------
+// Temporal Knowledge (fact_layer/temporal.py) - matches
+// GET /entities/{subject}/history verbatim.
+//
+// A chronologically-ordered, scope/modality-grouped projection of every
+// verified fact for one canonical (subject, measure). Never interpolated,
+// never a second store; `related_points` only ever surfaces relations the
+// adjudicator actually recorded between two points in the series.
+// --------------------------------------------------------------------------
+
+export interface HistoryRelatedPoint {
+  fact_id: string;
+  relation_id: string;
+  relation: string;
+  confidence: number;
+  reason_code: string;
+  explanation: string;
+}
+
+export interface HistoryPoint {
+  fact_id: string;
+  period: {
+    label: string;
+    kind: string;
+    start: string | null;
+    end: string | null;
+  };
+  value: {
+    raw: string;
+    normalized: string;
+    unit: string | null;
+    currency: string | null;
+  };
+  value_kind: string;
+  scope: string;
+  modality: string;
+  issuer: string | null;
+  segment: string | null;
+  geography: string | null;
+  basis: string | null;
+  confidence: number;
+  verification: {
+    evidence_verified: boolean;
+    value_verification: string | null;
+  };
+  source: {
+    doc_id: string | null;
+    doc_filename: string | null;
+    page: number | null;
+  };
+  related_points: HistoryRelatedPoint[];
+}
+
+export interface HistorySeries {
+  scope: string;
+  modality: string;
+  points: HistoryPoint[];
+}
+
+export interface EntityHistory {
+  subject: string;
+  measure: string;
+  total_facts: number;
+  series: HistorySeries[];
+  ambiguous_period_points: HistoryPoint[];
+  metadata: {
+    projection_of: string;
+    is_source_of_truth: boolean;
+    interpolated: boolean;
+  };
+}
+
+export interface EntityMeasures {
+  subject: string;
+  measures: string[];
 }

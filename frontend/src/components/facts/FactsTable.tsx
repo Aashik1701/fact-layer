@@ -55,7 +55,7 @@ export const FactsTable: React.FC<FactsTableProps> = ({
             const periodLabel =
               fact.qualifiers.period?.label ||
               `${fact.qualifiers.period?.start || ''} - ${fact.qualifiers.period?.end || ''}`.trim() ||
-              '—';
+              '-';
 
             return (
               <tr

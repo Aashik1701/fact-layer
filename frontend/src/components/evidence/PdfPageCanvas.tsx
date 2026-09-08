@@ -20,7 +20,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
 }) => {
   const { isDark } = useTheme();
   // Defaults to the whole page fitted inside the viewport (computed on
-  // image load, below) rather than a fixed 100% — a raster page routinely
+  // image load, below) rather than a fixed 100% - a raster page routinely
   // exceeds the viewport at native size, so opening evidence at 100% zoom
   // showed only whatever the auto-scroll centered on: effectively a crop
   // around the anchor, not the page. Fitting the whole page in view by
@@ -29,13 +29,13 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const [zoom, setZoom] = useState<number>(1);
   const [fitZoom, setFitZoom] = useState<number>(1);
   // The rendered PDF page's own pixel size at the fixed DPI the backend
-  // rasterized it at — needed to size the page wrapper in real pixels (see
+  // rasterized it at - needed to size the page wrapper in real pixels (see
   // handleImageLoad) rather than via a CSS transform, which visually scales
   // the image but leaves its LAYOUT footprint (and therefore the
   // viewport's scrollable area and centering) at the untransformed, native
   // size. At zoom < 1 (the new fit-to-page default) that mismatch left a
   // page shrunk to, say, 40% of its size sitting inside a scroll area still
-  // reserving 100% of it — masquerading as dead space below the page.
+  // reserving 100% of it - masquerading as dead space below the page.
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [hasError, setHasError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
@@ -49,7 +49,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   }, [docId, page]);
 
   // A reviewer who has zoomed in past the fitted view can still lose track
-  // of where the evidence anchor sits — keep it in view as a safety net,
+  // of where the evidence anchor sits - keep it in view as a safety net,
   // but only nudge the minimum distance ('nearest') rather than forcing it
   // to the center every time, since at the default fitted zoom the whole
   // page (and the anchor) is already visible and shouldn't jump around.
@@ -93,18 +93,18 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const canOverlay = !!(evidence && evidence.page_width && evidence.page_height);
   const bboxStyle = canOverlay && evidence!.bbox ? bboxAsPct(evidence!.bbox) : null;
   // A8: when this fact's value was confidently attributed to a specific
-  // table cell, the stored cell_bbox is a second, independent region —
+  // table cell, the stored cell_bbox is a second, independent region -
   // drawn only when it's genuinely present, never synthesized from row/
   // column labels (there is no stored row-bbox or column-bbox to draw).
   const cellBboxStyle = canOverlay && evidence!.cell_bbox ? bboxAsPct(evidence!.cell_bbox) : null;
 
   // The span anchor (verbatim quote match) and the target cell (table
-  // structure attribution) are computed independently — a span-verified
+  // structure attribution) are computed independently - a span-verified
   // quote can be a bare, short number with no row/column words in it, so
   // bbox_for_span() legitimately lands on a different occurrence of that
   // same number than the one the table's own cell-grid identifies. Both
   // are real, honest coordinates; when they land in genuinely different
-  // page regions (checked against the two already-stored boxes only —
+  // page regions (checked against the two already-stored boxes only -
   // never a new coordinate), say so, rather than leaving a reviewer to
   // wonder why two boxes appear apart with no explanation.
   const boxesDisjoint = !!(
@@ -183,7 +183,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
         </div>
       </div>
 
-      {/* Honest degraded-evidence note — never silently drop the fact that no
+      {/* Honest degraded-evidence note - never silently drop the fact that no
           exact coordinates are available; page-level grounding is still real
           evidence, just not cell-precise. */}
       {evidence && !evidence.bbox && (
@@ -196,7 +196,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
           )}
         >
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>Page-level evidence only — no exact bounding box was recorded for this span.</span>
+          <span>Page-level evidence only - no exact bounding box was recorded for this span.</span>
         </div>
       )}
 
@@ -211,7 +211,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
         >
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           <span>
-            The quoted text (amber) and the attributed table cell (blue) are in different positions on this page —
+            The quoted text (amber) and the attributed table cell (blue) are in different positions on this page -
             both independently support the same value.
           </span>
         </div>
@@ -256,7 +256,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
                 : undefined
             }
           >
-            {/* The PDF Page Image — sized in real pixels (not CSS transform)
+            {/* The PDF Page Image - sized in real pixels (not CSS transform)
                 so the wrapper's own layout box always matches what's on
                 screen; see naturalSize's comment above for why that matters
                 at fit-to-page zoom levels below 100%. */}
@@ -274,7 +274,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
               }}
             />
 
-            {/* Table Cell Highlight Overlay (A8) — drawn first/underneath so
+            {/* Table Cell Highlight Overlay (A8) - drawn first/underneath so
                 the span anchor's own highlight stays visually primary */}
             {cellBboxStyle && (
               <div

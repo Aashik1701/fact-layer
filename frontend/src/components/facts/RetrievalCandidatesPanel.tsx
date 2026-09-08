@@ -25,13 +25,13 @@ interface RetrievalCandidatesPanelProps {
 const TERMINATION_COPY: Record<string, string> = {
   sufficient_candidates: 'Sufficient candidate coverage within budget',
   no_further_candidates: 'No further candidates exist for this fact',
-  budget_exhausted: 'Search budget exhausted — more candidates may exist',
+  budget_exhausted: 'Search budget exhausted - more candidates may exist',
   no_candidates_found: 'No candidate surfaced within the retrieval budget',
 };
 
 const EXPANSION_COPY: Record<string, string> = {
   insufficient_unblocked_candidates: 'too few comparable candidates at this budget',
-  candidate_set_saturated: 'candidate set was saturated — neighbourhood likely continues',
+  candidate_set_saturated: 'candidate set was saturated - neighbourhood likely continues',
 };
 
 const GATE_REASON_COPY: Record<string, string> = {
@@ -173,12 +173,12 @@ const CandidateRow: React.FC<{ candidate: CandidateMatch; queryFact: FactSummary
         <div className={cn('px-2.5 pb-2.5 space-y-2 border-t', isDark ? 'border-slate-800' : 'border-slate-200')}>
           {other && (
             <div className="grid grid-cols-2 gap-x-3 pt-2">
-              <Stat label="document" value={other.doc_id ?? '—'} isDark={isDark} />
-              <Stat label="page" value={other.page ?? '—'} isDark={isDark} />
-              <Stat label="value" value={other.value?.raw ?? '—'} isDark={isDark} />
-              <Stat label="period" value={other.qualifiers?.period?.label ?? '—'} isDark={isDark} />
-              <Stat label="scope" value={other.qualifiers?.scope ?? '—'} isDark={isDark} />
-              <Stat label="issuer" value={other.qualifiers?.issuer ?? '—'} isDark={isDark} />
+              <Stat label="document" value={other.doc_id ?? '-'} isDark={isDark} />
+              <Stat label="page" value={other.page ?? '-'} isDark={isDark} />
+              <Stat label="value" value={other.value?.raw ?? '-'} isDark={isDark} />
+              <Stat label="period" value={other.qualifiers?.period?.label ?? '-'} isDark={isDark} />
+              <Stat label="scope" value={other.qualifiers?.scope ?? '-'} isDark={isDark} />
+              <Stat label="issuer" value={other.qualifiers?.issuer ?? '-'} isDark={isDark} />
             </div>
           )}
           <div className="space-y-1">
@@ -300,7 +300,7 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
       ) : error ? (
         <p className={cn('text-xs py-2', isDark ? 'text-slate-500' : 'text-slate-400')}>
           Retrieval diagnostics are unavailable for this fact right now. This says nothing about whether the fact has
-          relationships — the relations shown above come from the store, not from retrieval.
+          relationships - the relations shown above come from the store, not from retrieval.
         </p>
       ) : diagnostics ? (
         <div className="space-y-4">
@@ -341,7 +341,7 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
             </p>
           </div>
 
-          {/* 3. Channels — explicitly overlapping */}
+          {/* 3. Channels - explicitly overlapping */}
           <div>
             <SectionLabel isDark={isDark}>Retrieval channels</SectionLabel>
             <Stat label="lexical" value={diagnostics.channels.lexical_unique} isDark={isDark} />
@@ -349,11 +349,11 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
             <Stat label="found by both" value={diagnostics.channels.both_channels} isDark={isDark} muted />
             <Stat label="distinct (union)" value={diagnostics.channels.union_unique} isDark={isDark} />
             <p className={cn('mt-1 text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
-              Channel counts overlap — they do not add up. “Distinct” is the union.
+              Channel counts overlap - they do not add up. “Distinct” is the union.
             </p>
           </div>
 
-          {/* 4. The gate — authoritative */}
+          {/* 4. The gate - authoritative */}
           <div>
             <SectionLabel isDark={isDark}>Comparability gate (authoritative)</SectionLabel>
             <Stat label="evaluated" value={diagnostics.gate.evaluated} isDark={isDark} />
@@ -374,7 +374,7 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
             )}
           </div>
 
-          {/* 5. Relationships — from the adjudicator */}
+          {/* 5. Relationships - from the adjudicator */}
           <div>
             <SectionLabel isDark={isDark}>Relationships established</SectionLabel>
             {relationships.length > 0 ? (
@@ -413,7 +413,7 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
             <Stat label="total" value={`${diagnostics.timing.total_ms.toFixed(1)} ms`} isDark={isDark} />
           </div>
 
-          {/* 8. Why the search stopped — always shown */}
+          {/* 8. Why the search stopped - always shown */}
           <div
             className={cn(
               'p-2.5 rounded-lg border flex items-start gap-2',
@@ -437,7 +437,7 @@ export const RetrievalCandidatesPanel: React.FC<RetrievalCandidatesPanelProps> =
                 Search stopped: {TERMINATION_COPY[diagnostics.termination.reason] ?? diagnostics.termination.reason}
               </p>
               <p className={cn('text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
-                Retrieval is a bounded search. A candidate it did not reach was not examined — that is not a finding
+                Retrieval is a bounded search. A candidate it did not reach was not examined - that is not a finding
                 that no relationship exists. The comparability gate above decides meaning.
               </p>
             </div>

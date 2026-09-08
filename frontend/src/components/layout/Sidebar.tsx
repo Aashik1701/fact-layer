@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   GitCompare,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
+import { fetchRejectedFacts } from '@/lib/api';
 
 export type NavTab =
   | 'overview'
@@ -32,6 +33,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAbout,
 }) => {
   const { isDark } = useTheme();
+  const [rejectedTotal, setRejectedTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRejectedFacts(1)
+      .then((res) => { if (!cancelled) setRejectedTotal(res.total); })
+      .catch(() => { if (!cancelled) setRejectedTotal(null); });
+    return () => { cancelled = true; };
+  }, []);
 
   const navItems = [
     { id: 'overview',   label: 'Overview',            icon: LayoutDashboard },
@@ -39,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'facts',      label: 'Facts Explorer',       icon: Database },
     { id: 'documents',  label: 'Documents & Ingest',   icon: FileText },
     { id: 'cases',      label: '4 Required Cases',     icon: Sparkles },
-    { id: 'rejected',   label: 'Rejected Facts',       icon: ShieldAlert, badge: '129' },
+    { id: 'rejected',   label: 'Rejected Facts',       icon: ShieldAlert, badge: rejectedTotal !== null ? String(rejectedTotal) : undefined },
     { id: 'clusters',   label: 'Clusters',             icon: Layers },
   ];
 

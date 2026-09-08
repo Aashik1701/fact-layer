@@ -94,7 +94,7 @@ export const RejectedFactsPage: React.FC = () => {
           <span className={cn('font-semibold', isDark ? 'text-slate-100' : 'text-slate-800')}>
             The system refused to guess:
           </span>{' '}
-          Every fact accepted into the knowledge layer must pass exact character span verification against the PDF, and its numeric value must be independently confirmed against that same verified quote. A candidate with a quote that isn't actually in the source text, a missing subject/measure, an unparseable value, or a value that disagrees with its own cited evidence is rejected here rather than admitted — logged for full auditability, not hidden.
+          Every fact accepted into the knowledge layer must pass exact character span verification against the PDF, and its numeric value must be independently confirmed against that same verified quote. A candidate with a quote that isn't actually in the source text, a missing subject/measure, an unparseable value, or a value that disagrees with its own cited evidence is rejected here rather than admitted - logged for full auditability, not hidden.
         </p>
       </div>
 
@@ -206,7 +206,7 @@ export const RejectedFactsPage: React.FC = () => {
                   </td>
 
                   <td className={cn('py-3.5 px-4 font-mono', isDark ? 'text-slate-400' : 'text-slate-500')}>
-                    {rf.page_no != null ? `Page ${rf.page_no}` : '—'}
+                    {rf.page_no != null ? `Page ${rf.page_no}` : '-'}
                   </td>
 
                   <td className="py-3.5 px-4">
@@ -214,7 +214,7 @@ export const RejectedFactsPage: React.FC = () => {
                       <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>
                         {rf.raw_fact?.subject_raw
                           ? `${rf.raw_fact.subject_raw}::${rf.raw_fact.measure_raw || ''}`
-                          : '—'}
+                          : '-'}
                       </span>
                       {rf.raw_fact?.value_raw && (
                         <span className={isDark ? 'text-slate-500 text-[10px]' : 'text-slate-400 text-[10px]'}>
@@ -231,7 +231,7 @@ export const RejectedFactsPage: React.FC = () => {
                     )}
                     title={rf.doc_id || ''}
                   >
-                    {rf.doc_id ? rf.doc_id.slice(0, 10) + '...' : '—'}
+                    {rf.doc_id ? rf.doc_id.slice(0, 10) + '...' : '-'}
                   </td>
                 </tr>
               ))}

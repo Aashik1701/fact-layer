@@ -212,7 +212,7 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({
                   isDark ? 'bg-slate-900/40 border-slate-800 text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-400'
                 )}
               >
-                No table-cell context was confidently attributed to this value — this is page/span-level evidence only.
+                No table-cell context was confidently attributed to this value - this is page/span-level evidence only.
               </div>
             ) : null}
 

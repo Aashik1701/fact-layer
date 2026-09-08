@@ -17,6 +17,7 @@ import { formatIssuer, cn } from '@/lib/utils';
 import { Scale, Network } from 'lucide-react';
 import { KnowledgeGraphModal } from '@/components/graph/KnowledgeGraphModal';
 import { ComparabilityInvestigator } from '@/components/facts/ComparabilityInvestigator';
+import { LineagePanel } from '@/components/lineage/LineagePanel';
 import { useTheme } from '@/context/ThemeContext';
 
 interface RelationInspectorModalProps {
@@ -86,7 +87,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
               )}
             </div>
             <p className={cn('text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              The full deterministic reasoning chain: evidence, comparability gate, and adjudication rule — nothing here is a second, unexplained AI label.
+              The full deterministic reasoning chain: evidence, comparability gate, and adjudication rule - nothing here is a second, unexplained AI label.
             </p>
           </div>
         </div>
@@ -115,7 +116,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
               The gate answers "are these comparable, and how" (Python, comparability.py);
               the relationship is what adjudication concluded once that question was
               settled (Python, adjudicate.py). A relation can be CORROBORATES while the
-              gate verdict is INCOMPARABLE_ISSUER — that is not a contradiction in the UI,
+              gate verdict is INCOMPARABLE_ISSUER - that is not a contradiction in the UI,
               it is the system explaining itself. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div
@@ -208,11 +209,11 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
                   )}
                   title={
                     relation.decided_by === 'rule'
-                      ? 'Produced by fact_layer/adjudicate.py — deterministic Python, not a model call.'
+                      ? 'Produced by fact_layer/adjudicate.py - deterministic Python, not a model call.'
                       : 'This relation was decided with model assistance, not pure rule logic.'
                   }
                 >
-                  {relation.decided_by === 'rule' ? 'Deterministic — rule-based' : `Decided by: ${relation.decided_by}`}
+                  {relation.decided_by === 'rule' ? 'Deterministic - rule-based' : `Decided by: ${relation.decided_by}`}
                 </span>
               </div>
               <p className={cn('font-sans', isDark ? 'text-slate-200' : 'text-slate-800')}>{relation.explanation}</p>
@@ -392,7 +393,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
           </div>
 
           {/* What was actually compared. Subject/measure are NOT a gate
-              check — they define which facts are even eligible to be
+              check - they define which facts are even eligible to be
               compared (this relation only exists inside one subject::measure
               cluster, fact_layer/models.py's Fact.cluster_key()). Stating
               that plainly here, rather than as a fabricated "matched" row in
@@ -407,14 +408,22 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
               )}
             >
               Both facts share subject <span className="text-sky-500 font-semibold">{relation.source_fact.subject}</span> and
-              measure <span className="text-sky-500 font-semibold">{relation.source_fact.measure}</span> — that is what put them in
+              measure <span className="text-sky-500 font-semibold">{relation.source_fact.measure}</span> - that is what put them in
               the same comparison cluster. The gate below never checks subject/measure equality itself; it checks whether the
               qualifiers make the two claims like-for-like.
             </div>
           )}
 
-          {/* Graph entry point (spec §13C): trace this relationship —
+          {/* Graph entry point (spec §13C): trace this relationship -
               both facts, their evidence and their source documents. */}
+          {relation.source_fact && (
+            <LineagePanel
+              relationId={relation.relation_id}
+              onOpenEvidence={onOpenEvidence}
+              collapsible={false}
+            />
+          )}
+
           {relation.source_fact && (
             <button
               type="button"
@@ -443,7 +452,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
           )}
 
           {/* Full comparability investigation for the exact pair behind this
-              relation — the same deterministic explanation the retrieval
+              relation - the same deterministic explanation the retrieval
               candidate flow opens, reached from the relationship side. */}
           {relation.source_fact && relation.target_fact && (
             <details className="group">
@@ -489,7 +498,7 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
             </div>
           )}
 
-          {/* Dedicated Evidence section — the same evidence already surfaced
+          {/* Dedicated Evidence section - the same evidence already surfaced
               inside each fact card above, repeated here as its own labeled
               section (verbatim quote, page, source) per the audit-report
               structure this inspector is meant to read as. */}

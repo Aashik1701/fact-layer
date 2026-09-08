@@ -17,7 +17,7 @@ import {
 // --------------------------------------------------------------------------
 // Comparability Investigator.
 //
-// Renders `GET /facts/{a}/comparability/{b}` and nothing else — every string
+// Renders `GET /facts/{a}/comparability/{b}` and nothing else - every string
 // with semantic content (verdict, reason, required condition, conclusion)
 // comes from the backend, which derives it from the existing gate. This file
 // contains no comparability logic: duplicating it here is precisely how a
@@ -31,7 +31,7 @@ import {
 interface Props {
   factA: FactSummary;
   factBId: string;
-  /** How this pair came to be examined — shown so the evaluator can see that
+  /** How this pair came to be examined - shown so the evaluator can see that
    *  retrieval only proposed the candidate and the gate decided its meaning. */
   provenance?: string;
   onClose?: () => void;
@@ -46,7 +46,7 @@ const STATUS_META: Record<
   missing: { glyph: '○', label: 'Not stated', tone: 'warn' },
   ambiguous: { glyph: '⚠', label: 'Ambiguous', tone: 'warn' },
   unverifiable: { glyph: '⚠', label: 'Unverifiable', tone: 'warn' },
-  not_applicable: { glyph: '–', label: 'Not applicable', tone: 'neutral' },
+  not_applicable: { glyph: '-', label: 'Not applicable', tone: 'neutral' },
 };
 
 const toneClasses = (tone: string, isDark: boolean) => {
@@ -98,7 +98,7 @@ const FactCard: React.FC<{ fact: FactSummary; label: string; isDark: boolean }> 
       {fact.subject} · {fact.measure}
     </div>
     <div className={cn('text-[11px] font-mono mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>
-      {factLine(fact) || '—'}
+      {factLine(fact) || '-'}
     </div>
     <div className={cn('text-[10px] font-mono mt-1', isDark ? 'text-slate-500' : 'text-slate-400')}>
       {fact.doc_id ? `doc ${fact.doc_id.slice(0, 8)} · p${fact.page ?? '?'}` : 'no evidence anchor'}
@@ -162,6 +162,11 @@ const DimensionMatrix: React.FC<{ dimensions: DimensionReport[]; isDark: boolean
             </td>
             <td className="py-1">
               <StatusIcon status={d.status} isDark={isDark} />
+              {d.detail && d.status !== 'match' && d.status !== 'not_applicable' && (
+                <p className={cn('text-[10px] leading-snug mt-0.5 max-w-[22rem]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                  {d.detail}
+                </p>
+              )}
             </td>
           </tr>
         ))}
@@ -251,7 +256,7 @@ const EvidenceRow: React.FC<{
             “{ref.verbatim_quote}”
           </p>
           <p className={cn('text-[10px] font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>
-            chars {ref.char_start}–{ref.char_end}
+            chars {ref.char_start}-{ref.char_end}
             {ref.bbox ? ` · bbox [${ref.bbox.map((n) => Math.round(n)).join(', ')}]` : ''}
             {' · '}span {ref.verified ? 'verified' : 'unverified'}
             {ref.value_verification ? ` · value ${ref.value_verification}` : ''}
@@ -322,7 +327,7 @@ export const ComparabilityInvestigator: React.FC<Props> = ({ factA, factBId, pro
 
       {provenance && (
         <p className={cn('text-[10px] font-mono', isDark ? 'text-slate-500' : 'text-slate-400')}>
-          {provenance} — retrieval proposed this pair; the comparability gate decided what it means.
+          {provenance} - retrieval proposed this pair; the comparability gate decided what it means.
         </p>
       )}
 
@@ -332,7 +337,7 @@ export const ComparabilityInvestigator: React.FC<Props> = ({ factA, factBId, pro
         <FactCard fact={data.fact_b} label="Fact B" isDark={isDark} />
       </div>
 
-      {/* 2. Verdict — the single most important thing on screen */}
+      {/* 2. Verdict - the single most important thing on screen */}
       <div
         className={cn(
           'p-3 rounded-lg border',
@@ -352,7 +357,9 @@ export const ComparabilityInvestigator: React.FC<Props> = ({ factA, factBId, pro
             : 'Comparison blocked'}
         </p>
         <p className={cn('text-[10px] font-mono mt-0.5', isDark ? 'text-slate-500' : 'text-slate-500')}>
-          gate verdict: {data.verdict} · reason: {data.gate_reason_code}
+          {data.structurally_blocked && data.blocking_reasons.length > 0
+            ? `blocked before the gate · reason: ${data.blocking_reasons[0].reason_code} (the facts differ in entity, so the gate's own verdict below was never applicable)`
+            : `gate verdict: ${data.verdict} · reason: ${data.gate_reason_code}`}
         </p>
 
         {data.blocking_reasons.length > 0 && (
@@ -371,7 +378,7 @@ export const ComparabilityInvestigator: React.FC<Props> = ({ factA, factBId, pro
         </p>
       </div>
 
-      {/* 3. Caveats — ambiguity and verification, kept distinct from blocking */}
+      {/* 3. Caveats - ambiguity and verification, kept distinct from blocking */}
       {data.caveats.length > 0 && (
         <div>
           <SectionLabel isDark={isDark}>Caveats (not blocking)</SectionLabel>
@@ -417,7 +424,7 @@ export const ComparabilityInvestigator: React.FC<Props> = ({ factA, factBId, pro
         </div>
       </div>
 
-      {/* 7. Persistent footer — the distinction the whole feature protects */}
+      {/* 7. Persistent footer - the distinction the whole feature protects */}
       {blocked && (
         <p
           className={cn(
@@ -425,7 +432,7 @@ export const ComparabilityInvestigator: React.FC<Props> = ({ factA, factBId, pro
             isDark ? 'bg-slate-950/40 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
           )}
         >
-          <strong>Comparison blocked — this is not a finding that the two facts are unrelated.</strong>{' '}
+          <strong>Comparison blocked - this is not a finding that the two facts are unrelated.</strong>{' '}
           It means this system cannot validly compare them under the current gate.
         </p>
       )}
