@@ -52,6 +52,25 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_int_list(name: str, default: tuple[int, ...]) -> tuple[int, ...]:
+    """Comma-separated ints, e.g. RETRIEVAL_K_LADDER="10,25,50,100".
+    Falls back to `default` on anything unparseable rather than raising —
+    a malformed knob must not take the whole knowledge layer down, and the
+    default ladder is always a valid policy."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        values = tuple(int(p.strip()) for p in raw.split(",") if p.strip())
+    except ValueError:
+        return default
+    if not values or any(v <= 0 for v in values):
+        return default
+    # Enforce the monotonic K_initial <= ... <= K_max invariant the policy
+    # depends on, rather than trusting operator input to already be sorted.
+    return tuple(sorted(dict.fromkeys(values)))
+
+
 @dataclass(frozen=True)
 class RetrievalConfig:
     enabled: bool = False
@@ -70,6 +89,33 @@ class RetrievalConfig:
     embedding_mode: str = "live"
     embedding_model_cache_dir: str = field(default_factory=lambda: _DEFAULT_MODEL_CACHE_DIR)
     index_dir: str = field(default_factory=lambda: _DEFAULT_INDEX_DIR)
+
+    # ---- adaptive retrieval policy --------------------------------------
+    # Bounded, deterministic K ladder. Retrieval starts at the first rung
+    # and only climbs when a deterministic signal says the useful candidate
+    # region may extend past the current K. The last rung is the hard
+    # ceiling: retrieval is a BOUNDED search, and when the ladder is
+    # exhausted the diagnostics say so ("budget_exhausted") rather than
+    # implying the search was complete.
+    adaptive_enabled: bool = True
+    k_ladder: tuple[int, ...] = (10, 25, 50, 100)
+    max_rounds: int = 4
+    # Expand when fewer than this many candidates survived blocking at the
+    # current K — the "we have not yet seen enough gate-eligible evidence"
+    # signal. Deliberately counts POST-blocking survivors, not raw hits.
+    min_unblocked: int = 5
+    # Expand when the surviving candidates are saturated, i.e. the bucket
+    # plausibly holds more: the current K came back completely full AND
+    # every returned candidate survived blocking.
+    saturation_ratio: float = 0.9
+
+    @property
+    def initial_k(self) -> int:
+        return self.k_ladder[0]
+
+    @property
+    def max_k(self) -> int:
+        return self.k_ladder[-1]
 
     @property
     def lexical_db_path(self) -> str:
@@ -99,4 +145,9 @@ def load_config() -> RetrievalConfig:
         embedding_mode=os.environ.get("EMBEDDING_MODE", "live").strip().lower() or "live",
         embedding_model_cache_dir=os.environ.get("EMBEDDING_MODEL_CACHE_DIR", "").strip() or _DEFAULT_MODEL_CACHE_DIR,
         index_dir=os.environ.get("RETRIEVAL_INDEX_PATH", "").strip() or _DEFAULT_INDEX_DIR,
+        adaptive_enabled=_env_bool("RETRIEVAL_ADAPTIVE", True),
+        k_ladder=_env_int_list("RETRIEVAL_K_LADDER", (10, 25, 50, 100)),
+        max_rounds=_env_int("RETRIEVAL_MAX_ROUNDS", 4),
+        min_unblocked=_env_int("RETRIEVAL_MIN_UNBLOCKED", 5),
+        saturation_ratio=_env_float("RETRIEVAL_SATURATION_RATIO", 0.9),
     )

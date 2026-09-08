@@ -23,6 +23,7 @@ unset, which will download the model on first run.)
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import random
@@ -30,7 +31,7 @@ import shutil
 import sys
 import tempfile
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from decimal import Decimal
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -129,27 +130,57 @@ def run_bruteforce(facts: list[Fact]) -> tuple[list, float, int]:
     return relations, elapsed, baseline_pairs
 
 
-def run_retrieval(facts: list[Fact], index: RetrievalIndex) -> tuple[list, float, dict, dict]:
-    """Single pass: one `retrieve_candidates()` + `annotate_blocking()`
-    call per fact feeds BOTH pair generation (for adjudication) and the
-    candidate-volume funnel (blocked/retrieved counts) — calling
-    `generate_candidate_pairs()` and `scale_metrics()` separately would
-    each loop over all `facts` independently, doubling real retrieval
-    cost at this benchmark's scale for no benefit (confirmed by
-    profiling: retrieve_candidates() cost is real, dominated by the
-    brute-force cosine search's O(N) per-query cost at N=12,000, not
-    something to pay twice over)."""
+def run_retrieval(facts: list[Fact], index: RetrievalIndex, *, adaptive: bool) -> dict:
+    """One retrieval pass over every fact, in either mode.
+
+    `adaptive=False` pins the ladder to a single rung at the configured
+    top_k, reproducing the ORIGINAL fixed-K behaviour so the two modes are
+    measured against the identical index and corpus. `adaptive=True` runs
+    the bounded ladder.
+
+    Stage timings are summed from each query's own RetrievalDiagnostics —
+    the same numbers the API and UI report — rather than from a separate
+    instrumentation path that could drift from what production measures.
+    """
     facts_by_id = {f.fact_id: f for f in facts}
-    t0 = time.time()
-    index.upsert_facts(facts)
+    base = index.config
+    index.config = dataclasses.replace(
+        base,
+        adaptive_enabled=adaptive,
+        k_ladder=base.k_ladder if adaptive else (base.top_k,),
+        max_rounds=base.max_rounds if adaptive else 1,
+    )
+
+    stage_ms = defaultdict(float)
+    k_values: list[int] = []
+    rounds_values: list[int] = []
+    expansions = 0
+    expanded_queries = 0
+    termination = Counter()
+    gate_evaluated = 0
+    per_fact_latency_ms: list[float] = []
 
     seen_pairs: set[tuple[str, str]] = set()
     pairs: list[tuple[Fact, Fact]] = []
-    blocked, retrieved = 0, 0
+    gates: dict[tuple[str, str], object] = {}
+
+    t0 = time.time()
     for fact in facts:
-        candidates = index.retrieve_candidates(fact)
-        index.annotate_blocking(fact, candidates, facts_by_id)
+        candidates, gate_results, diag = index.retrieve_adaptive(fact, facts_by_id)
+        for key, value in diag.timing.items():
+            stage_ms[key] += value
+        per_fact_latency_ms.append(diag.timing.get("total_ms", 0.0))
+        k_values.append(diag.final_k)
+        rounds_values.append(diag.rounds)
+        expansions += diag.expansions
+        if diag.expansions:
+            expanded_queries += 1
+        termination[diag.termination_reason] += 1
+        gate_evaluated += diag.gate_evaluated
+
         for c in candidates:
+            if c.blocking_status != "candidate":
+                continue
             other = facts_by_id.get(c.fact_id)
             if other is None or other.fact_id == fact.fact_id:
                 continue
@@ -157,35 +188,56 @@ def run_retrieval(facts: list[Fact], index: RetrievalIndex) -> tuple[list, float
             if pair_key in seen_pairs:
                 continue
             seen_pairs.add(pair_key)
-            if c.blocking_status == "candidate":
-                retrieved += 1
-                pairs.append((fact, other))
-            else:
-                blocked += 1
+            pairs.append((fact, other))
+            g = gate_results.get(c.fact_id)
+            if g is not None:
+                gates[pair_key] = g
 
+    t_adj = time.time()
     relations = []
     for fa, fb in pairs:
         if fa.evidence and fb.evidence and fa.evidence.doc_id == fb.evidence.doc_id \
                 and fa.evidence.page == fb.evidence.page:
             continue
-        rel = adjudicate(fa, fb)
+        g = gates.get(tuple(sorted((fa.fact_id, fb.fact_id))))
+        rel = adjudicate(fa, fb, g) if g is not None else adjudicate(fa, fb)
         if rel.relation != RelationType.UNRELATED:
             relations.append(rel)
+    adjudication_seconds = time.time() - t_adj
     elapsed = time.time() - t0
 
     clusters: dict[str, list[Fact]] = defaultdict(list)
     for f in facts:
         clusters[f.cluster_key()].append(f)
     baseline_pairs = sum(len(v) * (len(v) - 1) // 2 for v in clusters.values())
-    total_considered = blocked + retrieved
+    retrieved = len(pairs)
     reduction_ratio = (1 - (retrieved / baseline_pairs)) if baseline_pairs else None
-    scale = {
-        "total_facts": len(facts), "baseline_pairs": baseline_pairs,
-        "blocked_pairs": blocked, "retrieved_pairs": retrieved,
-        "total_candidate_pairs_considered": total_considered,
+
+    index.config = base
+    n = max(len(facts), 1)
+    return {
+        "mode": "adaptive" if adaptive else "fixed_k",
+        "total_facts": len(facts),
+        "baseline_pairs": baseline_pairs,
+        "candidate_pairs_reaching_gate": retrieved,
+        "gate_evaluations": gate_evaluated,
         "candidate_reduction_ratio": reduction_ratio,
+        "relations_kept": len(relations),
+        "relations": relations,
+        "elapsed_seconds": round(elapsed, 4),
+        "adjudication_seconds": round(adjudication_seconds, 4),
+        "per_fact_latency_ms_mean": round(sum(per_fact_latency_ms) / n, 4),
+        "per_fact_latency_ms_p95": round(
+            sorted(per_fact_latency_ms)[min(int(n * 0.95), n - 1)], 4) if per_fact_latency_ms else None,
+        "average_k": round(sum(k_values) / n, 3),
+        "max_k_used": max(k_values) if k_values else 0,
+        "average_rounds": round(sum(rounds_values) / n, 3),
+        "expansions_total": expansions,
+        "queries_expanded": expanded_queries,
+        "expansion_rate": round(expanded_queries / n, 4),
+        "termination_reasons": dict(termination),
+        "stage_ms": {k: round(v, 2) for k, v in sorted(stage_ms.items())},
     }
-    return relations, elapsed, facts_by_id, scale
 
 
 def _pair_keys(relations) -> set[tuple[str, str]]:
@@ -221,41 +273,64 @@ def main() -> None:
 
         print()
         print("=" * 78)
-        print("2. RETRIEVAL (relationship_mode=retrieval — blocking + hybrid retrieval)")
+        print("2. INDEX BUILD (cold vs warm)")
         print("=" * 78)
-        retrieval_relations, retrieval_elapsed, _, scale = run_retrieval(facts, index)
-        retrieval_kept = [r for r in retrieval_relations if r.relation != RelationType.UNRELATED]
-        print(f"  Baseline pairs (same definition as above):     {scale['baseline_pairs']:,}")
-        print(f"  Blocked by blocking_check():                   {scale['blocked_pairs']:,}")
-        print(f"  Retrieved (survived blocking, sent to gate()): {scale['retrieved_pairs']:,}")
-        print(f"  Relations kept (non-UNRELATED):                {len(retrieval_kept):,}")
-        reduction = scale["candidate_reduction_ratio"]
-        print(f"  Candidate reduction vs baseline:               "
-              f"{reduction * 100:.1f}%" if reduction is not None else "  Candidate reduction vs baseline: n/a")
-        print(f"  Elapsed (index + retrieve + adjudicate):        {retrieval_elapsed:.3f}s")
+        t0 = time.time()
+        index.upsert_facts(facts, persist=False)
+        index.vectors.save()
+        cold_build = time.time() - t0
+        print(f"  Cold build (embed + lexical + vector index):   {cold_build:.3f}s")
+        t0 = time.time()
+        index.upsert_facts(facts, persist=False)
+        warm_build = time.time() - t0
+        print(f"  Warm rebuild (embedding cache hit, re-upsert): {warm_build:.3f}s")
 
         print()
         print("=" * 78)
-        print("3. KNOWN-RELATION RECOVERY")
+        print("3. FIXED-K RETRIEVAL (the previous behaviour: single K=50 pass)")
+        print("=" * 78)
+        fixed = run_retrieval(facts, index, adaptive=False)
+        _print_retrieval(fixed)
+
+        print()
+        print("=" * 78)
+        print("4. ADAPTIVE RETRIEVAL (bounded K ladder)")
+        print("=" * 78)
+        adaptive = run_retrieval(facts, index, adaptive=True)
+        _print_retrieval(adaptive)
+        print(f"  K ladder:                                      {list(cfg.k_ladder)}")
+        print(f"  Average K:                                     {adaptive['average_k']}")
+        print(f"  Max K used:                                    {adaptive['max_k_used']}")
+        print(f"  Queries expanded:                              {adaptive['queries_expanded']:,} "
+              f"({adaptive['expansion_rate'] * 100:.1f}%)")
+        print(f"  Average rounds:                                {adaptive['average_rounds']}")
+        print(f"  Termination reasons:                           {adaptive['termination_reasons']}")
+
+        print()
+        print("=" * 78)
+        print("5. KNOWN-RELATION RECOVERY")
         print("   (ground truth = every relation the unchanged bruteforce/cluster path")
         print("    actually finds on this corpus — retrieval must not silently lose these)")
         print("=" * 78)
         baseline_pair_keys = _pair_keys(bruteforce_kept)
-        retrieval_pair_keys = _pair_keys(retrieval_kept)
-        recovered = baseline_pair_keys & retrieval_pair_keys
-        print(f"  Known relation pairs (bruteforce):  {len(baseline_pair_keys):,}")
-        print(f"  Recovered by retrieval mode:         {len(recovered):,}/{len(baseline_pair_keys):,} "
-              f"({(len(recovered) / len(baseline_pair_keys) * 100 if baseline_pair_keys else 0):.1f}%)")
+        recovery = {}
+        for label, run in (("fixed_k", fixed), ("adaptive", adaptive)):
+            keys = _pair_keys(run["relations"])
+            recovered = baseline_pair_keys & keys
+            pct = (len(recovered) / len(baseline_pair_keys) * 100) if baseline_pair_keys else 0.0
+            recovery[label] = {"known_pairs": len(baseline_pair_keys),
+                               "recovered": len(recovered), "pct": round(pct, 2)}
+            print(f"  {label:10s} recovered {len(recovered):,}/{len(baseline_pair_keys):,} ({pct:.1f}%)")
 
         print()
         print("=" * 78)
-        print("4. RECALL@K (fraction of known pairs whose partner appears in the top-K)")
+        print("6. RECALL@K")
+        print("   Recall@K = fraction of KNOWN pairs whose partner appears within a")
+        print("   K-candidate budget. It is NOT a claim about relationships in general:")
+        print("   retrieval is a bounded search, so a miss means 'not examined within")
+        print("   budget', never 'proven unrelated'.")
         print("=" * 78)
         k_values = [10, 25, 50, 100]
-        # recall_at_k() issues a real retrieval call per (pair, direction,
-        # channel) — exhaustive over every known pair is not necessary for
-        # a statistically meaningful figure, so a fixed random sample keeps
-        # this benchmark's runtime bounded regardless of corpus size.
         _RECALL_SAMPLE_SIZE = 300
         sample_rng = random.Random(SEED)
         recall_sample = list(baseline_pair_keys)
@@ -271,17 +346,39 @@ def main() -> None:
                             for k in k_values)
             print(f"  {channel:10s}  {row}")
 
+        print()
+        print("=" * 78)
+        print("7. SUMMARY")
+        print("=" * 78)
+        print(f"  {'metric':38s} {'bruteforce':>14s} {'fixed-K':>14s} {'adaptive':>14s}")
+        def row(name, a, b, c):
+            print(f"  {name:38s} {a:>14} {b:>14} {c:>14}")
+        row("candidate pairs reaching gate", f"{baseline_pairs:,}",
+            f"{fixed['candidate_pairs_reaching_gate']:,}", f"{adaptive['candidate_pairs_reaching_gate']:,}")
+        row("relations kept", f"{len(bruteforce_kept):,}",
+            f"{fixed['relations_kept']:,}", f"{adaptive['relations_kept']:,}")
+        row("known-relation recovery", "100.0%",
+            f"{recovery['fixed_k']['pct']}%", f"{recovery['adaptive']['pct']}%")
+        row("end-to-end seconds", f"{bruteforce_elapsed:.2f}",
+            f"{fixed['elapsed_seconds']:.2f}", f"{adaptive['elapsed_seconds']:.2f}")
+        row("per-fact latency ms (mean)", "-",
+            f"{fixed['per_fact_latency_ms_mean']:.3f}", f"{adaptive['per_fact_latency_ms_mean']:.3f}")
+
         report = {
             "n_docs": N_DOCS, "facts_per_doc": FACTS_PER_DOC, "total_facts": len(facts),
+            "seed": SEED,
+            "index_build": {"cold_seconds": round(cold_build, 4), "warm_seconds": round(warm_build, 4)},
             "bruteforce": {"baseline_pairs": baseline_pairs, "relations_kept": len(bruteforce_kept),
-                          "elapsed_seconds": round(bruteforce_elapsed, 4)},
-            "retrieval": {**scale, "relations_kept": len(retrieval_kept),
-                         "elapsed_seconds": round(retrieval_elapsed, 4)},
-            "known_relation_recovery": {
-                "known_pairs": len(baseline_pair_keys), "recovered": len(recovered),
-            },
+                           "elapsed_seconds": round(bruteforce_elapsed, 4)},
+            "fixed_k": {k: v for k, v in fixed.items() if k != "relations"},
+            "adaptive": {k: v for k, v in adaptive.items() if k != "relations"},
+            "known_relation_recovery": recovery,
             "recall_at_k": recall_by_channel,
             "recall_at_k_sample_size": len(recall_sample),
+            "recall_definition": (
+                "fraction of known pairs surfaced within a K-candidate budget; "
+                "a miss means not examined within budget, never proven unrelated"
+            ),
         }
         out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                 "data", "retrieval_benchmark_report.json")
@@ -291,6 +388,20 @@ def main() -> None:
         index.close()
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _print_retrieval(run: dict) -> None:
+    print(f"  Baseline pairs (cluster-dict definition):      {run['baseline_pairs']:,}")
+    print(f"  Candidate pairs reaching gate():               {run['candidate_pairs_reaching_gate']:,}")
+    print(f"  Gate evaluations:                              {run['gate_evaluations']:,}")
+    reduction = run["candidate_reduction_ratio"]
+    if reduction is not None:
+        print(f"  Candidate reduction vs baseline:               {reduction * 100:.1f}%")
+    print(f"  Relations kept (non-UNRELATED):                {run['relations_kept']:,}")
+    print(f"  Elapsed (retrieve + gate + adjudicate):        {run['elapsed_seconds']:.3f}s")
+    print(f"  Per-fact latency mean / p95 (ms):              "
+          f"{run['per_fact_latency_ms_mean']:.3f} / {run['per_fact_latency_ms_p95']:.3f}")
+    print(f"  Stage breakdown (ms, summed over all queries): {run['stage_ms']}")
 
 
 if __name__ == "__main__":

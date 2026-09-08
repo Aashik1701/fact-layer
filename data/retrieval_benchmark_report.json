@@ -2,44 +2,112 @@
   "n_docs": 100,
   "facts_per_doc": 120,
   "total_facts": 12000,
+  "seed": 20240921,
+  "index_build": {
+    "cold_seconds": 283.0552,
+    "warm_seconds": 0.466
+  },
   "bruteforce": {
     "baseline_pairs": 214395,
     "relations_kept": 214257,
-    "elapsed_seconds": 2.1986
+    "elapsed_seconds": 3.4872
   },
-  "retrieval": {
+  "fixed_k": {
+    "mode": "fixed_k",
     "total_facts": 12000,
     "baseline_pairs": 214395,
-    "blocked_pairs": 271165,
-    "retrieved_pairs": 120297,
-    "total_candidate_pairs_considered": 391462,
-    "candidate_reduction_ratio": 0.4389001609179318,
-    "relations_kept": 120210,
-    "elapsed_seconds": 393.2984
+    "candidate_pairs_reaching_gate": 150499,
+    "gate_evaluations": 294560,
+    "candidate_reduction_ratio": 0.2980293383707643,
+    "relations_kept": 150394,
+    "elapsed_seconds": 62.2976,
+    "adjudication_seconds": 1.4156,
+    "per_fact_latency_ms_mean": 4.9874,
+    "per_fact_latency_ms_p95": 7.459,
+    "average_k": 50.0,
+    "max_k_used": 50,
+    "average_rounds": 1.0,
+    "expansions_total": 0,
+    "queries_expanded": 0,
+    "expansion_rate": 0.0,
+    "termination_reasons": {
+      "no_further_candidates": 10937,
+      "budget_exhausted": 1063
+    },
+    "stage_ms": {
+      "adjudication_ms": 0.0,
+      "blocking_ms": 395.07,
+      "fusion_ms": 1340.72,
+      "gate_ms": 3154.49,
+      "lexical_ms": 51913.64,
+      "semantic_ms": 1764.67,
+      "total_ms": 59848.87
+    }
+  },
+  "adaptive": {
+    "mode": "adaptive",
+    "total_facts": 12000,
+    "baseline_pairs": 214395,
+    "candidate_pairs_reaching_gate": 183194,
+    "gate_evaluations": 347710,
+    "candidate_reduction_ratio": 0.14553044613913568,
+    "relations_kept": 183067,
+    "elapsed_seconds": 144.8335,
+    "adjudication_seconds": 2.7956,
+    "per_fact_latency_ms_mean": 11.7126,
+    "per_fact_latency_ms_p95": 23.897,
+    "average_k": 38.288,
+    "max_k_used": 100,
+    "average_rounds": 2.443,
+    "expansions_total": 17315,
+    "queries_expanded": 12000,
+    "expansion_rate": 1.0,
+    "termination_reasons": {
+      "no_further_candidates": 10937,
+      "budget_exhausted": 1063
+    },
+    "stage_ms": {
+      "adjudication_ms": 0.0,
+      "blocking_ms": 750.79,
+      "fusion_ms": 2490.42,
+      "gate_ms": 3076.63,
+      "lexical_ms": 128662.42,
+      "semantic_ms": 3519.8,
+      "total_ms": 140551.24
+    }
   },
   "known_relation_recovery": {
-    "known_pairs": 214257,
-    "recovered": 120210
+    "fixed_k": {
+      "known_pairs": 214257,
+      "recovered": 150394,
+      "pct": 70.19
+    },
+    "adaptive": {
+      "known_pairs": 214257,
+      "recovered": 183067,
+      "pct": 85.44
+    }
   },
   "recall_at_k": {
     "lexical": {
-      "10": 0.30666666666666664,
-      "25": 0.5833333333333334,
-      "50": 0.67,
-      "100": 0.7933333333333333
+      "10": 0.36,
+      "25": 0.62,
+      "50": 0.7233333333333334,
+      "100": 0.88
     },
     "semantic": {
-      "10": 0.12666666666666668,
-      "25": 0.19333333333333333,
-      "50": 0.23,
-      "100": 0.28
+      "10": 0.3,
+      "25": 0.61,
+      "50": 0.6933333333333334,
+      "100": 0.84
     },
     "hybrid": {
-      "10": 0.23333333333333334,
-      "25": 0.39666666666666667,
-      "50": 0.5966666666666667,
-      "100": 0.71
+      "10": 0.32666666666666666,
+      "25": 0.5933333333333334,
+      "50": 0.7066666666666667,
+      "100": 0.8533333333333334
     }
   },
-  "recall_at_k_sample_size": 300
+  "recall_at_k_sample_size": 300,
+  "recall_definition": "fraction of known pairs surfaced within a K-candidate budget; a miss means not examined within budget, never proven unrelated"
 }

@@ -20,6 +20,7 @@ import os
 import re
 import sqlite3
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -40,30 +41,65 @@ class LexicalIndex:
         # object, not from sqlite3 itself — same "one lock, single local
         # process" model api.py's own _INGEST_LOCK already uses.
         self._conn = sqlite3.connect(path, check_same_thread=False)
+        # Pragmas, not schema: this index is a derived, fully rebuildable
+        # artifact (see index.py's persistence boundary docstring), so
+        # durability of individual writes buys nothing — a torn index is
+        # rebuilt from Store.facts(), never repaired. WAL + NORMAL removes
+        # an fsync per commit, which is the dominant cost when upsert_many()
+        # is called once per document during a bulk ingest.
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        """Create the FTS5 table, migrating a pre-`block_key` index by
+        dropping it. Safe because this table is derived data: index.py's
+        `rebuild()`/`upsert_facts()` repopulate it from the authoritative
+        Store, so the worst case of a migration is one re-index, never
+        data loss."""
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='facts_fts'"
+        ).fetchone()
+        if row is not None and "block_key" not in (row[0] or ""):
+            self._conn.execute("DROP TABLE facts_fts")
+            self._conn.commit()
         self._conn.execute(
             "CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5("
-            " fact_id UNINDEXED, retrieval_text"
+            " fact_id UNINDEXED, block_key, retrieval_text"
             ")"
         )
         self._conn.commit()
 
-    def upsert(self, fact_id: str, retrieval_text: str) -> None:
-        self.upsert_many([(fact_id, retrieval_text)])
+    def upsert(self, fact_id: str, retrieval_text: str, block_key: str = "") -> None:
+        self.upsert_many([(fact_id, retrieval_text, block_key)])
 
-    def upsert_many(self, items: list[tuple[str, str]]) -> None:
+    def upsert_many(self, items: list[tuple]) -> None:
+        """`items` are (fact_id, retrieval_text, block_key) triples.
+
+        Two-element (fact_id, retrieval_text) tuples are still accepted and
+        indexed with an empty block_key: the bucket column is a retrieval
+        *cost* key, so a row without one simply never matches a
+        bucket-filtered query — it stays fully searchable by an unfiltered
+        `search()`. Keeping the old arity working means this index remains
+        usable standalone (and keeps existing callers/tests valid) instead
+        of the schema change rippling outward."""
         if not items:
             return
-        fact_ids = [fid for fid, _ in items]
+        rows = [(it[0], it[1], it[2] if len(it) > 2 else "") for it in items]
+        fact_ids = [fid for fid, _, _ in rows]
         placeholders = ",".join("?" for _ in fact_ids)
         self._conn.execute(f"DELETE FROM facts_fts WHERE fact_id IN ({placeholders})", fact_ids)
-        self._conn.executemany("INSERT INTO facts_fts (fact_id, retrieval_text) VALUES (?, ?)", items)
+        self._conn.executemany(
+            "INSERT INTO facts_fts (fact_id, block_key, retrieval_text) VALUES (?, ?, ?)",
+            [(fid, bk, text) for fid, text, bk in rows],
+        )
         self._conn.commit()
 
     def delete(self, fact_id: str) -> None:
         self._conn.execute("DELETE FROM facts_fts WHERE fact_id = ?", (fact_id,))
         self._conn.commit()
 
-    def search(self, query_text: str, top_k: int) -> list[LexicalMatch]:
+    def search(self, query_text: str, top_k: int, block_key: Optional[str] = None) -> list[LexicalMatch]:
         # FTS5's MATCH syntax treats punctuation specially; the retrieval
         # text is our own deterministic "key: value" lines, so quote each
         # token defensively rather than hand-roll query escaping.
@@ -86,6 +122,17 @@ class LexicalIndex:
         if not tokens:
             return []
         match_query = " OR ".join(f'"{t}"' for t in tokens)
+        if block_key:
+            # Column-scoped FTS5 filter, ANDed into the MATCH expression so
+            # sqlite intersects posting lists using the index rather than
+            # BM25-scoring the whole corpus and discarding afterwards.
+            # `block_key` is a 16-char hex token from blocking.block_key(),
+            # so it needs no escaping and cannot inject query syntax.
+            #
+            # Semantically this is a no-op: bucket equality IS
+            # blocking_check(), so every row excluded here is one
+            # annotate_blocking() would have marked "blocked".
+            match_query = f'block_key:"{block_key}" AND ({match_query})'
         rows = self._conn.execute(
             "SELECT fact_id, bm25(facts_fts) AS rank FROM facts_fts "
             "WHERE facts_fts MATCH ? ORDER BY rank LIMIT ?",
@@ -111,6 +158,7 @@ class LexicalIndex:
 _STRUCTURAL_STOPWORDS = frozenset({
     "subject", "measure", "value_kind", "period", "scope", "segment",
     "geography", "issuer", "basis", "modality", "extra", "none",
+    "block_key",
 })
 
 

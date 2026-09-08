@@ -295,10 +295,123 @@ export interface CandidateFunnel {
   final_top_k_count: number;
 }
 
+// Adaptive retrieval diagnostics — matches RetrievalDiagnostics.to_dict()
+// in fact_layer/retrieval/adaptive.py verbatim.
+//
+// Terminology boundary, enforced by the field names themselves: `scores`
+// are RETRIEVAL RELEVANCE (how a candidate was ranked), `gate` is the
+// COMPARABILITY verdict, and `relationships` is what the ADJUDICATOR
+// established. A high hybrid_score is not confidence, and a candidate the
+// search never reached is not "unrelated" — it is unexamined.
+export interface RetrievalStage {
+  round_index: number;
+  k: number;
+  retrieved: number;
+  unblocked: number;
+  blocked: number;
+  new_candidates: number;
+  decision: 'expand' | 'stop';
+  reason: string;
+}
+
+export interface RetrievalPolicy {
+  name: string;
+  k_ladder: number[];
+  initial_k: number;
+  final_k: number;
+  max_k: number;
+  rounds: number;
+  expansions: number;
+  expansion_reasons: string[];
+  stages: RetrievalStage[];
+}
+
+export interface RetrievalCounts {
+  retrieved_unique: number;
+  blocked_unique: number;
+  unblocked_unique: number;
+  gate_evaluated: number;
+  comparable: number;
+  incomparable: number;
+  blocking_reasons: Record<string, number>;
+}
+
+export interface RetrievalBlockingScope {
+  mode: string;
+  bucket_size: number;
+  corpus_size: number;
+  excluded_by_blocking: number;
+  blocked_after_retrieval: number;
+  note: string;
+}
+
+// lexical_unique and semantic_unique OVERLAP — never sum them. union_unique
+// is the only "how many distinct candidates" number.
+export interface RetrievalChannels {
+  lexical_unique: number;
+  semantic_unique: number;
+  both_channels: number;
+  union_unique: number;
+  overlaps: boolean;
+}
+
+export interface ScoreRange {
+  min: number;
+  max: number;
+}
+
+export interface RetrievalScoreRanges {
+  lexical: ScoreRange | null;
+  semantic: ScoreRange | null;
+  hybrid: ScoreRange | null;
+  note: string;
+}
+
+export interface RetrievalGateSummary {
+  evaluated: number;
+  comparable: number;
+  relation_bearing: number;
+  incomparable: number;
+  same_page_skipped: number;
+  reasons: Record<string, number>;
+  verdicts: Record<string, number>;
+  note: string;
+}
+
+export interface RetrievalTermination {
+  reason: string;
+  budget_exhausted: boolean;
+  bounded_search: boolean;
+}
+
+export interface RetrievalTiming {
+  lexical_ms: number;
+  semantic_ms: number;
+  fusion_ms: number;
+  blocking_ms: number;
+  gate_ms: number;
+  adjudication_ms: number;
+  total_ms: number;
+}
+
+export interface RetrievalDiagnostics {
+  query_fact_id: string;
+  policy: RetrievalPolicy;
+  counts: RetrievalCounts;
+  blocking: RetrievalBlockingScope;
+  channels: RetrievalChannels;
+  scores: RetrievalScoreRanges;
+  gate: RetrievalGateSummary;
+  relationships: Record<string, number>;
+  termination: RetrievalTermination;
+  timing: RetrievalTiming;
+}
+
 export interface FactCandidatesResponse {
   fact_id: string;
   configured_top_k: number;
   returned: number;
   funnel: CandidateFunnel;
+  diagnostics: RetrievalDiagnostics;
   candidates: CandidateMatch[];
 }

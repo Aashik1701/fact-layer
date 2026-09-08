@@ -59,6 +59,7 @@ tests/test_retrieval_integration.py for the regression tests proving this
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
@@ -90,4 +91,43 @@ def blocking_check(a: Fact, b: Fact) -> BlockingResult:
     return _PASS
 
 
-__all__ = ["BlockingResult", "blocking_check"]
+def block_key_fields(fact: Fact) -> tuple[str, str, str]:
+    """The raw tuple `blocking_check()` compares, in its comparison order.
+
+    `blocking_check(a, b).candidate` is TRUE if and only if
+    `block_key_fields(a) == block_key_fields(b)` — the function is three
+    chained equality tests on exactly these three fields and nothing else.
+    That equivalence is what makes it safe to apply blocking as a *search
+    restriction* (retrieve only within a bucket) instead of as a
+    *post-filter* (retrieve globally, then discard): both compute the
+    identical predicate, so pre-filtering removes only pairs the
+    post-filter would have removed anyway. It is pinned by
+    `tests/test_retrieval_blocking.py`'s equivalence test rather than left
+    as a comment, because the whole scale argument rests on it.
+
+    Note what is deliberately NOT in this tuple: period, unit, currency,
+    scope, segment, geography, issuer, basis. Adding any of them here
+    would silently delete real relations (see the 8/15 measurement in this
+    module's docstring) — this key must never grow."""
+    return (fact.subject, fact.measure, fact.value_kind.value)
+
+
+def block_key(fact: Fact) -> str:
+    """A single opaque token identifying `fact`'s blocking bucket, for
+    index backends that need a scalar key rather than a tuple (the FTS5
+    lexical column, the vector store's bucket map).
+
+    Hashed rather than concatenated because subject/measure are
+    free-form canonical strings that may contain the separator, quotes,
+    or FTS5 query metacharacters; a fixed-width hex token is safe to embed
+    in an FTS5 MATCH expression and to use as a dict key. Truncated to 16
+    hex chars (64 bits) — collision probability across a corpus of even
+    10^6 buckets is ~10^-7, and a collision would only ever *widen* a
+    bucket (extra candidates that `blocking_check()` then rejects at
+    annotation time), never drop a real one, so it cannot cause the
+    silent-relation-loss failure mode this module exists to prevent."""
+    raw = "\x1f".join(block_key_fields(fact))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+__all__ = ["BlockingResult", "blocking_check", "block_key", "block_key_fields"]

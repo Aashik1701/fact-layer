@@ -87,7 +87,15 @@ class HybridRetriever:
                 lexical_rank=lexical_rank.get(fid),
                 semantic_rank=semantic_rank.get(fid),
             ))
-        out.sort(key=lambda c: c.hybrid_score, reverse=True)
+        # Deterministic total order. Sorting on the float alone leaves
+        # ties resolved by insertion order, which depends on which channel
+        # happened to return a fact first — that is stable within a run but
+        # not across index rebuilds, and adaptive retrieval truncates at K,
+        # so a tie straddling the K boundary could otherwise change which
+        # candidate survives between two runs on identical data. fact_id is
+        # the tiebreaker because it is the one totally-ordered, immutable
+        # identifier every candidate is guaranteed to have.
+        out.sort(key=lambda c: (-c.hybrid_score, c.fact_id))
         return out
 
 

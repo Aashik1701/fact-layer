@@ -23,19 +23,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fact_layer.models import (
     Evidence, Fact, Period, PeriodKind, Qualifiers, Quantity, Scope, ValueKind,
 )
-from fact_layer.retrieval.blocking import blocking_check
+from fact_layer.retrieval.blocking import block_key, block_key_fields, blocking_check
 
 
 def _mkfact(subject="delhivery", measure="revenue", value_kind=ValueKind.QUANTITY,
             value=None, scope=Scope.UNKNOWN, segment=None, geography=None,
-            unit="currency", currency="INR") -> Fact:
+            unit="currency", currency="INR", period=None, issuer=None) -> Fact:
     if value is None:
         value = Quantity(value=Decimal("100"), unit=unit, currency=currency, sig_figs=3, raw="100")
+    if period is None:
+        period = Period(PeriodKind.DURATION, date(2023, 4, 1), date(2024, 3, 31), label="FY2023-24")
     return Fact(
         subject=subject, measure=measure, value_kind=value_kind, value=value,
         qualifiers=Qualifiers(
-            period=Period(PeriodKind.DURATION, date(2023, 4, 1), date(2024, 3, 31), label="FY2023-24"),
-            scope=scope, segment=segment, geography=geography,
+            period=period,
+            scope=scope, segment=segment, geography=geography, issuer=issuer,
         ),
         evidence=Evidence(doc_id="d1", page=1, char_start=0, char_end=3, verbatim_quote="100", verified=True),
         subject_raw=subject, measure_raw=measure,
@@ -114,3 +116,75 @@ def test_same_category_different_currency_not_blocked():
     a = _mkfact(unit="currency", currency="INR")
     b = _mkfact(unit="currency", currency="USD")
     assert blocking_check(a, b).candidate is True
+
+# --------------------------------------------------------------------------
+# block_key equivalence — the property the whole scale argument rests on
+# --------------------------------------------------------------------------
+
+_OTHER_PERIOD = Period(PeriodKind.DURATION, date(2021, 4, 1), date(2022, 3, 31), label="FY2021-22")
+
+
+def test_block_key_equality_is_exactly_blocking_check():
+    """`blocking_check(a, b).candidate` IS `block_key_fields(a) == block_key_fields(b)`.
+
+    This is not a nice-to-have. Retrieval applies blocking as a SEARCH
+    RESTRICTION (each query only scans its own bucket) rather than as a
+    post-retrieval filter, and that is lossless ONLY while this equivalence
+    holds. If a field is added to `block_key_fields()` that
+    `blocking_check()` does not compare — or vice versa — retrieval starts
+    silently dropping real candidates, which is exactly the failure mode
+    the 8/15 unit-category regression taught this project to fear. Pinned
+    exhaustively over a matrix spanning every dimension, blocked and
+    unblocked alike."""
+    facts = []
+    for subj in ("delhivery", "rbi"):
+        for meas in ("revenue", "ebitda"):
+            for kind in (ValueKind.QUANTITY, ValueKind.TEXT):
+                for per in (None, _OTHER_PERIOD):
+                    for sc in (Scope.UNKNOWN, Scope.STANDALONE, Scope.CONSOLIDATED):
+                        for unit, cur in (("currency", "INR"), ("currency", "USD"), ("percent", None)):
+                            value = (Quantity(value=Decimal("100"), unit=unit, currency=cur,
+                                              sig_figs=3, raw="100")
+                                     if kind == ValueKind.QUANTITY else "some text")
+                            facts.append(_mkfact(
+                                subject=subj, measure=meas, value_kind=kind, value=value,
+                                period=per, scope=sc, unit=unit, currency=cur,
+                            ))
+
+    checked = 0
+    for a in facts:
+        for b in facts:
+            checked += 1
+            expected = block_key_fields(a) == block_key_fields(b)
+            assert blocking_check(a, b).candidate == expected
+            if expected:
+                assert block_key(a) == block_key(b)
+    assert checked > 10_000
+
+
+def test_block_key_is_deterministic():
+    f = _mkfact()
+    assert block_key(f) == block_key(f)
+    assert len(block_key(f)) == 16
+
+
+def test_block_key_never_grows_to_include_contextual_dimensions():
+    """A direct guard on the 8/15 regression: period, unit, currency,
+    scope, segment, geography and issuer must NOT influence the bucket —
+    they have to reach comparability.gate() to become real relations."""
+    base = _mkfact()
+    variants = {
+        "period": _mkfact(period=_OTHER_PERIOD),
+        "scope": _mkfact(scope=Scope.CONSOLIDATED),
+        "currency": _mkfact(currency="USD"),
+        "unit": _mkfact(unit="percent", currency=None),
+        "segment": _mkfact(segment="express"),
+        "geography": _mkfact(geography="india"),
+        "issuer": _mkfact(issuer="RBI"),
+    }
+    for name, v in variants.items():
+        assert block_key(base) == block_key(v), (
+            f"{name} leaked into the blocking bucket — this silently deletes "
+            "real relations (see blocking.py's 8/15 measurement)"
+        )
+        assert blocking_check(base, v).candidate is True

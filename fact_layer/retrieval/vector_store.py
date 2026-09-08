@@ -73,6 +73,7 @@ class VectorStore(ABC):
     def search(
         self, query_vector: np.ndarray, top_k: int,
         metadata_filter: Optional[Callable[[dict], bool]] = None,
+        block_key: Optional[str] = None,
     ) -> list[VectorRecord]:
         ...
 
@@ -109,6 +110,12 @@ class LocalNumpyVectorStore(VectorStore):
         self._metadata: list[dict] = []
         self._matrix: np.ndarray = np.zeros((0, dimension), dtype=np.float32)
         self._id_to_row: dict[str, int] = {}
+        # block_key -> row indices. This is the vector-store half of the
+        # "block BEFORE searching, not after" change: it lets search()
+        # score only the rows in the query fact's own blocking bucket
+        # instead of the whole corpus. Derived purely from metadata, so it
+        # is rebuilt (never persisted separately) on load/compact.
+        self._bucket_rows: dict[str, list[int]] = {}
         self.load()
 
     # ---- mutation -------------------------------------------------------
@@ -137,36 +144,110 @@ class LocalNumpyVectorStore(VectorStore):
                 self._ids.append(fact_id)
                 self._metadata.append(metadata)
                 self._id_to_row[fact_id] = start + i
+        self._reindex_buckets()
+
+    def _reindex_buckets(self) -> None:
+        buckets: dict[str, list[int]] = {}
+        for i, fid in enumerate(self._ids):
+            if fid is None:
+                continue
+            bk = self._metadata[i].get("block_key")
+            if bk is None:
+                continue
+            buckets.setdefault(bk, []).append(i)
+        self._bucket_rows = buckets
 
     def delete(self, fact_id: str) -> None:
         row = self._id_to_row.pop(fact_id, None)
         if row is not None:
             self._ids[row] = None
             self._metadata[row] = {}
+            self._reindex_buckets()
 
     # ---- query ------------------------------------------------------------
 
     def search(
         self, query_vector: np.ndarray, top_k: int,
         metadata_filter: Optional[Callable[[dict], bool]] = None,
+        block_key: Optional[str] = None,
     ) -> list[VectorRecord]:
+        """Top-`top_k` rows by cosine similarity.
+
+        `block_key` restricts the search to one blocking bucket. This is a
+        pure cost optimization, NOT a new semantic filter: the bucket is
+        keyed by `blocking.block_key()`, whose equality is exactly
+        `blocking_check().candidate` (see that module), so every row it
+        skips is one the caller's own `annotate_blocking()` pass would have
+        marked "blocked" and discarded anyway. Passing it turns the scan
+        from O(corpus) into O(bucket).
+
+        Scoring only the bucket's rows is what actually matters at scale:
+        the previous version multiplied the full (N, dim) matrix and then
+        full-sorted all N scores for every one of the N queries, so the
+        per-query cost grew with the whole corpus even though at most a
+        handful of rows could ever survive blocking.
+        """
         if len(self._ids) == 0:
             return []
+        if top_k <= 0:
+            return []
         q = _normalize(np.asarray(query_vector, dtype=np.float32).reshape(1, -1))[0]
-        scores = self._matrix @ q   # cosine similarity, both sides L2-normalized
 
-        order = np.argsort(-scores)
+        if block_key is not None:
+            rows = self._bucket_rows.get(block_key)
+            if not rows:
+                return []
+            row_idx = np.asarray(rows, dtype=np.int64)
+            scores = self._matrix[row_idx] @ q
+        else:
+            row_idx = None
+            scores = self._matrix @ q   # cosine similarity, both sides L2-normalized
+
+        n = scores.shape[0]
+        # argpartition gives the top-k in O(n) instead of argsort's
+        # O(n log n); only the k selected entries are then sorted. A
+        # generous multiplier covers rows dropped by tombstones or
+        # metadata_filter without falling back to a full sort.
+        want = top_k if metadata_filter is None else min(n, max(top_k * 4, top_k + 32))
+        if want >= n:
+            order = np.argsort(-scores, kind="stable")
+        else:
+            part = np.argpartition(-scores, want - 1)[:want]
+            order = part[np.argsort(-scores[part], kind="stable")]
+
         out: list[VectorRecord] = []
-        for row in order:
+        seen = 0
+        for local in order:
+            row = int(row_idx[local]) if row_idx is not None else int(local)
             fact_id = self._ids[row]
             if fact_id is None:
                 continue
             meta = self._metadata[row]
             if metadata_filter is not None and not metadata_filter(meta):
                 continue
-            out.append(VectorRecord(fact_id=fact_id, score=float(scores[row]), metadata=meta))
+            out.append(VectorRecord(fact_id=fact_id, score=float(scores[local]), metadata=meta))
             if len(out) >= top_k:
                 break
+        else:
+            seen = len(out)
+            # Only possible when a metadata_filter rejected enough of the
+            # partitioned head that we came up short — redo exactly once
+            # over the full ordering rather than silently returning fewer
+            # results than the caller asked for.
+            if seen < top_k and want < n:
+                full = np.argsort(-scores, kind="stable")
+                out = []
+                for local in full:
+                    row = int(row_idx[local]) if row_idx is not None else int(local)
+                    fact_id = self._ids[row]
+                    if fact_id is None:
+                        continue
+                    meta = self._metadata[row]
+                    if metadata_filter is not None and not metadata_filter(meta):
+                        continue
+                    out.append(VectorRecord(fact_id=fact_id, score=float(scores[local]), metadata=meta))
+                    if len(out) >= top_k:
+                        break
         return out
 
     # ---- persistence --------------------------------------------------
@@ -179,6 +260,7 @@ class LocalNumpyVectorStore(VectorStore):
         self._ids = [self._ids[i] for i in keep]
         self._metadata = [self._metadata[i] for i in keep]
         self._id_to_row = {fid: i for i, fid in enumerate(self._ids)}
+        self._reindex_buckets()
 
     def save(self) -> None:
         self._compact()
@@ -204,6 +286,7 @@ class LocalNumpyVectorStore(VectorStore):
             self._ids, self._metadata = [], []
             self._matrix = np.zeros((0, self.dimension), dtype=np.float32)
             self._id_to_row = {}
+            self._bucket_rows = {}
             return
         with open(self.meta_path, "r", encoding="utf-8") as fh:
             meta = json.load(fh)
@@ -212,14 +295,22 @@ class LocalNumpyVectorStore(VectorStore):
         self._ids = meta["ids"]
         self._metadata = meta["metadata"]
         self._id_to_row = {fid: i for i, fid in enumerate(self._ids) if fid is not None}
+        self._reindex_buckets()
 
     def rebuild(self) -> None:
         self._ids, self._metadata = [], []
         self._matrix = np.zeros((0, self.dimension), dtype=np.float32)
         self._id_to_row = {}
+        self._bucket_rows = {}
 
     def __len__(self) -> int:
         return len(self._id_to_row)
+
+    def bucket_size(self, block_key: str) -> int:
+        """How many indexed facts share `block_key`'s blocking bucket.
+        Used by the diagnostics to report the size of the candidate
+        universe a query was actually allowed to search."""
+        return len(self._bucket_rows.get(block_key, ()))
 
 
 __all__ = ["VectorStore", "VectorRecord", "LocalNumpyVectorStore"]

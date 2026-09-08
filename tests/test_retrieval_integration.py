@@ -24,6 +24,7 @@ from fact_layer.models import (
     Evidence, Fact, Qualifiers, Quantity, RelationType, Scope, ValueKind,
 )
 from fact_layer.normalize import parse_period
+from fact_layer.retrieval.blocking import blocking_check
 from fact_layer.retrieval.config import RetrievalConfig
 from fact_layer.retrieval.index import RetrievalIndex
 from fact_layer.retrieval.integration import adjudicate_via_retrieval, generate_candidate_pairs
@@ -107,16 +108,39 @@ def test_scope_mismatch_surfaced_by_retrieval_but_explained_as_apparent_conflict
 
 
 def test_different_measure_blocked_even_if_embeddings_would_call_it_similar(index):
+    """A measure mismatch must never become an adjudicable candidate, no
+    matter how similar the embeddings find the two facts.
+
+    Blocking is now applied as a SEARCH RESTRICTION (the query only scans
+    its own blocking bucket) rather than as a post-retrieval filter, so
+    such a fact is normally never retrieved at all instead of being
+    retrieved and then marked "blocked". Both are correct outcomes and
+    both are asserted here — what must hold is the invariant that the pair
+    never reaches the gate, which is what this test pins. The underlying
+    predicate is asserted directly too, so a regression in
+    `blocking_check()` itself still fails loudly rather than hiding behind
+    the bucket restriction."""
     revenue = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24")
     ebitda = _mkfact("delhivery", "ebitda", "300000000", period_label="FY2023-24")
     facts_by_id = {revenue.fact_id: revenue, ebitda.fact_id: ebitda}
 
     index.upsert_facts([revenue, ebitda])
+
+    # The predicate itself is unchanged.
+    result = blocking_check(revenue, ebitda)
+    assert result.candidate is False
+    assert result.reason == "MEASURE_MISMATCH"
+
     candidates = index.retrieve_candidates(revenue)
     index.annotate_blocking(revenue, candidates, facts_by_id)
-    match = next(c for c in candidates if c.fact_id == ebitda.fact_id)
-    assert match.blocking_status == "blocked"
-    assert match.blocking_reason == "MEASURE_MISMATCH"
+    match = next((c for c in candidates if c.fact_id == ebitda.fact_id), None)
+    if match is not None:
+        assert match.blocking_status == "blocked"
+        assert match.blocking_reason == "MEASURE_MISMATCH"
+
+    # The invariant that actually matters: it is never handed to the gate.
+    pairs = generate_candidate_pairs([revenue], facts_by_id, index)
+    assert all(ebitda.fact_id not in (a.fact_id, b.fact_id) for a, b in pairs)
 
 
 # --------------------------------------------------------------------------

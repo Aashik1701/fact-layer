@@ -797,25 +797,44 @@ def fact_candidates(fact_id: str, top_k: Optional[int] = Query(None, ge=1, le=50
     # against. Cheap: upsert_facts() is a no-op for already-indexed facts
     # beyond a retrieval-text recompute + cache lookup.
     index.upsert_facts(STORE.facts.values())
-    funnel = index.candidate_funnel(fact, STORE.facts, top_k=top_k)
+
+    try:
+        candidates, diag = index.candidate_diagnostics(fact, STORE.facts)
+        diagnostics = diag.to_dict()
+    except Exception as exc:                      # noqa: BLE001
+        # Retrieval is a diagnostic overlay, never the source of truth for
+        # a relation — a failure in it (missing embedding model, corrupt
+        # index) must degrade this endpoint, not the knowledge layer. The
+        # error is surfaced explicitly rather than returned as an empty
+        # candidate list, which the UI would otherwise be entitled to read
+        # as "nothing related exists".
+        raise HTTPException(503, f"retrieval unavailable: {type(exc).__name__}: {exc}")
+
+    if top_k is not None:
+        candidates = candidates[:top_k]
 
     out = []
-    for c in funnel["candidates"]:
+    for c in candidates:
         other = STORE.facts.get(c.fact_id)
         row = c.to_dict()
         row["fact_summary"] = _fact_summary(other) if other else None
         out.append(row)
 
+    counts = diagnostics["counts"]
     return {
         "fact_id": fact_id,
         "configured_top_k": index.config.top_k,
         "returned": len(out),
+        # Preserved verbatim for backward compatibility with the original
+        # candidate-funnel response shape; `diagnostics` below is the
+        # richer, adaptive-aware view.
         "funnel": {
-            "lexical_count": funnel["lexical_count"],
-            "semantic_count": funnel["semantic_count"],
-            "after_block_count": funnel["after_block_count"],
-            "final_top_k_count": funnel["final_top_k_count"],
+            "lexical_count": diagnostics["channels"]["lexical_unique"],
+            "semantic_count": diagnostics["channels"]["semantic_unique"],
+            "after_block_count": counts["unblocked_unique"],
+            "final_top_k_count": len(out),
         },
+        "diagnostics": diagnostics,
         "candidates": out,
     }
 

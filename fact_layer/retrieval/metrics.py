@@ -21,17 +21,31 @@ def _rank_of_target(fact: Fact, target_id: str, index: RetrievalIndex, max_k: in
     `RetrievalIndex.retrieve_candidates()`'s docstring for why a query
     fact's own near-perfect self-match would otherwise distort min-max
     normalization and silently shrink the effective candidate pool."""
+    from .blocking import block_key
     from .embeddings import embed_texts_cached
 
     text = fact_to_retrieval_text(fact)
     fanout = max_k + 1
+    # Measure the path production actually takes: both channels are
+    # restricted to the query fact's blocking bucket (see
+    # RetrievalIndex.channel_matches_timed()). Measuring an unfiltered
+    # search here would report a recall number no deployed query can
+    # reproduce — and would understate it, since an unfiltered top-K
+    # spends most of its budget on candidates blocking discards anyway.
+    bucket = block_key(fact)
 
     lexical_matches, semantic_matches = [], []
     if channel in ("lexical", "hybrid"):
-        lexical_matches = [m for m in index.lexical.search(text, fanout) if m.fact_id != fact.fact_id]
+        lexical_matches = [
+            m for m in index.lexical.search(text, fanout, block_key=bucket)
+            if m.fact_id != fact.fact_id
+        ]
     if channel in ("semantic", "hybrid"):
         query_vector = embed_texts_cached([text], index.provider, index.embedding_cache)[text]
-        semantic_matches = [m for m in index.vectors.search(query_vector, fanout) if m.fact_id != fact.fact_id]
+        semantic_matches = [
+            m for m in index.vectors.search(query_vector, fanout, block_key=bucket)
+            if m.fact_id != fact.fact_id
+        ]
 
     if channel == "lexical":
         ids = [m.fact_id for m in lexical_matches[:max_k]]

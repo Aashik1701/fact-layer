@@ -23,10 +23,12 @@ fact count, not the whole corpus.
 from __future__ import annotations
 
 import threading
+import time
+from collections import OrderedDict
 from typing import Iterable, Optional
 
 from ..models import Fact
-from .blocking import blocking_check
+from .blocking import block_key, blocking_check
 from .config import RetrievalConfig, load_config
 from .embeddings import EmbeddingCache, EmbeddingProvider, FastEmbedProvider, embed_texts_cached
 from .hybrid import CandidateMatch, HybridRetriever
@@ -43,6 +45,12 @@ def _fact_metadata(fact: Fact) -> dict:
     security note in `fact_layer/retrieval/integration.py`)."""
     period_label = fact.qualifiers.period.label if fact.qualifiers.period else None
     return {
+        # The blocking bucket this fact belongs to. Stored so the vector
+        # store can restrict a search to one bucket instead of scoring the
+        # whole corpus and discarding afterwards — see
+        # LocalNumpyVectorStore.search()'s block_key argument. It is a
+        # cost key, never a semantic one.
+        "block_key": block_key(fact),
         "cluster_id": fact.cluster_key(),
         "canonical_subject": fact.subject,
         "canonical_measure": fact.measure,
@@ -54,6 +62,8 @@ def _fact_metadata(fact: Fact) -> dict:
 
 
 class RetrievalIndex:
+    _QUERY_VEC_CACHE_MAX = 4096
+
     def __init__(self, config: Optional[RetrievalConfig] = None) -> None:
         self.config = config or load_config()
         self.provider: EmbeddingProvider = FastEmbedProvider(
@@ -73,12 +83,18 @@ class RetrievalIndex:
         )
         self.hybrid = HybridRetriever(self.config.lexical_weight, self.config.semantic_weight)
         self._lock = threading.Lock()
+        self._query_vec_cache: "OrderedDict[str, object]" = OrderedDict()
         # cache_hits/misses this process — surfaced via /retrieval/stats.
         self.stats = {"embedding_cache_hits": 0, "embedding_cache_misses": 0, "last_rebuild": None}
 
     # ---- indexing -------------------------------------------------------
 
-    def upsert_facts(self, facts: Iterable[Fact]) -> None:
+    def upsert_facts(self, facts: Iterable[Fact], persist: bool = True) -> None:
+        """Index `facts`. `persist=False` skips the .npz/.json write, for
+        callers doing many upserts in a row (a bulk rebuild, a benchmark
+        corpus load) that will call `vectors.save()` once at the end —
+        `save()` rewrites and recompresses the WHOLE matrix, so paying it
+        per batch is quadratic in the number of batches."""
         facts = list(facts)
         if not facts:
             return
@@ -92,11 +108,14 @@ class RetrievalIndex:
             self.stats["embedding_cache_misses"] += newly_cached
             self.stats["embedding_cache_hits"] += requested - newly_cached
 
-            self.lexical.upsert_many([(f.fact_id, texts[f.fact_id]) for f in facts])
+            self.lexical.upsert_many([
+                (f.fact_id, texts[f.fact_id], block_key(f)) for f in facts
+            ])
             self.vectors.upsert_many([
                 (f.fact_id, vectors_by_text[texts[f.fact_id]], _fact_metadata(f)) for f in facts
             ])
-            self.vectors.save()
+            if persist:
+                self.vectors.save()
 
     def delete_fact(self, fact_id: str) -> None:
         with self._lock:
@@ -114,10 +133,65 @@ class RetrievalIndex:
         with self._lock:
             self.lexical.rebuild()
             self.vectors.rebuild()
-        self.upsert_facts(facts)
+        self.upsert_facts(facts, persist=False)
+        with self._lock:
+            self.vectors.save()
         self.stats["last_rebuild"] = time.time()
 
     # ---- retrieval --------------------------------------------------------
+
+    def channel_matches_timed(self, fact: Fact, fanout: int):
+        """`_channel_matches()` plus per-channel wall-clock, for
+        `adaptive.adaptive_retrieve()`'s timing block. Returns
+        (lexical_matches, semantic_matches, {"lexical_ms", "semantic_ms"}).
+
+        BOTH channels are restricted to the query fact's blocking bucket
+        (`blocking.block_key()`). That restriction is a cost optimization
+        with no semantic effect: bucket equality is exactly
+        `blocking_check(a, b).candidate`, so every row skipped here is one
+        `annotate_blocking()` would have marked "blocked" and
+        `integration.py` would have dropped. What changes is that the K
+        budget is now spent entirely on pairs that can actually reach the
+        gate, instead of being consumed by cross-bucket noise that is
+        discarded immediately afterwards."""
+        query_text = fact_to_retrieval_text(fact)
+        bucket = block_key(fact)
+        with self._lock:
+            t0 = time.perf_counter()
+            lexical_matches = [
+                m for m in self.lexical.search(query_text, fanout, block_key=bucket)
+                if m.fact_id != fact.fact_id
+            ]
+            t1 = time.perf_counter()
+            query_vector = self._query_vector(query_text)
+            semantic_matches = [
+                m for m in self.vectors.search(query_vector, fanout, block_key=bucket)
+                if m.fact_id != fact.fact_id
+            ]
+            t2 = time.perf_counter()
+        return lexical_matches, semantic_matches, {
+            "lexical_ms": (t1 - t0) * 1000.0,
+            "semantic_ms": (t2 - t1) * 1000.0,
+        }
+
+    def _query_vector(self, query_text: str):
+        """Embedding for a query string, served from a small process-local
+        LRU in front of the sqlite embedding cache.
+
+        Adaptive retrieval re-queries the same fact once per ladder rung,
+        and `metrics.recall_at_k()` queries the same fact once per K value,
+        so the same text is embedded several times in a row. The sqlite
+        cache already avoids recomputing the vector, but not the round trip
+        + row decode; this removes that too. Caller holds `self._lock`."""
+        hit = self._query_vec_cache.get(query_text)
+        if hit is not None:
+            self._query_vec_cache.move_to_end(query_text)
+            return hit
+        vec = embed_texts_cached([query_text], self.provider, self.embedding_cache)[query_text]
+        self._query_vec_cache[query_text] = vec
+        if len(self._query_vec_cache) > self._QUERY_VEC_CACHE_MAX:
+            self._query_vec_cache.popitem(last=False)
+        return vec
 
     def _channel_matches(self, fact: Fact, fanout: int):
         """Raw per-channel matches (lexical, semantic), self-excluded,
@@ -125,12 +199,15 @@ class RetrievalIndex:
         `candidate_funnel()` so there is exactly one place that owns the
         self-exclusion-before-normalization fix (see `retrieve_candidates()`'s
         docstring for why order matters here)."""
-        query_text = fact_to_retrieval_text(fact)
-        with self._lock:
-            lexical_matches = [m for m in self.lexical.search(query_text, fanout) if m.fact_id != fact.fact_id]
-            query_vector = embed_texts_cached([query_text], self.provider, self.embedding_cache)[query_text]
-            semantic_matches = [m for m in self.vectors.search(query_vector, fanout) if m.fact_id != fact.fact_id]
+        lexical_matches, semantic_matches, _ = self.channel_matches_timed(fact, fanout)
         return lexical_matches, semantic_matches
+
+    def retrieve_adaptive(self, fact: Fact, facts_by_id: dict[str, Fact], collect_gate: bool = True):
+        """Bounded adaptive candidate generation for one fact — see
+        `fact_layer/retrieval/adaptive.py`. Returns
+        (candidates, gate_results, diagnostics)."""
+        from .adaptive import adaptive_retrieve
+        return adaptive_retrieve(fact, facts_by_id, self, collect_gate=collect_gate)
 
     def retrieve_candidates(self, fact: Fact, top_k: Optional[int] = None) -> list[CandidateMatch]:
         """Returns the top-K hybrid-ranked candidates for `fact`, each
@@ -176,6 +253,48 @@ class RetrievalIndex:
             "candidates": candidates[:top_k],
         }
 
+    def candidate_diagnostics(self, fact: Fact, facts_by_id: dict[str, Fact]) -> tuple[list[CandidateMatch], object]:
+        """Full adaptive run for one fact, for api.py's diagnostic
+        endpoint: returns (candidates, RetrievalDiagnostics).
+
+        Read-only with respect to relations — it runs the gate to report
+        comparable/incomparable counts, and runs the adjudicator only to
+        COUNT which relationship types those comparable pairs would
+        produce. Nothing here is written to the Store; the authoritative
+        relations remain whatever `Store.ingest()` computed."""
+        from ..adjudicate import adjudicate
+        from ..models import RelationType
+        from .adaptive import summarize_relationships
+        import time as _time
+
+        candidates, gate_results, diag = self.retrieve_adaptive(fact, facts_by_id)
+
+        t0 = _time.perf_counter()
+        relations = []
+        same_page_skipped = 0
+        for c in candidates:
+            if c.blocking_status != "candidate":
+                continue
+            other = facts_by_id.get(c.fact_id)
+            if other is None or other.fact_id == fact.fact_id:
+                continue
+            if fact.evidence and other.evidence and fact.evidence.doc_id == other.evidence.doc_id \
+                    and fact.evidence.page == other.evidence.page:
+                # Same page repetition is not evidence of anything (matches
+                # adjudicate_cluster()). Counted, not silently dropped —
+                # otherwise the panel shows "9 candidates, 0 relationships"
+                # with no explanation of where they went.
+                same_page_skipped += 1
+                continue
+            g = gate_results.get(c.fact_id)
+            rel = adjudicate(fact, other, g) if g is not None else adjudicate(fact, other)
+            if rel.relation != RelationType.UNRELATED:
+                relations.append(rel)
+        diag.timing["adjudication_ms"] = round((_time.perf_counter() - t0) * 1000.0, 3)
+        diag.relationship_counts = summarize_relationships(relations)
+        diag.same_page_skipped = same_page_skipped
+        return candidates, diag
+
     def annotate_blocking(self, fact: Fact, candidates: list[CandidateMatch], facts_by_id: dict[str, Fact]) -> None:
         """Mutates each candidate's blocking_status/blocking_reason in
         place, resolving fact_id against the AUTHORITATIVE facts_by_id map
@@ -207,6 +326,13 @@ class RetrievalIndex:
             "embedding_cache_misses": self.stats["embedding_cache_misses"],
             "last_rebuild": self.stats["last_rebuild"],
             "configured_top_k": self.config.top_k,
+            "adaptive_enabled": self.config.adaptive_enabled,
+            "k_ladder": list(self.config.k_ladder),
+            "initial_k": self.config.initial_k,
+            "max_k": self.config.max_k,
+            "max_rounds": self.config.max_rounds,
+            "min_unblocked": self.config.min_unblocked,
+            "saturation_ratio": self.config.saturation_ratio,
             "configured_lexical_weight": self.config.lexical_weight,
             "configured_semantic_weight": self.config.semantic_weight,
             "retrieval_enabled": self.config.enabled,
