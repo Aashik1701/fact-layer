@@ -623,6 +623,64 @@ def _fuzzy_find_span(quote_norm: str, text_norm: str, threshold: float = 0.92) -
     return None
 
 
+_NUMBER_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _number_signature(token: str) -> str:
+    """Comma-insensitive identity of a numeric token, so '3,809.88' and
+    '3809.88' compare equal but '92.00' and '93.00' correctly don't."""
+    return token.replace(",", "")
+
+
+def _snap_fuzzy_span_to_numbers(
+    page_text: str, start: int, end: int, quote: str, pad: int = 200,
+) -> Optional[tuple[int, int]]:
+    """A fuzzy span match only approximates *where* on the page the quote's
+    text lives — the sliding-window search that produced (start, end) scores
+    whole-window similarity, not per-character alignment, so its boundaries
+    can land a few characters short of (or past) the actual figure the quote
+    names. Real financial tables make this dangerous rather than cosmetic:
+    adjacent fiscal years or adjacent columns routinely put several
+    similar-looking numbers within a few characters of each other on the
+    same line, so an imprecise boundary silently swaps in a neighboring
+    number instead of the one the LLM actually quoted.
+
+    This locates every numeric token the quote itself contains in the real
+    page text — searched in a window padded around the fuzzy match, not
+    just within it, since the fuzzy window's own edges are exactly what's
+    in question — and widens (start, end) to fully contain them, in order,
+    never partially. Returns None if any quoted number can't be found
+    nearby: it is safer to fail the match (and let the caller reject or try
+    another page) than to keep evidence pointing at unverified digits.
+
+    A quote with no digits at all (a plain text/entity claim) has nothing
+    to verify this way, so (start, end) is returned unchanged.
+    """
+    quote_numbers = [_number_signature(m.group()) for m in _NUMBER_RE.finditer(quote)]
+    if not quote_numbers:
+        return start, end
+
+    window_lo = max(0, start - pad)
+    window_hi = min(len(page_text), end + pad)
+
+    found_spans: list[tuple[int, int]] = []
+    search_from = window_lo
+    for target in quote_numbers:
+        match = next(
+            (m for m in _NUMBER_RE.finditer(page_text, search_from, window_hi)
+             if _number_signature(m.group()) == target),
+            None,
+        )
+        if match is None:
+            return None
+        found_spans.append((match.start(), match.end()))
+        search_from = match.end()
+
+    new_start = min(start, found_spans[0][0])
+    new_end = max(end, found_spans[-1][1])
+    return new_start, new_end
+
+
 def _map_norm_span_to_original(text: str, norm_start: int, norm_end: int) -> tuple[int, int]:
     """Map a span in normalised text back to the original text."""
     orig_indices = []
@@ -698,11 +756,21 @@ def _find_span_across_pages(verbatim_quote: str, pages: list[Page]) -> Optional[
     for page in pages:
         text_norm = _normalise_whitespace(page.text)
         fuzzy = _fuzzy_find_span(quote_norm, text_norm, threshold=0.92)
-        if fuzzy and fuzzy[2] > best_ratio:
-            norm_start, norm_end, ratio = fuzzy
-            char_start, char_end = _map_norm_span_to_original(page.text, norm_start, norm_end)
-            best = _SpanMatch(page, char_start, char_end, f"fuzzy_snap (ratio={ratio:.3f})")
-            best_ratio = ratio
+        if not fuzzy or fuzzy[2] <= best_ratio:
+            continue
+        norm_start, norm_end, ratio = fuzzy
+        char_start, char_end = _map_norm_span_to_original(page.text, norm_start, norm_end)
+        # The fuzzy window's boundaries are approximate; verify (and widen,
+        # never shrink) them against the quote's own numbers before trusting
+        # this candidate — see _snap_fuzzy_span_to_numbers. A window that
+        # can't account for one of the quote's numbers anywhere nearby is
+        # not evidence of that number, so it's skipped rather than accepted.
+        snapped = _snap_fuzzy_span_to_numbers(page.text, char_start, char_end, verbatim_quote)
+        if snapped is None:
+            continue
+        char_start, char_end = snapped
+        best = _SpanMatch(page, char_start, char_end, f"fuzzy_snap (ratio={ratio:.3f})")
+        best_ratio = ratio
 
     return best
 

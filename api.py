@@ -44,6 +44,7 @@ from fact_layer.jobs import Job, JobStage, JobStatus, JobStore
 from fact_layer.models import Fact, Qualifiers, Quantity, Relation
 from fact_layer.parse import _doc_id
 from fact_layer.resolve import write_resolution_log
+from fact_layer.retrieval import get_index
 from fact_layer.storage import backend_from_env
 from fact_layer.store import Store, _STORE_PATH
 
@@ -761,6 +762,61 @@ def stats():
         "clusters": {"total": summary["clusters_total"], "with_2plus_facts": summary["clusters_with_2plus_facts"]},
         "resolution": resolution_summary,
         "llm_this_process": dict(_llm._stats),
+    }
+
+
+# --------------------------------------------------------------------------
+# GET /retrieval/stats, GET /facts/{fact_id}/candidates
+#
+# Developer/investigation endpoints for the retrieval + scale layer
+# (fact_layer/retrieval/). Both are read-only and safe to call whether or
+# not RETRIEVAL_ENABLED is set: retrieval works as a candidate-generation
+# diagnostic even when the store's actual relations were produced by the
+# bruteforce/cluster path (RETRIEVAL_ENABLED=false) — the index reflects
+# whatever facts have been upserted into it, independent of which
+# relationship_mode last computed relations. get_index() lazily builds the
+# embedding model the first time either endpoint (or a retrieval-mode
+# ingest) is called, not at process startup.
+# --------------------------------------------------------------------------
+
+@app.get("/retrieval/stats")
+def retrieval_stats():
+    index = get_index()
+    return index.summary()
+
+
+@app.get("/facts/{fact_id}/candidates")
+def fact_candidates(fact_id: str, top_k: Optional[int] = Query(None, ge=1, le=500)):
+    fact = STORE.facts.get(fact_id)
+    if fact is None:
+        raise HTTPException(404, "unknown fact_id")
+
+    index = get_index()
+    # Diagnostic view only — index the whole corpus so a fresh index (or
+    # one that predates this fact) still has something to retrieve
+    # against. Cheap: upsert_facts() is a no-op for already-indexed facts
+    # beyond a retrieval-text recompute + cache lookup.
+    index.upsert_facts(STORE.facts.values())
+    funnel = index.candidate_funnel(fact, STORE.facts, top_k=top_k)
+
+    out = []
+    for c in funnel["candidates"]:
+        other = STORE.facts.get(c.fact_id)
+        row = c.to_dict()
+        row["fact_summary"] = _fact_summary(other) if other else None
+        out.append(row)
+
+    return {
+        "fact_id": fact_id,
+        "configured_top_k": index.config.top_k,
+        "returned": len(out),
+        "funnel": {
+            "lexical_count": funnel["lexical_count"],
+            "semantic_count": funnel["semantic_count"],
+            "after_block_count": funnel["after_block_count"],
+            "final_top_k_count": funnel["final_top_k_count"],
+        },
+        "candidates": out,
     }
 
 

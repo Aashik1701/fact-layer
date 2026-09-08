@@ -252,3 +252,53 @@ export interface IngestJob {
   created_at: string;
   updated_at: string;
 }
+
+// Retrieval + Scale layer (fact_layer/retrieval/) — matches GET
+// /retrieval/stats and GET /facts/{fact_id}/candidates verbatim.
+// Retrieval only ever narrows which pairs reach the comparability gate;
+// it never itself decides comparable/corroborates/contradicts, so these
+// types carry scores and a blocking status, never a relation verdict.
+export interface RetrievalStats {
+  indexed_facts: number;
+  embedding_model: string;
+  embedding_dimension: number;
+  lexical_index_size: number;
+  vector_index_size: number;
+  embedding_cache_size: number;
+  embedding_cache_hits: number;
+  embedding_cache_misses: number;
+  last_rebuild: number | null;
+  configured_top_k: number;
+  configured_lexical_weight: number;
+  configured_semantic_weight: number;
+  retrieval_enabled: boolean;
+}
+
+export type BlockingStatus = 'candidate' | 'blocked';
+
+export interface CandidateMatch {
+  fact_id: string;
+  lexical_score: number;
+  semantic_score: number;
+  hybrid_score: number;
+  lexical_rank: number | null;
+  semantic_rank: number | null;
+  blocking_status: BlockingStatus;
+  blocking_reason: string | null;
+  fact_summary: FactSummary | null;
+}
+
+export interface CandidateFunnel {
+  lexical_count: number;
+  semantic_count: number;
+  after_block_count: number;
+  final_top_k_count: number;
+}
+
+export interface FactCandidatesResponse {
+  fact_id: string;
+  configured_top_k: number;
+  returned: number;
+  funnel: CandidateFunnel;
+  candidates: CandidateMatch[];
+}

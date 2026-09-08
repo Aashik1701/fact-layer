@@ -30162,18 +30162,28 @@
   "extra_evidence": {},
   "relations": [
     {
-      "source_fact_id": "f_58c908ef1363",
-      "target_fact_id": "f_d2124095b7d3",
+      "source_fact_id": "f_4416622d5aa9",
+      "target_fact_id": "f_bc13105cdc69",
       "relation": "apparent_conflict",
       "confidence": 0.85,
-      "reason_code": "period_disjoint",
-      "explanation": "The figures differ, but this is explained by context rather than error: Different reporting periods ('December 31, 2021' vs 'Fiscal 2019'); the figures measure different windows of time.",
+      "reason_code": "unit_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (count vs currency).",
       "qualifier_diff": {
-        "period": [
-          "December 31, 2021",
-          "Fiscal 2019"
+        "issuer": [
+          "SVF Doorbell (Cayman) Ltd",
+          "Delhivery Limited"
         ]
       },
+      "decided_by": "rule"
+    },
+    {
+      "source_fact_id": "f_e390ed9651ce",
+      "target_fact_id": "f_3a7f56abc57e",
+      "relation": "apparent_conflict",
+      "confidence": 0.85,
+      "reason_code": "unit_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
+      "qualifier_diff": {},
       "decided_by": "rule"
     },
     {
@@ -30222,64 +30232,16 @@
       "decided_by": "rule"
     },
     {
-      "source_fact_id": "f_4416622d5aa9",
-      "target_fact_id": "f_bc13105cdc69",
-      "relation": "apparent_conflict",
-      "confidence": 0.85,
-      "reason_code": "unit_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (count vs currency).",
-      "qualifier_diff": {
-        "issuer": [
-          "SVF Doorbell (Cayman) Ltd",
-          "Delhivery Limited"
-        ]
-      },
-      "decided_by": "rule"
-    },
-    {
-      "source_fact_id": "f_e390ed9651ce",
-      "target_fact_id": "f_3a7f56abc57e",
-      "relation": "apparent_conflict",
-      "confidence": 0.85,
-      "reason_code": "unit_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
-      "qualifier_diff": {},
-      "decided_by": "rule"
-    },
-    {
-      "source_fact_id": "f_6e75da333748",
-      "target_fact_id": "f_58c908ef1363",
-      "relation": "apparent_conflict",
-      "confidence": 0.85,
-      "reason_code": "scope_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Reported on different bases (consolidated vs standalone); both figures can be correct for the same period.",
-      "qualifier_diff": {
-        "period": [
-          "for the year ended March 31, 2024",
-          "December 31, 2021"
-        ],
-        "scope": [
-          "consolidated",
-          "standalone"
-        ]
-      },
-      "decided_by": "rule"
-    },
-    {
-      "source_fact_id": "f_6e75da333748",
+      "source_fact_id": "f_58c908ef1363",
       "target_fact_id": "f_d2124095b7d3",
       "relation": "apparent_conflict",
       "confidence": 0.85,
-      "reason_code": "scope_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Reported on different bases (consolidated vs standalone); both figures can be correct for the same period.",
+      "reason_code": "period_disjoint",
+      "explanation": "The figures differ, but this is explained by context rather than error: Different reporting periods ('December 31, 2021' vs 'Fiscal 2019'); the figures measure different windows of time.",
       "qualifier_diff": {
         "period": [
-          "for the year ended March 31, 2024",
+          "December 31, 2021",
           "Fiscal 2019"
-        ],
-        "scope": [
-          "consolidated",
-          "standalone"
         ]
       },
       "decided_by": "rule"
@@ -30295,6 +30257,25 @@
         "period": [
           "as on March 31, 2024",
           null
+        ]
+      },
+      "decided_by": "rule"
+    },
+    {
+      "source_fact_id": "f_e2066192875b",
+      "target_fact_id": "f_8afda5421db5",
+      "relation": "apparent_conflict",
+      "confidence": 0.85,
+      "reason_code": "unit_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
+      "qualifier_diff": {
+        "period": [
+          null,
+          "May 14, 2022"
+        ],
+        "scope": [
+          "unknown",
+          "standalone"
         ]
       },
       "decided_by": "rule"
@@ -30395,19 +30376,38 @@
       "decided_by": "rule"
     },
     {
-      "source_fact_id": "f_e2066192875b",
-      "target_fact_id": "f_8afda5421db5",
+      "source_fact_id": "f_6e75da333748",
+      "target_fact_id": "f_58c908ef1363",
       "relation": "apparent_conflict",
       "confidence": 0.85,
-      "reason_code": "unit_mismatch",
-      "explanation": "The figures differ, but this is explained by context rather than error: Not directly comparable: units differ (percent vs currency).",
+      "reason_code": "scope_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Reported on different bases (consolidated vs standalone); both figures can be correct for the same period.",
       "qualifier_diff": {
         "period": [
-          null,
-          "May 14, 2022"
+          "for the year ended March 31, 2024",
+          "December 31, 2021"
         ],
         "scope": [
-          "unknown",
+          "consolidated",
+          "standalone"
+        ]
+      },
+      "decided_by": "rule"
+    },
+    {
+      "source_fact_id": "f_6e75da333748",
+      "target_fact_id": "f_d2124095b7d3",
+      "relation": "apparent_conflict",
+      "confidence": 0.85,
+      "reason_code": "scope_mismatch",
+      "explanation": "The figures differ, but this is explained by context rather than error: Reported on different bases (consolidated vs standalone); both figures can be correct for the same period.",
+      "qualifier_diff": {
+        "period": [
+          "for the year ended March 31, 2024",
+          "Fiscal 2019"
+        ],
+        "scope": [
+          "consolidated",
           "standalone"
         ]
       },

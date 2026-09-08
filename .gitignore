@@ -26,6 +26,20 @@ data/uploads/
 cache/parsed/
 cache/pages/
 
+# Retrieval layer: downloaded ONNX embedding model weights and the
+# per-text embedding cache. Both are fully re-derivable — the model
+# re-downloads once (no API key, no payment, just network+compute) and
+# the embedding cache regenerates from FactStore via rebuild_retrieval_index().
+# Unlike cache/llm/, these need no credentials to reproduce, so they follow
+# cache/parsed/'s precedent rather than cache/llm/'s.
+cache/embeddings/
+
+# Retrieval indexes (lexical FTS5 db, vector store, embedding cache) are
+# derived from data/store.json and are rebuilt via
+# fact_layer.retrieval.rebuild_retrieval_index() — never hand-edited,
+# never the source of truth. See fact_layer/retrieval/index.py.
+data/retrieval_index/
+
 # IDE / editor files
 .vscode/
 .idea/

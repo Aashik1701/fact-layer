@@ -5,3 +5,8 @@ python-multipart==0.0.20
 httpx==0.28.1
 python-dotenv==1.2.1
 pytest==8.4.2
+
+# Retrieval + Scale layer (fact_layer/retrieval/): local ONNX embeddings,
+# no torch. numpy also backs the local vector store.
+fastembed==0.7.4
+numpy==2.0.2

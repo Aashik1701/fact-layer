@@ -198,7 +198,8 @@ class Store:
 
     def ingest(self, path: str, budget: Optional[int] = None,
                rejected_path: Optional[str] = None,
-               on_stage: Optional[Callable[[str], None]] = None) -> IngestResult:
+               on_stage: Optional[Callable[[str], None]] = None,
+               relationship_mode: Optional[str] = None) -> IngestResult:
         """`rejected_path` defaults to extract.py's real data/rejected_facts.jsonl
         (unchanged behaviour for real usage — api.py, run_full_ingest()). It
         exists as a parameter so tests that ingest the real corpus can redirect
@@ -216,10 +217,23 @@ class Store:
         doesn't actually exist in this architecture. Callers that want a job
         model with a "storing" stage add it themselves around the JSON
         persistence step (Store.save()), which happens outside this method.
+
+        `relationship_mode` ("bruteforce" | "retrieval") selects how
+        candidate PAIRS are generated for adjudication; it never changes
+        what `comparability.gate()` / `adjudicate.adjudicate()` decide once
+        a pair reaches them — see fact_layer/retrieval/integration.py's
+        module docstring. None (every existing caller) means "read
+        RETRIEVAL_ENABLED from the environment", so nothing that doesn't
+        opt in ever sees different behavior than before this parameter
+        existed.
         """
         def _stage(name: str) -> None:
             if on_stage is not None:
                 on_stage(name)
+
+        if relationship_mode is None:
+            from .retrieval import load_config
+            relationship_mode = "retrieval" if load_config().enabled else "bruteforce"
 
         _stage("parsing")
         doc = parse_pdf(path)
@@ -256,26 +270,42 @@ class Store:
 
         _stage("adjudicating")
         new_relations: list[Relation] = []
-        for ck in touched_clusters:
-            fact_ids = self.clusters[ck]
-            if len(fact_ids) < 2:
-                continue
-            new_ids_here = [fid for fid in fact_ids if fid in new_fact_ids]
-            existing_ids_here = [fid for fid in fact_ids if fid not in new_fact_ids]
+        if relationship_mode == "retrieval":
+            # Candidate-generation replacement (fact_layer/retrieval/):
+            # blocking + hybrid lexical/semantic retrieval narrows which
+            # pairs reach gate()/adjudicate() instead of the cluster-dict
+            # grouping below; the gate/adjudicate calls themselves
+            # (inside adjudicate_via_retrieval()) are unchanged. Blocking
+            # hard-blocks on subject/measure mismatch (see
+            # retrieval/blocking.py), so relations found this way are, in
+            # practice, always within one cluster_key — touched_clusters/
+            # self.clusters bookkeeping above stays meaningful and correct
+            # for api.py's /clusters endpoint regardless of mode.
+            from .retrieval import adjudicate_via_retrieval, get_index
+            new_facts_resolved = [self.facts[fid] for fid in new_fact_ids]
+            relations = adjudicate_via_retrieval(new_facts_resolved, self.facts, get_index())
+            new_relations = _drop_same_document_corroboration(relations, self.facts)
+        else:
+            for ck in touched_clusters:
+                fact_ids = self.clusters[ck]
+                if len(fact_ids) < 2:
+                    continue
+                new_ids_here = [fid for fid in fact_ids if fid in new_fact_ids]
+                existing_ids_here = [fid for fid in fact_ids if fid not in new_fact_ids]
 
-            if not existing_ids_here:
-                # Brand-new cluster: every pair is new by definition, so the
-                # full reused adjudicate_cluster() IS the incremental set.
-                cluster_facts = [self.facts[fid] for fid in fact_ids]
-                relations = adjudicate_cluster(cluster_facts)
-            else:
-                # Existing cluster gaining facts: only new-vs-* pairs.
-                new_facts_here = [self.facts[fid] for fid in new_ids_here]
-                existing_facts_here = [self.facts[fid] for fid in existing_ids_here]
-                relations = _incremental_pairwise_relations(new_facts_here, existing_facts_here)
+                if not existing_ids_here:
+                    # Brand-new cluster: every pair is new by definition, so the
+                    # full reused adjudicate_cluster() IS the incremental set.
+                    cluster_facts = [self.facts[fid] for fid in fact_ids]
+                    relations = adjudicate_cluster(cluster_facts)
+                else:
+                    # Existing cluster gaining facts: only new-vs-* pairs.
+                    new_facts_here = [self.facts[fid] for fid in new_ids_here]
+                    existing_facts_here = [self.facts[fid] for fid in existing_ids_here]
+                    relations = _incremental_pairwise_relations(new_facts_here, existing_facts_here)
 
-            relations = _drop_same_document_corroboration(relations, self.facts)
-            new_relations.extend(relations)
+                relations = _drop_same_document_corroboration(relations, self.facts)
+                new_relations.extend(relations)
 
         self.relations.extend(new_relations)
         self.ingested_docs[doc.doc_id] = filename

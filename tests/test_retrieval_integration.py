@@ -1,0 +1,178 @@
+"""
+Integration tests: retrieval -> comparability gate -> relationship
+adjudication, end to end, plus the specific regression cases the task
+brief calls out by name (its "section 22" examples) and pair
+deduplication (its "section 11").
+
+Uses the real, already-downloaded BAAI/bge-small-en-v1.5 model
+(EMBEDDING_MODE=replay, network patched off) — same contract as
+test_retrieval_embeddings.py.
+"""
+
+import os
+import sys
+from datetime import date
+from decimal import Decimal
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from fact_layer.adjudicate import adjudicate
+from fact_layer.comparability import Verdict, gate
+from fact_layer.models import (
+    Evidence, Fact, Qualifiers, Quantity, RelationType, Scope, ValueKind,
+)
+from fact_layer.normalize import parse_period
+from fact_layer.retrieval.config import RetrievalConfig
+from fact_layer.retrieval.index import RetrievalIndex
+from fact_layer.retrieval.integration import adjudicate_via_retrieval, generate_candidate_pairs
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_MODEL_CACHE_DIR = os.path.join(_REPO_ROOT, "cache", "embeddings", "models")
+
+
+def _no_network(*args, **kwargs):
+    raise AssertionError("no network call should be attempted in EMBEDDING_MODE=replay")
+
+
+@pytest.fixture(autouse=True)
+def _no_http(monkeypatch):
+    import requests.adapters
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", _no_network)
+    yield
+
+
+@pytest.fixture()
+def index(tmp_path) -> RetrievalIndex:
+    cfg = RetrievalConfig(
+        enabled=True, top_k=10, index_dir=str(tmp_path / "idx"),
+        embedding_model_cache_dir=_MODEL_CACHE_DIR, embedding_mode="replay",
+    )
+    idx = RetrievalIndex(cfg)
+    yield idx
+    idx.close()
+
+
+def _mkfact(subject, measure, value_raw, period_label=None, scope=Scope.UNKNOWN,
+            unit="currency", currency="INR", doc_id="d1", page=1, fact_id_suffix="") -> Fact:
+    period = parse_period(period_label) if period_label else None
+    return Fact(
+        subject=subject, measure=measure, value_kind=ValueKind.QUANTITY,
+        value=Quantity(value=Decimal(value_raw), unit=unit, currency=currency, sig_figs=4, raw=value_raw),
+        qualifiers=Qualifiers(period=period, scope=scope),
+        evidence=Evidence(doc_id=doc_id, page=page, char_start=0, char_end=len(value_raw),
+                          verbatim_quote=value_raw + fact_id_suffix, verified=True),
+        subject_raw=subject, measure_raw=measure,
+    )
+
+
+# --------------------------------------------------------------------------
+# Section 22: semantic similarity must not override comparability
+# --------------------------------------------------------------------------
+
+def test_temporal_mismatch_surfaced_by_retrieval_but_not_a_contradiction(index):
+    fy24 = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", doc_id="d1")
+    q1fy25 = _mkfact("delhivery", "revenue", "321000000", period_label="Q1 FY2024-25", doc_id="d2")
+    facts_by_id = {fy24.fact_id: fy24, q1fy25.fact_id: q1fy25}
+
+    index.upsert_facts([fy24, q1fy25])
+    candidates = index.retrieve_candidates(fy24)
+    index.annotate_blocking(fy24, candidates, facts_by_id)
+    match = next(c for c in candidates if c.fact_id == q1fy25.fact_id)
+    assert match.blocking_status == "candidate", "retrieval must surface this pair, not block it"
+
+    g = gate(fy24, q1fy25)
+    rel = adjudicate(fy24, q1fy25, g)
+    assert g.verdict != Verdict.COMPARABLE
+    assert rel.relation != RelationType.CONTRADICTS
+
+
+def test_scope_mismatch_surfaced_by_retrieval_but_explained_as_apparent_conflict(index):
+    standalone = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", scope=Scope.STANDALONE, doc_id="d1")
+    consolidated = _mkfact("delhivery", "revenue", "1459000000", period_label="FY2023-24", scope=Scope.CONSOLIDATED, doc_id="d2")
+    facts_by_id = {standalone.fact_id: standalone, consolidated.fact_id: consolidated}
+
+    index.upsert_facts([standalone, consolidated])
+    candidates = index.retrieve_candidates(standalone)
+    index.annotate_blocking(standalone, candidates, facts_by_id)
+    match = next(c for c in candidates if c.fact_id == consolidated.fact_id)
+    assert match.blocking_status == "candidate"
+
+    g = gate(standalone, consolidated)
+    rel = adjudicate(standalone, consolidated, g)
+    assert g.verdict == Verdict.INCOMPARABLE_SCOPE
+    assert rel.relation == RelationType.APPARENT_CONFLICT
+    assert rel.relation != RelationType.CONTRADICTS
+
+
+def test_different_measure_blocked_even_if_embeddings_would_call_it_similar(index):
+    revenue = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24")
+    ebitda = _mkfact("delhivery", "ebitda", "300000000", period_label="FY2023-24")
+    facts_by_id = {revenue.fact_id: revenue, ebitda.fact_id: ebitda}
+
+    index.upsert_facts([revenue, ebitda])
+    candidates = index.retrieve_candidates(revenue)
+    index.annotate_blocking(revenue, candidates, facts_by_id)
+    match = next(c for c in candidates if c.fact_id == ebitda.fact_id)
+    assert match.blocking_status == "blocked"
+    assert match.blocking_reason == "MEASURE_MISMATCH"
+
+
+# --------------------------------------------------------------------------
+# Section 11: pair deduplication
+# --------------------------------------------------------------------------
+
+def test_pair_processed_once_regardless_of_which_side_retrieves_it(index):
+    a = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", doc_id="d1")
+    b = _mkfact("delhivery", "revenue", "1459000000", period_label="FY2023-24", doc_id="d2")
+    facts_by_id = {a.fact_id: a, b.fact_id: b}
+
+    # Both are "new" in the same batch — a can retrieve b AND b can
+    # retrieve a; the pair must still appear exactly once.
+    index.upsert_facts([a, b])
+    pairs = generate_candidate_pairs([a, b], facts_by_id, index)
+    pair_keys = [tuple(sorted((x.fact_id, y.fact_id))) for x, y in pairs]
+    assert pair_keys.count(tuple(sorted((a.fact_id, b.fact_id)))) == 1
+
+
+def test_adjudicate_via_retrieval_produces_no_duplicate_relations(index):
+    a = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", doc_id="d1")
+    b = _mkfact("delhivery", "revenue", "1459000000", period_label="FY2023-24", doc_id="d2")
+    facts_by_id = {a.fact_id: a, b.fact_id: b}
+
+    relations = adjudicate_via_retrieval([a, b], facts_by_id, index)
+    pair_keys = [tuple(sorted((r.source_fact_id, r.target_fact_id))) for r in relations]
+    assert len(pair_keys) == len(set(pair_keys))
+    assert len(relations) == 1
+    assert relations[0].relation == RelationType.CONTRADICTS
+
+
+# --------------------------------------------------------------------------
+# Same-page skip is preserved (matches adjudicate_cluster()'s existing rule)
+# --------------------------------------------------------------------------
+
+def test_same_document_same_page_pair_skipped(index):
+    a = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", doc_id="d1", page=5)
+    b = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", doc_id="d1", page=5, fact_id_suffix="_dup")
+    facts_by_id = {a.fact_id: a, b.fact_id: b}
+    relations = adjudicate_via_retrieval([a, b], facts_by_id, index)
+    assert relations == []
+
+
+# --------------------------------------------------------------------------
+# Security (section 20): a candidate fact_id that doesn't resolve against
+# the authoritative facts_by_id map must never be paired.
+# --------------------------------------------------------------------------
+
+def test_unresolvable_candidate_fact_id_is_dropped(index):
+    a = _mkfact("delhivery", "revenue", "1204000000", period_label="FY2023-24", doc_id="d1")
+    b = _mkfact("delhivery", "revenue", "1459000000", period_label="FY2023-24", doc_id="d2")
+    index.upsert_facts([a, b])
+    # Simulate a stale/foreign vector-store row: "b" is present in the
+    # index (so retrieval genuinely finds it as a candidate for "a") but
+    # absent from the authoritative facts_by_id map the caller actually
+    # owns — it must never be paired despite retrieval surfacing it.
+    facts_by_id_missing_b = {a.fact_id: a}
+    pairs = generate_candidate_pairs([a], facts_by_id_missing_b, index)
+    assert pairs == []

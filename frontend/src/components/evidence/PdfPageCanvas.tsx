@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getPageImageUrl } from '@/lib/api';
 import { ZoomIn, ZoomOut, RotateCcw, AlertCircle, FileText } from 'lucide-react';
 import { EvidenceItem } from '@/types';
@@ -22,8 +22,26 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   const [zoom, setZoom] = useState<number>(1);
   const [hasError, setHasError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const anchorHighlightRef = useRef<HTMLDivElement>(null);
 
   const imageUrl = getPageImageUrl(docId, page);
+
+  // A wide or tall source page routinely exceeds the viewport, and the
+  // evidence anchor is rarely near the top-left corner the container
+  // starts scrolled to — without this, a reviewer can open evidence whose
+  // highlight is technically correct but sits entirely off-screen, with
+  // nothing on screen suggesting they need to scroll to find it. Reset on
+  // every new page/evidence so a stale scroll position from the previous
+  // anchor never lingers, and re-run once the image has actually loaded
+  // (before that, the container has no real scrollable size to target).
+  useEffect(() => {
+    setLoading(true);
+  }, [docId, page]);
+
+  useEffect(() => {
+    if (loading) return;
+    anchorHighlightRef.current?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'auto' });
+  }, [loading, evidence?.doc_id, evidence?.page, evidence?.bbox]);
 
   const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, 2.5));
   const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, 0.5));
@@ -48,6 +66,21 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
   // drawn only when it's genuinely present, never synthesized from row/
   // column labels (there is no stored row-bbox or column-bbox to draw).
   const cellBboxStyle = canOverlay && evidence!.cell_bbox ? bboxAsPct(evidence!.cell_bbox) : null;
+
+  // The span anchor (verbatim quote match) and the target cell (table
+  // structure attribution) are computed independently — a span-verified
+  // quote can be a bare, short number with no row/column words in it, so
+  // bbox_for_span() legitimately lands on a different occurrence of that
+  // same number than the one the table's own cell-grid identifies. Both
+  // are real, honest coordinates; when they land in genuinely different
+  // page regions (checked against the two already-stored boxes only —
+  // never a new coordinate), say so, rather than leaving a reviewer to
+  // wonder why two boxes appear apart with no explanation.
+  const boxesDisjoint = !!(
+    evidence?.bbox && evidence?.cell_bbox &&
+    (evidence.bbox[2] < evidence.cell_bbox[0] || evidence.cell_bbox[2] < evidence.bbox[0] ||
+     evidence.bbox[3] < evidence.cell_bbox[1] || evidence.cell_bbox[3] < evidence.bbox[1])
+  );
 
   return (
     <div
@@ -136,6 +169,23 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
         </div>
       )}
 
+      {boxesDisjoint && (
+        <div
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 text-[11px] border-b',
+            isDark
+              ? 'bg-sky-500/5 border-slate-800 text-sky-400'
+              : 'bg-sky-50 border-slate-200 text-sky-700'
+          )}
+        >
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            The quoted text (amber) and the attributed table cell (blue) are in different positions on this page —
+            both independently support the same value.
+          </span>
+        </div>
+      )}
+
       {/* Canvas Viewport */}
       <div
         className={cn(
@@ -202,6 +252,7 @@ export const PdfPageCanvas: React.FC<PdfPageCanvasProps> = ({
             {/* Bounding Box Highlight Overlay */}
             {bboxStyle && (
               <div
+                ref={anchorHighlightRef}
                 style={bboxStyle}
                 className="absolute pointer-events-none rounded border-2 border-amber-400 bg-amber-400/25 ring-4 ring-amber-400/20 shadow-lg animate-pulse"
                 title="Exact evidence provenance coordinates on page"
