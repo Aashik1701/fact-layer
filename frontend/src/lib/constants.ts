@@ -64,12 +64,17 @@ export const RELATION_CONFIG: Record<
 // source, not guessed) - a previous version of this table used invented,
 // never-matching codes (e.g. "LOW_OCR_CONFIDENCE", on a system with no OCR
 // at all), so every relation silently fell through to a generic fallback
-// with no user-visible error. Two of adjudicate.py's reason codes are
-// DYNAMIC, not literal, and are handled separately in getCaveatExplanation:
+// with no user-visible error. One of adjudicate.py's reason codes is
+// DYNAMIC, not literal, and is handled separately in getCaveatExplanation:
 //   "value_match_despite_<gate_reason_code>" - a corroboration whose gate
-//     verdict was actually incomparable for some reason, composited in;
-//   "<reason_code>_period_unverified" - appended whenever at least one side
-//     has no parsed period, so the like-for-like check itself is unverified.
+//     verdict was actually incomparable for some reason, composited in.
+// (A second dynamic suffix, "<reason_code>_period_unverified", existed here
+// until the source-of-truth fix: an unstated/unparseable period used to let
+// gate() return COMPARABLE anyway, so adjudicate.py flagged the resulting
+// relation's confidence as unverified after the fact. gate() now returns
+// Verdict.AMBIGUOUS with reason_code "ambiguous_period" BEFORE any relation
+// is produced, so that suffix can no longer occur - see comparability.py's
+// UNKNOWN-fallthrough audit note and adjudicate.py's history for both.)
 export const REASON_CODE_CAVEATS: Record<string, string> = {
   comparable: 'Same subject, measure, scope, unit and period - a direct like-for-like comparison.',
   value_match: 'Both sources state the same value on a like-for-like basis.',
@@ -79,6 +84,7 @@ export const REASON_CODE_CAVEATS: Record<string, string> = {
   period_disjoint: 'Reported periods do not overlap at all (e.g. FY24 vs FY25) - the figures measure different windows of time.',
   period_overlap: 'Reported periods partially overlap, so the figures are not on a strictly like-for-like basis.',
   period_subsumption: 'One period contains the other (e.g. a quarter within its fiscal year) - the smaller figure is expected to be a component, not equal to it.',
+  ambiguous_period: 'At least one fact’s reporting period is unstated, or could not be parsed to an actual date - the gate cannot verify whether the periods agree, so no comparison was made.',
   scope_mismatch: 'Reported on different bases (e.g. standalone vs consolidated) - both figures can be correct for the same period.',
   segment_mismatch: 'The figures refer to different business or product segments.',
   unit_mismatch: 'Units or currencies differ, and no exchange rate is stated in either source - never silently converted.',
@@ -99,12 +105,6 @@ export function getCaveatExplanation(reasonCode: string): string {
     return innerCaveat
       ? `Values agree even though: ${innerCaveat}`
       : 'Values agree despite a contextual difference the gate flagged.';
-  }
-  if (reasonCode.endsWith('_period_unverified')) {
-    const inner = reasonCode.slice(0, -'_period_unverified'.length);
-    const innerCaveat = REASON_CODE_CAVEATS[inner];
-    const base = innerCaveat || _GENERIC_FALLBACK;
-    return `${base} Confidence is reduced because at least one source states no reporting period, so this comparison could not be fully verified.`;
   }
   return _GENERIC_FALLBACK;
 }

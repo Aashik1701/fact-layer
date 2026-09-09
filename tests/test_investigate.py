@@ -12,6 +12,7 @@ relation-bearing verdict (supersession / aggregation) is not a block.
 """
 
 import copy
+import dataclasses
 import os
 import sys
 from datetime import date
@@ -26,7 +27,7 @@ from fact_layer.investigate import (
     ActionType, DimensionStatus, DIMENSION_LABELS, investigate,
 )
 from fact_layer.models import (
-    Evidence, Fact, Modality, Qualifiers, Quantity, Scope, ValueKind,
+    Evidence, Fact, Modality, Period, PeriodKind, Qualifiers, Quantity, Scope, ValueKind,
 )
 from fact_layer.normalize import parse_period
 
@@ -274,12 +275,41 @@ def test_multi_block_conclusion_names_every_dimension():
 # --------------------------------------------------------------------------
 
 def test_unstated_period_is_missing_not_mismatch():
+    """The dimension matrix still reports this MISSING — a period genuinely
+    absent from one fact is a different epistemic situation from AMBIGUOUS
+    (a period stated on both sides but unparseable; see
+    test_unparseable_period_is_ambiguous_not_missing below). But it is no
+    longer a free pass: the gate's source-of-truth fix means an UNKNOWN
+    period relation always returns Verdict.AMBIGUOUS, so this now correctly
+    blocks rather than silently falling through to COMPARABLE."""
     e = investigate(mk(period="FY2023-24"), mk(period=None))
     period = next(d for d in e.dimensions if d.dimension == "period")
     assert period.status == DimensionStatus.MISSING
     assert period.status != DimensionStatus.MISMATCH
-    assert period.is_blocking is False
+    assert period.is_blocking is True
+    assert period.reason_code == "ambiguous_period"
+    assert e.verdict == Verdict.AMBIGUOUS.value
     assert "period" in e.ambiguous_dimensions
+
+
+def test_unparseable_period_is_ambiguous_not_missing():
+    """A period IS stated on both facts (non-empty label) but one side's
+    date could not be parsed — a different, more informative situation than
+    MISSING (nothing stated at all). The matrix must not fall back to
+    comparing label text in this case, since the real gate does not trust
+    label text for dates either; it must report the same AMBIGUOUS status
+    the gate itself would derive from compare_periods()."""
+    a = mk(period="FY2023-24")
+    b = mk(period="FY2023-24")
+    unparseable = Period(PeriodKind.DURATION, start=None, end=None, label="the reporting period")
+    b = dataclasses.replace(b, qualifiers=dataclasses.replace(b.qualifiers, period=unparseable))
+    e = investigate(a, b)
+    period = next(d for d in e.dimensions if d.dimension == "period")
+    assert period.status == DimensionStatus.AMBIGUOUS
+    assert period.status != DimensionStatus.MISSING
+    assert period.is_blocking is True
+    assert period.reason_code == "ambiguous_period"
+    assert e.verdict == Verdict.AMBIGUOUS.value
 
 
 def test_unstated_scope_is_missing_and_never_assumed_consolidated():
@@ -294,9 +324,16 @@ def test_unstated_scope_is_missing_and_never_assumed_consolidated():
 
 
 def test_missing_dimension_produces_a_caveat_not_a_blocking_reason():
-    e = investigate(mk(period="FY2023-24"), mk(period=None))
+    """Scope, unlike period, is intentionally permissive when unstated —
+    gate() never emits a dedicated reason code for an unknown scope (see
+    comparability.py's UNKNOWN-fallthrough audit note above
+    _unit_compatible), so an unstated scope still produces a caveat, not a
+    blocking reason. Period moved out of this category with the gate fix;
+    see test_unstated_period_is_missing_not_mismatch above."""
+    e = investigate(mk(period="FY2023-24", scope=Scope.STANDALONE),
+                    mk(period="FY2023-24", scope=Scope.UNKNOWN))
     assert e.blocking_reasons == []
-    assert any("Period is unstated" in c for c in e.caveats)
+    assert any("Scope is unstated" in c for c in e.caveats)
 
 
 def test_unverified_evidence_is_a_caveat_never_a_block():

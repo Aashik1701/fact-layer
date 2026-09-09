@@ -66,6 +66,16 @@ class Verdict(str, Enum):
     INCOMPARABLE_BASIS = "incomparable_basis"
     INCOMPARABLE_KIND = "incomparable_kind"
     INCOMPARABLE_ISSUER = "incomparable_issuer"   # differing issuers, at least one a projection
+    # A dimension's relation to its counterpart could not be established at
+    # all (as opposed to INCOMPARABLE_*, where it WAS established and the
+    # facts differ). Distinct from COMPARABLE on purpose: "we don't know" is
+    # not "we checked and they match". Distinct from every INCOMPARABLE_*
+    # verdict too: those mean "we checked and they differ", this means "we
+    # could not check". A first-class verdict rather than metadata bolted on
+    # by a consumer, because comparability is decided once, here — see
+    # `gate()`'s period handling below and the "UNKNOWN-fallthrough audit"
+    # note above `_unit_compatible`.
+    AMBIGUOUS = "ambiguous"
 
 
 @dataclass
@@ -82,6 +92,48 @@ class GateResult:
         return self.verdict == Verdict.COMPARABLE
 
 
+# --------------------------------------------------------------------------
+# UNKNOWN-fallthrough audit (every dimension gate() can leave unstated)
+# --------------------------------------------------------------------------
+# `compare_periods()` returning UNKNOWN used to fall through every explicit
+# branch below and reach the terminal `return GateResult(Verdict.COMPARABLE,
+# ...)`, whose explanation claimed "Same subject, measure, scope, unit and
+# period" — an authoritative claim the gate had not actually verified. That
+# is fixed below: PeriodRelation.UNKNOWN now returns Verdict.AMBIGUOUS before
+# any other period branch can be reached, so COMPARABLE's period claim is
+# only ever reachable when `rel == PeriodRelation.EQUAL`.
+#
+# Every OTHER qualifier gate() can leave unstated was audited against the
+# same failure mode. Two of them are genuinely a different situation, not an
+# oversight, and are intentionally left permissive:
+#
+#   * SCOPE: `scope: Scope = Scope.UNKNOWN` is the qualifier's own default —
+#     most measures (macro indicators, percentages, non-financial-statement
+#     figures) have no standalone/consolidated distinction at all, so the
+#     overwhelming majority of facts in this corpus carry it. Blocking on an
+#     unstated scope would make most of the corpus unable to reach COMPARABLE
+#     for anything, which defeats the tool. The gate only blocks when BOTH
+#     scopes are known and differ (`sa != sb and Scope.UNKNOWN not in (sa,
+#     sb)`); an unknown scope on either side is treated as compatible by
+#     policy, not verified as equal — so the terminal explanation below
+#     names "scope" only when both sides' scope was actually known, to keep
+#     the wording as honest as the verdict is permissive.
+#   * SEGMENT / BASIS / ISSUER (`seg_a and seg_b`, `ba and bb`, `ia and ib`
+#     below): each requires BOTH sides to have stated a value before it will
+#     even consider a mismatch. A segment, audit basis, or issuer that only
+#     one side bothered to state is not evidence the two facts are on
+#     different segments/bases/issuers — it is silence, and this system does
+#     not treat silence as either a match or a conflict. This mirrors SCOPE's
+#     policy and is the same reason `Qualifiers.diff()` still records the
+#     difference for the UI even though the gate does not block on it.
+#
+# UNIT/CURRENCY and VALUE_KIND were also checked and have no comparable
+# failure mode: `Quantity.unit` is never optional (defaults to "count", not
+# an "unknown" sentinel) and `Quantity.currency is None` genuinely means "no
+# currency" for both a count and a percent, which `a.currency != b.currency`
+# already treats correctly as equal when both are None. `ValueKind` has no
+# UNKNOWN member — it is always determinate at extraction time.
+#
 # Currencies are only comparable when identical. We deliberately do NOT apply an
 # FX rate: the correct rate depends on the reporting date and the rate source,
 # neither of which the document states. Silently converting would manufacture
@@ -155,6 +207,23 @@ def gate(a: Fact, b: Fact) -> GateResult:
     # --- period -------------------------------------------------------------
     rel = compare_periods(a.qualifiers.period, b.qualifiers.period)
 
+    # UNKNOWN must never silently become COMPARABLE. It means at least one
+    # side states no period, or states one that could not be parsed to an
+    # actual date — the gate has not established whether the periods agree,
+    # so it must not claim a like-for-like comparison. This is checked first,
+    # before any other period branch, so nothing below can ever be reached
+    # with an unverified period relation.
+    if rel == PeriodRelation.UNKNOWN:
+        return GateResult(
+            Verdict.AMBIGUOUS, "ambiguous_period",
+            "At least one fact's reporting period is unstated, or could not be "
+            "parsed to an actual date, so the gate cannot establish whether the "
+            "two periods are the same. This is unresolved, not confirmed "
+            "comparable — treating it as a like-for-like comparison would be an "
+            "unverified assumption.",
+            rel, qdiff, cross_issuer=cross_issuer,
+        )
+
     if rel in (PeriodRelation.SUCCEEDS, PeriodRelation.PRECEDES):
         return GateResult(
             Verdict.TEMPORAL_SUCCESSION, "temporal_succession",
@@ -197,6 +266,19 @@ def gate(a: Fact, b: Fact) -> GateResult:
             rel, qdiff, cross_issuer=cross_issuer,
         )
 
-    return GateResult(Verdict.COMPARABLE, "comparable",
-                      "Same subject, measure, scope, unit and period.", rel, qdiff,
+    # `rel` is guaranteed PeriodRelation.EQUAL here — every other relation
+    # (including UNKNOWN) returned above — so the "period" claim below is
+    # always verified. "Scope" is not always verified: sa/sb reaching this
+    # line with Scope.UNKNOWN on either side means scope was never checked
+    # (see the audit note above `_unit_compatible`), so it is named in the
+    # explanation only when both sides' scope was actually known and equal.
+    if Scope.UNKNOWN not in (sa, sb):
+        explanation = "Same subject, measure, scope, unit and period."
+    else:
+        explanation = (
+            "Same subject, measure, unit and period. Reporting scope is not "
+            "stated on at least one fact; an unstated scope is treated as "
+            "compatible by policy, not verified as equal."
+        )
+    return GateResult(Verdict.COMPARABLE, "comparable", explanation, rel, qdiff,
                       cross_issuer=cross_issuer)

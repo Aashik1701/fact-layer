@@ -65,7 +65,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
-from .comparability import GateResult, Verdict, gate
+from .comparability import GateResult, PeriodRelation, Verdict, compare_periods, gate
 from .models import Fact, Quantity, Scope, ValueKind
 from .retrieval.blocking import blocking_check
 
@@ -145,6 +145,12 @@ _REASON_TO_DIMENSION = {
     "period_disjoint": DIM_PERIOD,
     "period_overlap": DIM_PERIOD,
     "basis_mismatch": DIM_BASIS,
+    # Verdict.AMBIGUOUS's reason code — the gate could not establish the
+    # period relation at all (unstated, or unparseable). Mapped here so the
+    # peel treats it exactly like any other gate objection: it gets reported,
+    # and DIM_PERIOD's `_align` hook lets the peel test past it, same as
+    # every INCOMPARABLE_* reason above.
+    "ambiguous_period": DIM_PERIOD,
 }
 
 # blocking_check() reason -> dimension. Same contract, different authority.
@@ -419,10 +425,21 @@ def _build_dimensions(a: Fact, b: Fact) -> list[DimensionReport]:
         a.value_kind.value, b.value_kind.value)
 
     pa, pb = _period_label(a), _period_label(b)
-    if pa is None or pb is None:
+    if a.qualifiers.period is None or b.qualifiers.period is None:
         add(DIM_PERIOD, DimensionStatus.MISSING, pa, pb,
             "At least one fact does not state a reporting period, so the periods "
             "cannot be shown to agree or to differ.")
+    elif compare_periods(a.qualifiers.period, b.qualifiers.period) == PeriodRelation.UNKNOWN:
+        # A period was stated on both sides (pa/pb are non-None), but the
+        # authoritative gate still could not establish the relation — at
+        # least one could not be parsed to an actual date. This is a
+        # different epistemic situation from MISSING (nothing was stated)
+        # and must not be silently reported as MATCH or MISMATCH by
+        # comparing label text the gate itself does not trust for dates.
+        add(DIM_PERIOD, DimensionStatus.AMBIGUOUS, pa, pb,
+            "A reporting period is stated on both facts, but at least one could "
+            "not be parsed to an actual date, so the gate cannot verify whether "
+            "they agree. This is unresolved, not confirmed comparable.")
     else:
         add(DIM_PERIOD, DimensionStatus.MATCH if pa == pb else DimensionStatus.MISMATCH, pa, pb)
 
@@ -591,6 +608,14 @@ def _safe_conclusion(verdict: Verdict, blocking_labels: list[str],
     if verdict == Verdict.COMPARABLE:
         return ("All comparability checks the gate applies have passed. These facts may proceed "
                 "to relationship adjudication.")
+    if verdict == Verdict.AMBIGUOUS:
+        # Deliberately not "the facts differ in ..." (the generic wording
+        # below) — AMBIGUOUS means the gate could not establish the relation
+        # either way, which is a different claim from "checked and differs".
+        joined = " and ".join(l.lower() for l in blocking_labels) or "at least one dimension"
+        return (f"Comparison blocked because {joined} could not be established — not because "
+                f"the facts are known to differ. No relationship was inferred; this is "
+                f"unresolved, not a contradiction.")
     if not blocking_labels:
         return ("Comparison is not permitted by the comparability gate. No relationship was "
                 "inferred.")

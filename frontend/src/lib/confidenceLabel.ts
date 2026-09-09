@@ -24,16 +24,24 @@ export function deriveRelationConfidenceLabel(
   relation: { confidence: number; reason_code: string },
   gate?: GateInfo
 ): ConfidenceLabelInfo {
+  // AMBIGUOUS is checked first and separately from INCOMPARABLE: the gate
+  // now returns this verdict directly (Verdict.AMBIGUOUS, e.g. reason_code
+  // "ambiguous_period") when it could not establish a dimension's relation
+  // at all - a different claim from INCOMPARABLE_*, where it checked and the
+  // facts differ. This used to be inferred here from a
+  // "..._period_unverified" reason_code suffix adjudicate.py appended after
+  // the fact; the gate is now the authoritative, direct source of this
+  // distinction, so that inference is gone.
+  if (gate && gate.verdict === 'ambiguous') {
+    return {
+      label: 'AMBIGUOUS',
+      detail: `The comparability gate could not establish this comparison (${(gate.reason_code || 'ambiguous').replace(/_/g, ' ')}) - not that the facts are known to differ.`,
+    };
+  }
   if (gate && gate.verdict !== 'comparable') {
     return {
       label: 'INCOMPARABLE',
       detail: `The comparability gate never validated a like-for-like comparison here (${gate.verdict.replace(/_/g, ' ')}).`,
-    };
-  }
-  if (relation.reason_code && relation.reason_code.endsWith('_period_unverified')) {
-    return {
-      label: 'AMBIGUOUS',
-      detail: 'At least one side states no reporting period, so the comparison basis itself is unverified.',
     };
   }
   if (relation.confidence >= 0.85) {

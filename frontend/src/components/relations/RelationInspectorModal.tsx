@@ -165,15 +165,16 @@ export const RelationInspectorModal: React.FC<RelationInspectorModalProps> = ({
                   Relationship
                 </span>
                 <div className="flex items-center gap-1.5">
+                  {/* No "(halved)" period-unverified badge: that signal was a
+                      downstream patch for a gate bug (an unstated/unparseable
+                      period used to let gate() return COMPARABLE anyway, so
+                      adjudicate.py flagged the resulting relation's confidence
+                      as unverified after the fact). The gate now returns
+                      Verdict.AMBIGUOUS before any relation is produced, so a
+                      stored relation's confidence is never halved for this
+                      reason anymore - an AMBIGUOUS pair never reaches this
+                      panel at all. */}
                   <ConfidencePill confidence={relation.confidence} showIcon />
-                  {relation.reason_code?.endsWith('_period_unverified') && (
-                    <span
-                      className="text-[10px] text-rose-500 font-mono font-medium"
-                      title="Confidence halved: at least one side states no reporting period, so the comparison could not be fully verified"
-                    >
-                      (halved)
-                    </span>
-                  )}
                 </div>
               </div>
               <GateVerdictBadge verdict={relation.relation} size="lg" />

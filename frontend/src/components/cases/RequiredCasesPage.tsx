@@ -321,12 +321,11 @@ export const RequiredCasesPage: React.FC<RequiredCasesPageProps> = ({ onNavigate
                 These values disagree under the available comparable context.
               </p>
               <p className={isDark ? 'text-slate-200' : 'text-slate-800'}>{contradiction.explanation}</p>
-              {contradiction.reason_code.includes('period_unverified') && (
-                <p className="text-[11px] font-mono text-amber-500 flex items-center gap-1.5">
-                  <AlertTriangle className="w-3 h-3 shrink-0" />
-                  Period incomplete on at least one side - confidence is reduced accordingly, not hidden.
-                </p>
-              )}
+              {/* No period-incomplete caveat here anymore: a contradiction's
+                  reason_code can no longer end in "_period_unverified" (see
+                  confidenceLabel.ts) - an unstated/unparseable period now
+                  makes the gate return AMBIGUOUS before any CONTRADICTS
+                  relation is produced, so this case can't reach this page. */}
             </div>
 
             <button

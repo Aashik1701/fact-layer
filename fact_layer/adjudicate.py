@@ -10,34 +10,11 @@ over evidence that has already been retrieved and span-verified.
 
 from __future__ import annotations
 
-from dataclasses import replace as _replace
 from decimal import Decimal
 from typing import Optional
 
 from .comparability import GateResult, PeriodRelation, Verdict, gate
 from .models import Fact, Quantity, Relation, RelationType, ValueKind
-
-
-def _flag_period_unverified(rel: Relation, period_unverified: bool) -> Relation:
-    """Project specification section 17: compare_periods() returns UNKNOWN when either
-    side has no period, and the gate falls through to COMPARABLE — but
-    unknown is not compatible, it is unverifiable. Asserting a like-for-like
-    relation without having established like-for-like is the exact overreach
-    this architecture exists to prevent, so this is a confidence signal, not
-    a filter: the relation type stands, but confidence is halved and both
-    the reason_code and explanation say plainly why."""
-    if not period_unverified:
-        return rel
-    return _replace(
-        rel,
-        confidence=round(rel.confidence * 0.5, 4),
-        reason_code=f"{rel.reason_code}_period_unverified",
-        explanation=(
-            rel.explanation + " One source states no reporting period, so a "
-            "like-for-like comparison cannot be confirmed; this may reflect "
-            "an extraction gap rather than a real disagreement."
-        ),
-    )
 
 
 def _values_agree(a: Quantity, b: Quantity) -> tuple[bool, Decimal]:
@@ -104,16 +81,25 @@ def adjudicate(a: Fact, b: Fact, g: Optional[GateResult] = None) -> Relation:
         return Relation(a.fact_id, b.fact_id, RelationType.UNRELATED, 0.5,
                         g.reason_code, g.explanation, qdiff)
 
-    # ---------------- comparable: now, and only now, compare values ---------
-    # Project specification section 17: an UNKNOWN period_relation means the gate could
-    # not establish like-for-like on period at all (at least one side has no
-    # parsed period), not that the periods are compatible. It must not carry
-    # the same confidence as a relation where periods were actually checked.
-    period_unverified = (
-        g.period_relation == PeriodRelation.UNKNOWN
-        and (a.qualifiers.period is None or b.qualifiers.period is None)
-    )
+    # AMBIGUOUS means the gate could not establish comparability at all (see
+    # comparability.gate()'s period handling) — it is not a truthy/success
+    # result, and must never fall through into the value-comparison logic
+    # below as if it were COMPARABLE. No relationship is inferred; this
+    # mirrors INCOMPARABLE_KIND's UNRELATED treatment, since "we could not
+    # check" deserves the same non-relation outcome as "this is a different
+    # kind of claim entirely" — neither is evidence of a real relationship.
+    if g.verdict == Verdict.AMBIGUOUS:
+        return Relation(a.fact_id, b.fact_id, RelationType.UNRELATED, 0.5,
+                        g.reason_code, g.explanation, qdiff)
 
+    # ---------------- comparable: now, and only now, compare values ---------
+    # Reaching here means g.verdict == Verdict.COMPARABLE (every other
+    # verdict returned above) and, per gate()'s own invariant, its
+    # period_relation is always PeriodRelation.EQUAL — an UNKNOWN period can
+    # no longer reach this branch, since the gate now returns AMBIGUOUS for
+    # it before any COMPARABLE result is possible. Confidence no longer needs
+    # a period-unverified discount here; the gate already refuses to call an
+    # unverified period comparable in the first place.
     if isinstance(a.value, Quantity) and isinstance(b.value, Quantity):
         agree, diff = _values_agree(a.value, b.value)
         if agree:
@@ -127,7 +113,7 @@ def adjudicate(a: Fact, b: Fact, g: Optional[GateResult] = None) -> Relation:
                            "value_match",
                            "Two independent sources state the same value on a "
                            "like-for-like basis." + note, qdiff)
-            return _flag_period_unverified(rel, period_unverified)
+            return rel
         rd = _relative_diff(a.value, b.value)
         conf = 0.6 + min(0.35, rd * 2)     # bigger gap -> more confident it is real
         note = ""
@@ -139,12 +125,12 @@ def adjudicate(a: Fact, b: Fact, g: Optional[GateResult] = None) -> Relation:
                        f"Same subject, measure, scope and period, but the values differ "
                        f"by {rd:.1%} ({a.value.raw} vs {b.value.raw}). No contextual "
                        f"qualifier accounts for the gap.{note}", qdiff)
-        return _flag_period_unverified(rel, period_unverified)
+        return rel
 
     if _same_value(a, b):
         rel = Relation(a.fact_id, b.fact_id, RelationType.CORROBORATES, 0.9,
                        "value_match", "Both sources state the same value.", qdiff)
-        return _flag_period_unverified(rel, period_unverified)
+        return rel
 
     note = ""
     if g.cross_issuer:
@@ -154,7 +140,7 @@ def adjudicate(a: Fact, b: Fact, g: Optional[GateResult] = None) -> Relation:
                    "value_mismatch",
                    f"Conflicting values on a like-for-like basis: "
                    f"{a.value!r} vs {b.value!r}.{note}", qdiff)
-    return _flag_period_unverified(rel, period_unverified)
+    return rel
 
 
 def _same_value(a: Fact, b: Fact) -> bool:
