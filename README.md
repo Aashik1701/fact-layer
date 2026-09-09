@@ -10,6 +10,8 @@
 [![Tests](https://img.shields.io/badge/tests-566%20passed-success.svg)](#test-suite--validation)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#offline-reproducibility-via-replay-cache)
 
+![Fact Layer Architecture](docs/FKL_Diagram.png)
+
 > **Core Thesis: Comparability Before Comparison**  
 > Numerical equality or inequality is meaningless until semantic comparability has been established. Fact Layer refuses to diff values until period, scope, unit, modality, and issuer qualifiers are proven compatible.
 
