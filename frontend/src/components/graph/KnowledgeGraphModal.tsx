@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/common/Modal';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import {
   GraphEdge, GraphNeighborhood, GraphNode, GraphNodeType, FactSummary, GraphSearchResult,
 } from '@/types';
@@ -296,15 +297,17 @@ export const KnowledgeGraphModal: React.FC<Props> = ({
               <div className={cn('rounded-lg border h-[420px] overflow-hidden',
                 isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-white border-slate-200')}>
                 {data.nodes.length > 0 ? (
-                  <KnowledgeGraphCanvas
-                    data={data}
-                    selectedId={selectedNode?.id ?? null}
-                    onSelectNode={(n) => { setSelectedNode(n); setSelectedEdge(null); }}
-                    onSelectEdge={(e) => { setSelectedEdge(e); setSelectedNode(null); }}
-                    visibleNodeTypes={nodeTypes}
-                    visibleRelationTypes={relationTypes}
-                    isDark={isDark}
-                  />
+                  <ErrorBoundary compact label="The graph couldn't be rendered." key={data.nodes.map((n) => n.id).join(',')}>
+                    <KnowledgeGraphCanvas
+                      data={data}
+                      selectedId={selectedNode?.id ?? null}
+                      onSelectNode={(n) => { setSelectedNode(n); setSelectedEdge(null); }}
+                      onSelectEdge={(e) => { setSelectedEdge(e); setSelectedNode(null); }}
+                      visibleNodeTypes={nodeTypes}
+                      visibleRelationTypes={relationTypes}
+                      isDark={isDark}
+                    />
+                  </ErrorBoundary>
                 ) : (
                   <p className={cn('p-6 text-xs text-center', isDark ? 'text-slate-500' : 'text-slate-400')}>
                     No nodes in this neighbourhood.

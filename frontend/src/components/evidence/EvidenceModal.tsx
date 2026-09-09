@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { PdfPageCanvas } from './PdfPageCanvas';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { fetchFact } from '@/lib/api';
 import { FactSummary, FactFull, EvidenceItem } from '@/types';
 import { Quote, FileText, CheckCircle2, AlertCircle, Clock, MapPin } from 'lucide-react';
@@ -90,12 +91,14 @@ export const EvidenceModal: React.FC<EvidenceModalProps> = ({
         {/* Left Column: PDF Page with Bounding Box Overlay */}
         <div className="lg:col-span-7 flex flex-col">
           {docId ? (
-            <PdfPageCanvas
-              docId={docId}
-              page={pageNo}
-              evidence={activeEvidence}
-              filename={activeEvidence?.doc_id || fact.doc_id || 'document.pdf'}
-            />
+            <ErrorBoundary compact label="The PDF page couldn't be rendered." key={`${docId}:${pageNo}`}>
+              <PdfPageCanvas
+                docId={docId}
+                page={pageNo}
+                evidence={activeEvidence}
+                filename={activeEvidence?.doc_id || fact.doc_id || 'document.pdf'}
+              />
+            </ErrorBoundary>
           ) : (
             <div className={cn(
               'p-8 text-center rounded-xl border text-xs',

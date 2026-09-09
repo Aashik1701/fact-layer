@@ -238,7 +238,7 @@ sequenceDiagram
         API->>API: Save file to data/uploads/ (sanitized path)
         API->>Jobs: create() — status: queued
         API-->>UI: 202 Accepted {job_id, status: queued}
-        Note over API,Jobs: response returned; processing continues in a background task
+        Note over API,Jobs: Response already returned. Processing continues in a background task.
         API->>Store: process_document() acquires the ingest lock, calls Store.ingest()
         Store->>Jobs: on_stage("parsing")
         Store->>Pipeline: parse_pdf() & select_pages()
