@@ -20,6 +20,7 @@ import pytest
 
 from fact_layer.models import Evidence, Fact, Qualifiers, Relation, RelationType, ValueKind
 from fact_layer.normalize import parse_period, parse_quantity
+from fact_layer.sqlite_storage import SQLiteFactStore
 from fact_layer.storage import FactStore, JsonFactStore, StoreSnapshot, backend_from_env
 
 
@@ -213,8 +214,40 @@ def test_backend_from_env_postgres_raises_not_implemented(monkeypatch):
         backend_from_env()
 
 
-def test_backend_from_env_unknown_value_raises_value_error(monkeypatch):
+def test_backend_from_env_explicit_sqlite(monkeypatch, tmp_path):
+    """"sqlite" used to be this module's example of an UNKNOWN backend value
+    (see test_backend_from_env_unknown_value_raises_value_error below,
+    which used to set this exact env var and expect ValueError) — now that
+    SQLiteFactStore is a real, working backend, that assumption is wrong;
+    this test replaces it as the positive case, and the ValueError test
+    below was updated to use a genuinely unsupported name instead."""
     monkeypatch.setenv("STORAGE_BACKEND", "sqlite")
+    monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "s.sqlite3"))
+    backend = backend_from_env(store_path=str(tmp_path / "unused.json"))
+    assert isinstance(backend, SQLiteFactStore)
+    assert backend.db_path == str(tmp_path / "s.sqlite3")
+
+
+def test_backend_from_env_sqlite_default_path_when_unset(monkeypatch, tmp_path):
+    """Verifies the fallback itself (SQLITE_PATH unset -> the module's
+    default constant), without ever letting a test actually create a file
+    at the real default path (data/store.sqlite3) — sqlite_storage's
+    _DEFAULT_SQLITE_PATH is monkeypatched to an isolated tmp_path first, and
+    backend_from_env()'s lazy `from .sqlite_storage import
+    ..._DEFAULT_SQLITE_PATH` picks up that patched value at call time."""
+    import fact_layer.sqlite_storage as sqlite_storage_module
+    isolated_default = str(tmp_path / "default.sqlite3")
+    monkeypatch.setattr(sqlite_storage_module, "_DEFAULT_SQLITE_PATH", isolated_default)
+    monkeypatch.setenv("STORAGE_BACKEND", "sqlite")
+    monkeypatch.delenv("SQLITE_PATH", raising=False)
+
+    backend = backend_from_env()
+    assert isinstance(backend, SQLiteFactStore)
+    assert backend.db_path == isolated_default
+
+
+def test_backend_from_env_unknown_value_raises_value_error(monkeypatch):
+    monkeypatch.setenv("STORAGE_BACKEND", "mongodb")
     with pytest.raises(ValueError):
         backend_from_env()
 

@@ -6,8 +6,10 @@ contract, never on JSON files directly.
 
     FactStore (abstract)
         |
-        +-- JsonFactStore   -- current: local/demo, zero external dependency
-        +-- PostgresFactStore -- future: skeleton only, not wired up (see below)
+        +-- JsonFactStore   -- zero-config demo/development backend
+        +-- SQLiteFactStore -- durable, incrementally-writable local backend
+        |       (fact_layer/sqlite_storage.py)     (see its module docstring)
+        +-- PostgresFactStore -- future/server-scale: skeleton only (see below)
 
 Why this shape, not a bigger repository framework
 --------------------------------------------------
@@ -21,6 +23,13 @@ nothing in the pipeline would actually call. The two extra read methods
 /stats and /rejected-facts endpoints used to `open()` those files directly —
 that's the literal "core domain contains open(data/store.json)" problem this
 module fixes.
+
+JSON's save() being O(whole store) rather than O(what changed) is a REAL
+scaling ceiling (see the README's Persistence section for the measured
+numbers), not a hypothetical one — SQLiteFactStore exists specifically to
+give `save()`/the new `save_new()` a genuinely incremental path without
+changing what `load()`/`save()` mean to any caller above this module. See
+`supports_incremental_save()`/`save_new()` below and sqlite_storage.py.
 
 What is deliberately NOT here
 ------------------------------
@@ -132,6 +141,44 @@ class FactStore(ABC):
     def read_resolution_summary(self) -> Optional[dict]:
         """The resolver decision-log summary (by_tier counts, llm_calls_used,
         canonical_measures), or None if nothing has been written yet."""
+
+    # ---- incremental save — optional, additive -------------------------
+    # save() above is still the one contract every backend must honor (it is
+    # what scripts/build_demo_store.py and every existing test call). These
+    # two methods exist ONLY so a backend that CAN avoid rewriting the whole
+    # store on one more document is allowed to say so and do it — nothing
+    # about the required five methods above changes, and a backend that
+    # doesn't override supports_incremental_save() keeps working exactly as
+    # it did before this pair existed. See Store.save_incremental() in
+    # store.py for the one call site that uses this, and
+    # SQLiteFactStore.save_new() in sqlite_storage.py for a real
+    # implementation — JsonFactStore does not override either: a single
+    # JSON file has no way to append, so for it "incremental" IS save().
+
+    def supports_incremental_save(self) -> bool:
+        """True if save_new() below does real incremental work for this
+        backend. False (the default) means callers should keep using
+        save(full_snapshot) — calling save_new() on a backend that returns
+        False here is a caller bug, not something this method guards."""
+        return False
+
+    def save_new(
+        self,
+        *,
+        new_doc: Optional[tuple[str, str]],
+        new_facts: dict[str, Fact],
+        new_extra_evidence: dict[str, list[Evidence]],
+        new_relations: list[Relation],
+    ) -> None:
+        """Persist only the rows one Store.ingest() call actually added,
+        without touching previously-persisted facts/relations/documents.
+        Only meaningful when supports_incremental_save() is True; the base
+        implementation here exists so a backend that doesn't override it
+        fails loudly rather than silently doing nothing."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support incremental saves — "
+            f"call save() with the full snapshot instead."
+        )
 
 
 def _json_safe(obj: Any) -> Any:
@@ -328,11 +375,17 @@ class JsonFactStore(FactStore):
 def backend_from_env(**overrides: str) -> FactStore:
     """The one configuration knob this module introduces: STORAGE_BACKEND
     selects which FactStore api.py's module-level STORE (or any other real
-    entry point) constructs. Defaults to "json" — the only backend that
-    actually works locally, with zero external services or credentials.
-    `**overrides` are passed straight through to JsonFactStore's
-    constructor (e.g. store_path=...) so callers can still redirect
-    individual paths exactly as before.
+    entry point) constructs. Defaults to "json" — the zero-config backend,
+    no environment changes needed to keep existing behavior. `**overrides`
+    are the JsonFactStore-shaped path kwargs every existing caller already
+    passes (store_path=..., etc.); they are forwarded as-is to JsonFactStore
+    and ignored for "sqlite" (SQLiteFactStore takes one path, read from
+    SQLITE_PATH below, not the JSON-shaped overrides a caller who doesn't
+    know which backend is active can't tailor per-backend anyway).
+
+    "sqlite" is a real, working backend (see sqlite_storage.py) — the
+    durable, incrementally-writable local option. Its database path comes
+    from SQLITE_PATH (default data/store.sqlite3).
 
     "postgres" is accepted as a value (the seam is real, not aspirational)
     but raises immediately with a clear message rather than silently
@@ -341,25 +394,36 @@ def backend_from_env(**overrides: str) -> FactStore:
     backend = os.environ.get("STORAGE_BACKEND", "json").strip().lower()
     if backend == "json":
         return JsonFactStore(**overrides)
+    if backend == "sqlite":
+        from .sqlite_storage import SQLiteFactStore, _DEFAULT_SQLITE_PATH
+        db_path = os.environ.get("SQLITE_PATH", "").strip() or _DEFAULT_SQLITE_PATH
+        return SQLiteFactStore(db_path)
     if backend == "postgres":
         raise NotImplementedError(
             "STORAGE_BACKEND=postgres is not implemented — PostgresFactStore "
             "is a documented skeleton, not a working backend (see its class "
             "docstring in fact_layer/storage.py for what finishing it would "
-            "require). Use STORAGE_BACKEND=json (the default) for local "
-            "development and for this assignment."
+            "require). Use STORAGE_BACKEND=json (the default) or "
+            "STORAGE_BACKEND=sqlite for local development and for this "
+            "assignment."
         )
-    raise ValueError(f"unknown STORAGE_BACKEND={backend!r} — supported: 'json'")
+    raise ValueError(f"unknown STORAGE_BACKEND={backend!r} — supported: 'json', 'sqlite'")
 
 
 class PostgresFactStore(FactStore):
     """Skeleton only — NOT wired up, NOT importable-and-usable without
     finishing it, and NOT required for local development or the test suite
-    (nothing constructs this class today; STORAGE_BACKEND=json is the only
-    functional option). It exists to make the "persistence is an
-    implementation detail" claim concrete rather than aspirational: this is
-    the shape a real cloud backend would take, using the exact same
-    StoreSnapshot contract Store and api.py already depend on.
+    (nothing constructs this class today; STORAGE_BACKEND=json and
+    STORAGE_BACKEND=sqlite — see SQLiteFactStore — are the functional
+    options). It exists to make the "persistence is an implementation
+    detail" claim concrete rather than aspirational: this is the shape a
+    real server-scale, multi-process cloud backend would take, using the
+    exact same StoreSnapshot contract Store and api.py already depend on.
+    SQLiteFactStore already proves the incremental-transaction half of that
+    claim for a single process; what Postgres would still add on top is
+    specifically multi-process/multi-writer concurrency, which SQLite's
+    "one writer at a time" model does not provide (see sqlite_storage.py's
+    class docstring).
 
     What finishing this would actually require (deliberately not done here
     per the brief — this is a skeleton, not a justified production need):

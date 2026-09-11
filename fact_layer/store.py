@@ -394,6 +394,40 @@ class Store:
             ingested_docs=self.ingested_docs,
         ))
 
+    def save_incremental(self, result: "IngestResult", path: Union[str, FactStore] = _STORE_PATH) -> None:
+        """The persistence half of one ingest() call, using only what that
+        call actually added rather than the store's full accumulated state.
+
+        On a backend whose supports_incremental_save() is True (SQLite —
+        see sqlite_storage.py), this issues INSERTs scoped to `result`'s new
+        facts/evidence/relations/document only, so persistence cost is
+        proportional to what one document contributed, not to how much the
+        store has grown to. On any other backend (JSON — the default), this
+        falls back to save(path): the full-snapshot write, byte-identical
+        to what every caller already did before this method existed. Either
+        way the caller (api.py's live /ingest endpoint) writes one line
+        regardless of which backend is configured.
+
+        A no-op when `result.skipped_reason` is set (parse error, or the
+        document was already ingested) — there is nothing new to persist,
+        matching the guard every existing caller already applied around its
+        save() call."""
+        if result.skipped_reason is not None:
+            return
+        backend = path if isinstance(path, FactStore) else JsonFactStore(path)
+        if not backend.supports_incremental_save():
+            self.save(backend)
+            return
+        new_fact_ids = {f.fact_id for f in result.new_facts}
+        backend.save_new(
+            new_doc=(result.doc_id, result.filename),
+            new_facts={f.fact_id: f for f in result.new_facts},
+            new_extra_evidence={
+                fid: spans for fid, spans in self.extra_evidence.items() if fid in new_fact_ids
+            },
+            new_relations=result.new_relations,
+        )
+
     @classmethod
     def load(cls, path: Union[str, FactStore] = _STORE_PATH) -> "Store":
         """Same `path`-or-backend flexibility as save() (see its docstring).

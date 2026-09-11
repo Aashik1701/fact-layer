@@ -1,0 +1,71 @@
+{
+  "workload": {
+    "n_docs": 100,
+    "facts_per_doc": 120,
+    "seed": 20240921,
+    "total_facts": 12000
+  },
+  "scales": [
+    {
+      "docs_persisted": 1,
+      "facts_persisted": 120,
+      "json_full_save_s": 0.0224,
+      "json_incremental_add_one_doc_s": 0.0425,
+      "json_load_s": 0.0036,
+      "json_file_size_mb": 0.176,
+      "sqlite_batch_insert_s": 0.022,
+      "sqlite_incremental_add_one_doc_s": 0.0204,
+      "sqlite_load_s": 0.0049,
+      "sqlite_db_size_mb": 0.467
+    },
+    {
+      "docs_persisted": 10,
+      "facts_persisted": 1200,
+      "json_full_save_s": 0.2039,
+      "json_incremental_add_one_doc_s": 0.2246,
+      "json_load_s": 0.0354,
+      "json_file_size_mb": 1.723,
+      "sqlite_batch_insert_s": 0.1895,
+      "sqlite_incremental_add_one_doc_s": 0.0202,
+      "sqlite_load_s": 0.0416,
+      "sqlite_db_size_mb": 2.056
+    },
+    {
+      "docs_persisted": 25,
+      "facts_persisted": 3000,
+      "json_full_save_s": 0.5087,
+      "json_incremental_add_one_doc_s": 0.5301,
+      "json_load_s": 0.0879,
+      "json_file_size_mb": 4.273,
+      "sqlite_batch_insert_s": 0.3165,
+      "sqlite_incremental_add_one_doc_s": 0.0216,
+      "sqlite_load_s": 0.1034,
+      "sqlite_db_size_mb": 4.723
+    },
+    {
+      "docs_persisted": 50,
+      "facts_persisted": 6000,
+      "json_full_save_s": 1.0119,
+      "json_incremental_add_one_doc_s": 1.0676,
+      "json_load_s": 0.2118,
+      "json_file_size_mb": 8.516,
+      "sqlite_batch_insert_s": 0.567,
+      "sqlite_incremental_add_one_doc_s": 0.0235,
+      "sqlite_load_s": 0.2302,
+      "sqlite_db_size_mb": 9.15
+    },
+    {
+      "docs_persisted": 100,
+      "facts_persisted": 12000,
+      "json_full_save_s": 2.032,
+      "json_incremental_add_one_doc_s": null,
+      "json_load_s": 0.4249,
+      "json_file_size_mb": 17.005,
+      "sqlite_batch_insert_s": 1.2251,
+      "sqlite_incremental_add_one_doc_s": null,
+      "sqlite_load_s": 0.4701,
+      "sqlite_db_size_mb": 17.834
+    }
+  ],
+  "note": "json_incremental_add_one_doc_s and sqlite_incremental_add_one_doc_s are the same operation on each backend: persist ONE additional document on top of an already-persisted store of size docs_persisted. This is the metric that demonstrates (or doesn't) whether a backend avoids rewriting the whole historical knowledge layer per new document."
+}

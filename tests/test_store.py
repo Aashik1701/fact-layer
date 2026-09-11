@@ -204,7 +204,12 @@ def test_full_corpus_cluster_and_relation_counts():
 # turn) against this same real corpus. Measured before adding it: 685
 # facts, 399 canonical subjects, 547 clusters (92 with 2+ facts), 28
 # relations ({'apparent_conflict': 17, 'contradicts': 8, 'corroborates': 2,
-# 'aggregates_into': 1}), with a standalone 'rbi' subject bucket (one fact —
+# 'aggregates_into': 1}) — the relation breakdown here is what this corpus
+# produced BEFORE the later comparability-gate AMBIGUOUS-verdict fix (see the
+# note above test_subject_aliases_do_not_change_real_corpus_relation_counts
+# below); it is kept as-is because it documents the alias table's own
+# before/after comparison at the time that change was made, not today's
+# state — with a standalone 'rbi' subject bucket (one fact —
 # the IMF document's bare "RBI" mention). Measured after: byte-identical on
 # every count below — the alias table adds zero merges into any existing
 # cluster on this corpus (no document phrases "Indian economy"/"India's
@@ -227,6 +232,25 @@ def test_full_corpus_cluster_and_relation_counts():
 # elsewhere in the corpus), which is also why canonical_subjects/
 # clusters_total each shifted down slightly — real corpus-correctness
 # changes, not a resolver regression.
+#
+# The 28-relation baseline the relation-count test previously pinned
+# (17 apparent_conflict, 8 contradicts, 2 corroborates, 1 aggregates_into)
+# predates comparability.gate()'s source-of-truth fix for
+# PeriodRelation.UNKNOWN: it used to fall through every explicit period
+# branch and reach the terminal `Verdict.COMPARABLE`, so a pair where one or
+# both sides state no reporting period (or one that couldn't be parsed to a
+# date) was silently treated as a verified like-for-like comparison. The gate
+# now returns Verdict.AMBIGUOUS for that case instead (reason_code
+# "ambiguous_period"), and adjudicate() refuses to turn AMBIGUOUS into a
+# relation at all (RelationType.UNRELATED, filtered out of adjudicate_cluster
+# like every other UNRELATED pair) — see fact_layer/comparability.py's
+# UNKNOWN-fallthrough audit note and tests/test_comparability_ambiguous.py.
+# Measured after the fix: total_relations 28 -> 20, entirely inside
+# `contradicts` (8 -> 0); apparent_conflict/corroborates/aggregates_into are
+# byte-identical. Every one of those 8 dropped "contradictions" was a pair
+# gate() had never actually verified as period-comparable in the first
+# place — the fix removes false disagreements it should never have reported,
+# it does not touch any pair whose period genuinely was established.
 # --------------------------------------------------------------------------
 
 def test_subject_aliases_do_not_change_real_corpus_fact_or_cluster_counts():
@@ -241,9 +265,9 @@ def test_subject_aliases_do_not_change_real_corpus_fact_or_cluster_counts():
 def test_subject_aliases_do_not_change_real_corpus_relation_counts():
     store = _full_store()
     summary = store.canonical_summary()
-    assert summary["total_relations"] == 28
+    assert summary["total_relations"] == 20
     assert summary["relation_counts"] == {
-        "apparent_conflict": 17, "contradicts": 8, "corroborates": 2, "aggregates_into": 1,
+        "apparent_conflict": 17, "corroborates": 2, "aggregates_into": 1,
     }
 
 

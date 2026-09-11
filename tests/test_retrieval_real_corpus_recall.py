@@ -1,7 +1,8 @@
 """
 Section 13's explicit requirement: use the EXISTING known relation pairs
-(the real, committed `data/store.json` corpus — 552 facts, 15 relations,
-same numbers README §9's "Store & Relation Inventory" documents) as a
+(the real, committed `data/store.json` corpus — 552 facts, 14 relations,
+the 5-document pre-seeded scope, same numbers README §9's "Store &
+Relation Inventory" documents) as a
 retrieval evaluation set, not only the synthetic benchmark corpus
 (`scripts/retrieval_benchmark.py`, README §10a). For every known relation,
 verify the partner fact appears in the retrieved top-K and report the
@@ -64,12 +65,24 @@ def known_pairs(real_store) -> list[tuple[str, str]]:
 
 
 def test_known_relation_pairs_match_readme_documented_count(known_pairs):
-    # README §9 documents 15 relations over the committed 6-of-6-document
-    # real corpus. This is a canary, not a hard requirement of this test
-    # file: if the committed store.json is ever regenerated with a
-    # different corpus, update this number deliberately rather than let
-    # it silently drift.
-    assert len(known_pairs) == 15
+    # README §9 documents 14 relations over the committed 5-document
+    # pre-seeded corpus (552 facts). This is a canary, not a hard
+    # requirement of this test file: if the committed store.json is ever
+    # regenerated with a different corpus, update this number deliberately
+    # rather than let it silently drift.
+    #
+    # This was 15 until the comparability-gate fix for
+    # PeriodRelation.UNKNOWN (Verdict.AMBIGUOUS instead of falling through
+    # to COMPARABLE — see tests/test_comparability_ambiguous.py and README
+    # §8 Case 2 / §9): one stale relation (reason_code
+    # value_mismatch_period_unverified, a CONTRADICTS pair the old,
+    # buggy gate produced from an unverified-period pair) can no longer be
+    # produced by current code, and the committed store.json was rebuilt
+    # accordingly. Verified via two independent, isolated, deterministic
+    # rebuilds of the 5-document corpus that removed exactly this one
+    # relation and nothing else (identical fact_id sets to the prior
+    # commit).
+    assert len(known_pairs) == 14
 
 
 @pytest.mark.parametrize("channel", ["lexical", "semantic", "hybrid"])

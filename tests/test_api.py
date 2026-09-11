@@ -1,8 +1,11 @@
 """
 Tests for api.py (milestone 5, STEP 1).
 
-These run against the REAL persisted store (data/store.json, produced by a
-full 6-document ingest) — api.py's whole point is to serve exactly what the
+These run against the REAL persisted store (data/store.json, produced by the
+canonical 5-document pre-seeded replay build — scripts/build_demo_store.py,
+README §9's "Pre-Seeded Store (5 Documents)" column; the 6th document, the
+IMF report, is held back for the live-ingestion demo) — api.py's whole point
+is to serve exactly what the
 pipeline already computed, so a fixture rebuilding a fake store would test
 nothing meaningful. LLM_MODE=replay + a network guard, same pattern as
 test_store.py, because /ingest's idempotency test exercises Store.ingest()'s
@@ -109,11 +112,18 @@ def test_relations_200_and_confidence_sorted(client):
 
 
 def test_relations_filter_by_type_still_sorted(client):
-    r = client.get("/relations", params={"type": "contradicts"})
+    # apparent_conflict, not contradicts: the committed 5-document corpus
+    # has 13 apparent_conflict relations and 0 contradicts (see README §9's
+    # Store & Relation Inventory and §8 Case 2 — the one CONTRADICTS
+    # relation this corpus used to have was a stale artifact of a since-
+    # fixed comparability-gate bug and is correctly gone). apparent_conflict
+    # also gives this test a real multi-row set to prove sort-by-confidence
+    # survives the type filter, which a single- or zero-row set couldn't.
+    r = client.get("/relations", params={"type": "apparent_conflict"})
     assert r.status_code == 200
     rels = r.json()["relations"]
     assert len(rels) > 0
-    assert all(rel["relation"] == "contradicts" for rel in rels)
+    assert all(rel["relation"] == "apparent_conflict" for rel in rels)
     confidences = [rel["confidence"] for rel in rels]
     assert confidences == sorted(confidences, reverse=True)
 

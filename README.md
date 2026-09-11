@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178c6.svg)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1.0-646cff.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-610%20passed-success.svg)](#14-developer-submission-checklist)
+[![Tests](https://img.shields.io/badge/tests-630%20passed-success.svg)](#14-developer-submission-checklist)
 [![Offline Replay](https://img.shields.io/badge/offline--reproducible-100%25%20replay%20cache-brightgreen.svg)](#18-additional-notes)
 
 ![Fact Layer Architecture](docs/FKL_Diagram.png)
@@ -278,38 +278,41 @@ sequenceDiagram
 - **Concurrency is handled by serialization, not parallelism.** `Store` is one shared, JSON-persisted Python object; a single `threading.Lock` (`api._INGEST_LOCK`) is held for the whole of `process_document()`, so two uploads landing close together process **one at a time**, never interleaved. This is correct and simple, but it is not a throughput feature: a second upload's job sits in `QUEUED`/`PROCESSING` until the first's lock is released, exactly like it would with a single-worker queue. Verified in `tests/test_jobs.py::test_ingest_lock_serializes_concurrent_processing`, which proves two concurrent background tasks never overlap their critical sections.
 - **What would change for multi-instance deployment:** the `JobStore` would need to move to a shared backend (Redis, a database table) so every instance's `GET /jobs/{id}` sees the same state, and the `_INGEST_LOCK` would need to become a distributed lock (or the JSON-backed `Store` would need to become a real database) so concurrent instances don't race on `data/store.json`. None of that exists today: this is a single-process, single-instance design, stated plainly rather than described as more than it is.
 
-### 4.4 Persistence: JSON Today, a Storage Contract for Tomorrow
+### 4.4 Persistence: JSON for Zero-Config, SQLite for Scale, PostgreSQL for Later
 
-**Current: `data/store.json` via `JsonFactStore`.** This is a local assignment, run by one grader on one machine, with no concurrent users and a corpus of a handful of PDFs (a single JSON file is simple, fully reproducible (`scripts/build_demo_store.py` rebuilds it deterministically), needs zero external services or credentials, and every existing consumer already round-trips through it correctly (566 tests, including a byte-for-byte real-corpus regression check). **This is not pretended to be horizontally scalable**) see "What this does not provide" below.
-
-**The point of this section: persistence is isolated behind a contract, not scattered through the domain.** `fact_layer/storage.py` defines:
+**Two working backends today: `JsonFactStore` (default) and `SQLiteFactStore`.** `STORAGE_BACKEND` (default `json`) selects which one `api.py`'s `STORE` singleton constructs — no environment changes are needed to keep today's behavior. Neither the domain layer (`Store`, `resolve.py`, `adjudicate.py`, `extract.py`) nor the API nor the frontend has to know which one is active.
 
 ```
-              FactStore (abstract: load, save, list_rejected_facts, read_resolution_summary)
+              FactStore (abstract: load, save, list_rejected_facts, read_resolution_summary,
+                         supports_incremental_save, save_new)
                  │
-      ┌──────────┴──────────┐
-      │                      │
-JsonFactStore          PostgresFactStore
-   (data/*.json,           (skeleton only - see its class
-    THIS repo's default)    docstring for what's missing)
+      ┌──────────┼───────────────────┐
+      │          │                    │
+JsonFactStore  SQLiteFactStore    PostgresFactStore
+ (data/*.json,  (fact_layer/       (skeleton only - see its class
+  the default)   sqlite_storage.py, docstring for what's missing)
+                 STORAGE_BACKEND=sqlite)
 ```
 
-- `StoreSnapshot` is the whole persisted fact/relation/document graph as one value (facts, extra_evidence, relations, clusters, ingested_docs) (mirroring exactly what `Store.save()`/`Store.load()` always serialized, because that IS the real write pattern here: `Store` mutates its in-memory dicts incrementally across many `ingest()` calls and flushes one snapshot at a time. The contract's `load()`/`save()` operate on that whole snapshot rather than exposing `save_fact()`/`save_relation()` per-entity methods nothing in this pipeline would ever call one at a time) this is a deliberate, smaller-than-suggested interface, chosen from actual behavior rather than a generic repository template.
-- `list_rejected_facts()` and `read_resolution_summary()` exist because `api.py`'s `/stats` and `/rejected-facts` endpoints used to `open("data/rejected_facts.jsonl")`/`open("data/resolution_log.json")` directly: that was the literal "core domain contains `open(...)`/`json.load(...)`" problem. Both endpoints now go through `STORE.backend` instead.
-- `Store.save(path)` / `Store.load(path)` keep their exact pre-refactor signatures and default paths (`path: str`, defaulting to `data/store.json`) so every existing caller and test is unaffected: but `path` may now also be a `FactStore` instance directly (`Store.load(my_postgres_backend)`), which is the actual seam a future backend plugs into.
-- `Store.backend` is the `FactStore` a `Store` was loaded from (or a fresh `JsonFactStore()` by default): this is what `api.py`'s diagnostic reads use.
+- `StoreSnapshot` is still the whole persisted fact/relation/document graph as one value (facts, extra_evidence, relations, clusters, ingested_docs), mirroring what `Store.save()`/`Store.load()` always serialized — the contract's core stays `load()`/`save()` over a whole snapshot, not `save_fact()`/`save_relation()` per-entity methods nothing in this pipeline would call one at a time.
+- `list_rejected_facts()` and `read_resolution_summary()` exist because `api.py`'s `/stats` and `/rejected-facts` endpoints used to `open("data/rejected_facts.jsonl")`/`open("data/resolution_log.json")` directly — that was the literal "core domain contains `open(...)`/`json.load(...)`" problem. Both endpoints go through `STORE.backend` instead, on either backend.
+- Two things stay deliberately outside this contract on **both** backends: `extract.py`'s real-time rejected-fact append (`_append_rejected`, one `open(path, "a")` call per rejected candidate, inline inside extraction) and `resolve.py`'s `write_resolution_log()` (builds its summary dict from live `Resolver` state — domain logic, not persistence). Both still write to their JSONL/JSON files regardless of `STORAGE_BACKEND`; `SQLiteFactStore`'s `rejected_facts`/`resolution_decisions` tables exist for the migration/parity path below, not as a second live write path for the extraction hot loop.
 
-**Two things were deliberately left outside this contract:**
-- `extract.py`'s real-time rejected-fact append (`_append_rejected`, one `open(path, "a")` call per rejected candidate, inline inside extraction) is untouched: it already takes an injectable `path` parameter, which is what tests use to redirect it away from the real deliverable file. Routing a single-line append through a `FactStore` method would add indirection to the extraction hot path for no behavior change; only the aggregate *read* side (api.py assembling the file back into JSON) was unified.
-- `resolve.py`'s `write_resolution_log()` builds its summary dict FROM live `Resolver` state (decision tiers, LLM call counts): that computation is domain logic, not persistence, so it stays put. Only reading the result back goes through `FactStore.read_resolution_summary()`.
+**`SQLiteFactStore` — why it exists.** `JsonFactStore.save()` is O(total store size): a JSON file has no way to append, so persisting one more document costs roughly what re-writing the *entire* store from scratch costs. `Store.ingest()` already computes what one document added incrementally, in memory — persistence was the one step that threw that distinction away. `SQLiteFactStore.save_new()` (wired through the new `Store.save_incremental()`, which `api.py`'s live `POST /ingest` endpoint calls) persists only the rows one ingest actually added, inside a transaction (`BEGIN` / inserts / `COMMIT`, rolled back whole on any failure — see `fact_layer/sqlite_storage.py`'s module docstring for the schema). `save()` (the full-snapshot contract every backend must still support, used by `scripts/build_demo_store.py`) is UPSERT-based rather than delete-and-reinsert, so re-saving a snapshot that only grew a little only touches the rows that actually changed.
 
-**Configuration:** `STORAGE_BACKEND` (default `json`) selects the backend `api.py`'s `STORE` singleton constructs: see `fact_layer/storage.py::backend_from_env()`. No cloud credentials are needed for local development; `STORAGE_BACKEND=postgres` is accepted as a value (the seam is real) but raises `NotImplementedError` immediately rather than silently pretending to talk to a database that was never connected.
+Tables: `documents`, `facts` (columns for what's actually queried — subject/measure/cluster_key/doc_id — plus one `data_json` column for the rest, reusing `Fact.to_dict()`/`_json_safe()` verbatim rather than a second serialisation scheme), `extra_evidence`, `relations` (fully columnar, foreign keys to `facts`, `UNIQUE(source_fact_id, target_fact_id, relation)` matching `api.py`'s own `_relation_id()` identity), `rejected_facts`, `resolution_decisions` + `resolution_meta`. No `clusters` table: `Fact.cluster_key()` is a pure function of `(subject, measure)`, already columns on `facts`, so `load()` derives `{cluster_key: [fact_id, ...]}` via `GROUP BY` instead of persisting a second copy that could drift.
 
-**What a real `PostgresFactStore` would still need** (documented in its class docstring, not built (nothing here justifies the added operational complexity for a local assignment): a `facts`/`relations`/`documents`/`rejected_facts`/`resolution_log` table mirroring `StoreSnapshot`'s fields, `save()` becoming one transaction instead of one `os.replace()`, and a connection pool. That last point is the actual motivating reason to ever make this move for real) see the transactional gap below.
+Foreign keys are enforced (`PRAGMA foreign_keys = ON`) — a relation referencing a nonexistent fact is rejected, not silently accepted. WAL mode is enabled (`PRAGMA journal_mode = WAL`): this is a one-writer/occasional-readers workload (one API process behind `_INGEST_LOCK`, GETs reading concurrently), and WAL lets readers proceed without blocking on an open write transaction, which the default rollback-journal mode would not. This is **not** multi-writer support — SQLite still allows exactly one writer at a time, and `_INGEST_LOCK` stays in `api.py` unchanged: it protects the shared in-memory `Store` object from a Python-level race between two threads, which no database's own locking touches.
 
-**What this does not provide (documented, not faked):**
-- *Transactions.* `JsonFactStore.save()` is atomic at the **file** level (temp file + `os.replace()`, the same pattern this codebase already uses for the LLM replay cache and the parsed-PDF cache) (a save either fully lands or the previous file is untouched, there is no half-written `store.json`. But there is no multi-table transaction underneath it: "the new facts from this ingest AND the relations they produced land together, or neither does" is not a guarantee a single `open()`/`json.dump()` call can express beyond "the one file that holds all of it was replaced atomically." In practice this hasn't caused a real bug (an ingest failure raises before `Store.save()` is ever called) see `process_document()`), but a true database backend would express it as a real `BEGIN`/`COMMIT` instead of relying on "it's all one file."
-- *Multi-writer concurrency.* Two processes writing `data/store.json` at once is not something JSON-plus-`os.replace()` arbitrates (the last writer wins, in full, with no merge and no conflict error. This repo does not need that: `api.py`'s `_INGEST_LOCK` (a single `threading.Lock`, see §4.3) already serializes every ingest inside the one process that owns the file, which is the actual concurrency risk that exists today (two uploads racing on `Store.facts`/`Store.clusters` within the same running server). It is a real, tested fix for a real, in-process race (`tests/test_jobs.py::test_ingest_lock_serializes_concurrent_processing`)) not a substitute for a database's row-level locking, which is what a genuinely multi-writer deployment (multiple `uvicorn` instances, or manual edits alongside a running server) would need instead. Turning JSON into something that pretends to arbitrate cross-process writes was deliberately not attempted here.
+**Configuration:** `STORAGE_BACKEND=sqlite` plus `SQLITE_PATH` (default `data/store.sqlite3`) — see `fact_layer/storage.py::backend_from_env()`. `STORAGE_BACKEND=postgres` is still accepted as a value (the seam is real) but raises `NotImplementedError` immediately rather than pretending to connect to a database that was never wired up.
+
+**Migration:** `python scripts/migrate_json_to_sqlite.py [--store PATH] [--out PATH]` reads the existing JSON store (and the adjacent `rejected_facts.jsonl`/`resolution_log.json`) and populates a fresh SQLite database — nothing is recomputed, renamed, or dropped, and the script refuses to run against an `--out` path that already exists. It then runs a parity check (facts, evidence, qualifiers, relations, rejected facts, resolution data, documents — canonicalized before comparison, since relation accumulation order was never a meaningful invariant) and exits non-zero on any mismatch. `data/store.json` is never modified by this script or by choosing `STORAGE_BACKEND=sqlite` — both backends' canonical files continue to exist side by side.
+
+**What a real `PostgresFactStore` would still need** (documented in its class docstring, not built): the same relational shape `SQLiteFactStore` already proves works, plus a connection pool (psycopg2/asyncpg) and — the actual motivating reason to ever make this move — genuine multi-process/multi-writer concurrency, which is specifically what SQLite's "one writer at a time" model does not provide.
+
+**What this does not provide, on either working backend (documented, not faked):**
+- *Cross-process concurrency.* Neither backend arbitrates two separate OS processes writing at once. JSON's `save()` is atomic at the file level (temp file + `os.replace()`) but the last full-process writer simply wins, with no merge. SQLite enforces one writer at a time *within* the file (its own locking), which is stronger, but still not multiple independent server processes safely interleaving writes — that is specifically the gap `PostgresFactStore` exists to close later. `api.py`'s `_INGEST_LOCK` (`threading.Lock`, see §4.3) is what actually protects the one process that exists today, on both backends.
+- *Distributed durability.* Both backends are single-node, local files. Neither is a claim about surviving a machine failure, replication, or serving multiple application instances.
 
 ---
 
@@ -515,22 +518,26 @@ These four cases demonstrate the end-to-end pipeline operating across real filin
 
 ---
 
-### Case 2: Contradiction (Intra-Document ESOP Vesting Conflict)
+### Case 2: Contradiction — Not Present in the Committed Corpus (a Real Near-Miss, Correctly Refused)
+No genuine `CONTRADICTS` relation exists in the committed corpus today — `0` of `0` in both the 5-document pre-seeded store and the 6-document live-ingestion scope (§9's Store & Relation Inventory table). This is reported honestly rather than manufacturing a relation to make the demo look complete, the same policy §13.15 already applies to Supersession.
+
+The pair below **used to** produce one, and is kept here because it is the clearest real illustration of why "comparability before comparison" matters — and of a bug that was found and fixed:
+
 - **Source Fact A**: Delhivery Annual Report FY24 (`02-delhivery-annual-report-fy24-excerpt.pdf`, p.43)  
   *Quote*: `"No. of ESOPs vested as on - 676,000 - 250,000"`  
   *Normalized Value*: `426,000` (Calculated net: $676,000 - 250,000$) | *Period*: `as on March 31, 2024`
 - **Source Fact B**: Delhivery Annual Report FY24 (`02-delhivery-annual-report-fy24-excerpt.pdf`, p.44)  
   *Quote*: `"No. of ESOPs vested as - 534,000"`  
   *Normalized Value*: `534,000` | *Period*: *None stated*
-- **Gate Evaluation**: `COMPARABLE`.
-- **Adjudication Verdict**: `CONTRADICTS` (Confidence: `0.475`).
-- **Reason Code**: `value_mismatch_period_unverified`.
-- **System Rationale**: *"Same subject, measure, scope and period, but the values differ by 21.0% (676,000 - 250,000 vs 534,000). No contextual qualifier accounts for the gap. One source states no reporting period, so a like-for-like comparison cannot be confirmed; this may reflect an extraction gap rather than a real disagreement."*
-- **Confidence Penalty**: The system explicitly halves confidence ($0.95 \to 0.475$) because Fact B lacked a stated reporting period.
+- **Gate Evaluation (current, correct code)**: `AMBIGUOUS`, reason code `ambiguous_period`. Fact B states no reporting period at all, so `compare_periods()` returns `PeriodRelation.UNKNOWN` and the gate can no longer call the pair `COMPARABLE` on that basis.
+- **Adjudication Verdict (current, correct code)**: `UNRELATED`. `adjudicate()` never adjudicates a comparability-blocked pair, so this relation is computed and discarded, not persisted to `Store.relations` — exactly like any other `AMBIGUOUS`/`INCOMPARABLE_*` pair (§8a Comparability Investigator).
+- **What the old, buggy code did instead**: `compare_periods()`'s `UNKNOWN` case used to fall through to `Verdict.COMPARABLE` (treating "no period stated" as "period doesn't matter here"), and a since-removed `_flag_period_unverified()` step in `adjudicate.py` then produced `CONTRADICTS` at confidence `0.475` (a value halved from `0.95`) with reason code `value_mismatch_period_unverified` — the values do differ by 21% (676,000 − 250,000 vs 534,000), which is exactly what made the bug easy to miss: the mismatch is real, but "comparable" was never actually established.
+- **The fix**: `PeriodRelation.UNKNOWN` now returns `Verdict.AMBIGUOUS` (reason code `ambiguous_period`) instead of `COMPARABLE`, and the entire period-unverified-confidence-halving code path was deleted as dead code rather than left unreachable (`fact_layer/comparability.py`, `fact_layer/adjudicate.py`; regression-pinned by `tests/test_comparability_ambiguous.py`, 19 tests). This is the one relation the fix removed from the committed corpus — traced and confirmed via two independent, byte-identical isolated rebuilds of the 5-document corpus (§9).
+- **Why this isn't "fixed" by finding another example**: every other pair in both corpora that differs in value either has a fully-stated, matching period on both sides (correctly adjudicated `APPARENT_CONFLICT` or `CORROBORATES` under a comparable-context explanation) or is blocked on a dimension other than period. There is currently no fact pair in the committed corpus where two fully-comparable, same-subject/measure/scope/period sources genuinely disagree. The frontend's Required Cases page (`RequiredCasesPage.tsx`) reflects this directly: it renders **"No contradiction relation is currently in the store"** rather than any hard-coded example, because `GET /relations?type=CONTRADICTS` genuinely returns none.
 
 <p align="center">
-  <img src="docs/screenshots/case2_contradicts_a.png" width="48%" alt="Delhivery Page 43 ESOP Highlight" />
-  <img src="docs/screenshots/case2_contradicts_b.png" width="48%" alt="Delhivery Page 44 ESOP Highlight" />
+  <img src="docs/screenshots/case2_contradicts_a.png" width="48%" alt="Delhivery Page 43 ESOP Highlight — the near-miss pair, not a contradiction under current code" />
+  <img src="docs/screenshots/case2_contradicts_b.png" width="48%" alt="Delhivery Page 44 ESOP Highlight — Fact B's unstated period is why the gate now returns AMBIGUOUS" />
 </p>
 
 ---
@@ -814,8 +821,8 @@ Fact detail → collapsible *Temporal history* panel (measure picker if more tha
 ### What the committed demo corpus can show, and what it honestly cannot
 
 - **Multi-year history**: real: `("total income", "revenue")` has 6 facts across 3 scope/modality series in the committed store.
-- **Multi-source corroboration / apparent conflict**: real: 13 of the corpus's 15 relations are `APPARENT_CONFLICT` (mostly cross-scope), directly visible in both the timeline's `related_points` and evidence lineage.
-- **Contradiction**: real: 1 genuine `CONTRADICTS` relation exists in the committed store and is reachable through both features.
+- **Multi-source corroboration / apparent conflict**: real: 13 of the corpus's 14 relations are `APPARENT_CONFLICT` (mostly cross-scope), directly visible in both the timeline's `related_points` and evidence lineage.
+- **Contradiction**: **not present in the committed corpus**: `0` `CONTRADICTS` relations exist in `data/store.json` today (5-document or 6-document scope — see §8 Case 2 for the one near-miss pair that used to be misclassified as one, and why the fixed comparability gate now correctly refuses to). Both `entity_history()` and the frontend timeline correctly render "no established relationship" for this pair rather than a contradiction. This is reported honestly rather than manufacturing a relation to make the demo look complete — the same policy already applied to Supersession below.
 - **Supersession**: **not present in the committed corpus**: `0` `SUPERSEDES` relations exist in `data/store.json` today. Both `entity_history()` and the frontend timeline correctly render "no established relationship" for chronologically adjacent points that were never adjudicated as superseding, and `tests/test_temporal.py::test_newer_fact_alone_is_not_marked_superseded` pins that a merely-newer fact is never mislabeled. This is reported honestly rather than manufacturing a relation to make the demo look complete.
 - **Incomparable pair**: real: any cross-scope or cross-currency pair the Comparability Investigator (§8a) already blocks is reachable from the same investigation flow.
 
@@ -826,16 +833,18 @@ Fact detail → collapsible *Temporal history* panel (measure picker if more tha
 All metrics are transcribed from single-run audit logs (`data/extraction_report.json` and `data/resolution_log.json`):
 
 ### Extraction & Span Verification Pipeline
-| Metric | Measured Value | Audit Source |
-|---|---|---|
-| Total PDF Pages Processed | **511 pages** (across 6 documents) | `starter-datasets/` |
-| Pages Selected by Triage | **105 pages** (20.5% of total) | `data/triage_report.json` |
-| Total LLM Ingestion Calls | **105 extraction + 6 metadata** calls | `data/extraction_report.json` |
-| Total Facts Proposed by LLM | **819 facts** | `data/extraction_report.json` |
-| Facts Mechanically Verified | **690 facts** | `data/extraction_report.json` |
-| Fuzzy Coordinates Snapped ($\ge 92\%$) | **48 facts** | `data/extraction_report.json` |
-| Facts Rejected & Logged | **95 facts** (82 `quote_not_found`, 13 `no_measure`): pre-seeded 5-document store | `data/rejected_facts.jsonl` |
-| **Span Verification Pass Rate** | **84.25%** | `data/extraction_report.json` |
+The rows below mix two different scopes, named explicitly rather than left implicit: `data/extraction_report.json` is written by `python -m fact_layer.extract`, an extraction-only diagnostic dry-run over **all 6** starter documents (it does not touch `data/store.json`), while `data/rejected_facts.jsonl` is the artifact the **committed 5-document store** actually ships — the two are separate runs, not the same corpus measured twice.
+
+| Metric | Measured Value | Scope | Audit Source |
+|---|---|---|---|
+| Total PDF Pages Processed | **511 pages** | 6 documents | `starter-datasets/` |
+| Pages Selected by Triage | **105 pages** (20.5% of total) | 6 documents | `data/triage_report.json` |
+| Total LLM Ingestion Calls | **105 extraction + 6 metadata** calls | 6 documents | `data/extraction_report.json` |
+| Total Facts Proposed by LLM | **819 facts** | 6 documents | `data/extraction_report.json` |
+| Facts Mechanically Verified | **690 facts** | 6 documents | `data/extraction_report.json` |
+| Fuzzy Coordinates Snapped ($\ge 92\%$) | **48 facts** | 6 documents | `data/extraction_report.json` |
+| **Span Verification Pass Rate** | **84.25%** | 6 documents | `data/extraction_report.json` |
+| Facts Rejected & Logged | **95 facts** (82 `quote_not_found`, 13 `no_measure`) | **5 documents — the committed store** | `data/rejected_facts.jsonl` |
 
 ### Deterministic Parser/Verification Benchmark (`fact_layer/benchmark.py`, A9/A10)
 
@@ -857,31 +866,34 @@ All metrics are transcribed from single-run audit logs (`data/extraction_report.
 | Estimated Ingestion Input Tokens | **31,953 tokens** | `data/extraction_report.json` |
 
 ### Multi-Tier Resolution Decisions
-Across 2,041 canonicalization decisions logged to `data/resolution_log.json`:
-- **Deterministic Rules**: `684` decisions (33.5%)
-- **Exact Repeats**: `326` decisions (16.0%)
-- **Declarative Alias Tables**: `216` decisions (10.6%)
-- **New Canonical Entities**: `313` decisions (15.3%)
-- **Fuzzy Token Matching**: `21` decisions (1.0%)
-- **Capped LLM Fallback Calls**: `10` decisions (0.5%)
-- **Subject/Issuer Leakage Guard Nulled**: `5` decisions (0.2%)
-- **Unresolved Long-Tail Strings**: `466` decisions (22.8%)
+Across 1,633 canonicalization decisions logged to `data/resolution_log.json` (the committed 5-document store — this file is rewritten from the live `Resolver` on every `build_demo_store.py` run, so it always reflects the current canonical corpus, not a frozen snapshot):
+- **Deterministic Rules**: `548` decisions (33.6%)
+- **Unresolved Long-Tail Strings**: `453` decisions (27.7%)
+- **Exact Repeats**: `270` decisions (16.5%)
+- **New Canonical Entities**: `246` decisions (15.1%)
+- **Declarative Alias Tables**: `94` decisions (5.8%)
+- **Fuzzy Token Matching**: `12` decisions (0.7%)
+- **Capped LLM Fallback Calls**: `10` decisions (0.6%)
+
+(The resolver also has a Subject/Issuer Leakage Guard tier that nulls a canonicalization outright; it is not triggered anywhere in this corpus, so it does not appear above — omitted rather than shown as a misleading `0`.)
 
 ### Store & Relation Inventory
 | Dimension | Pre-Seeded Store (5 Documents) | Full Store (All 6 Documents) |
 |---|---|---|
 | Ingested Documents | 5 documents | 6 documents |
 | Stored Facts | **552 facts** | **685 facts** |
-| Fact Clusters | **444 clusters** | **546 clusters** |
-| Comparison-Eligible Clusters ($\ge 2$ facts) | **72 clusters** | **93 clusters** |
+| Fact Clusters | **444 clusters** | **547 clusters** |
+| Comparison-Eligible Clusters ($\ge 2$ facts) | **72 clusters** | **92 clusters** |
 | Canonical Subjects | 337 subjects | 399 subjects |
-| Canonical Measures | 252 measures | 316 measures |
-| Total Cross-Fact Relations | **15 relations** | **28 relations** |
+| Canonical Measures | 252 measures | 319 measures |
+| Total Cross-Fact Relations | **14 relations** | **20 relations** |
 | ↳ `APPARENT_CONFLICT` | 13 | 17 |
-| ↳ `CONTRADICTS` | 1 | 8 |
+| ↳ `CONTRADICTS` | 0 | 0 |
 | ↳ `CORROBORATES` | 0 | 2 |
 | ↳ `SUPERSEDES` | 0 | 0 |
 | ↳ `AGGREGATES_INTO` | 1 | 1 |
+
+Both columns' `CONTRADICTS` count dropped to 0 after `comparability.gate()`'s source-of-truth fix for `PeriodRelation.UNKNOWN` (§9's Multi-Tier Resolution Decisions note and `tests/test_comparability_ambiguous.py` cover the fix itself): the gate used to let an unstated/unparseable period fall through to `COMPARABLE` instead of the correct `AMBIGUOUS`, so a stale `CONTRADICTS` relation the old code produced from exactly one such pair (reason_code `value_mismatch_period_unverified` — a pattern the current code can no longer produce at all, since that whole code path in `adjudicate.py` was removed as part of the fix) persisted in **both** the 5- and 6-document corpora, undisturbed, until the corpus was rebuilt with the fixed code. Pre-Seeded (5 docs): 15 → 14 relations, `CONTRADICTS` 1 → 0. Full Store (6 docs): 28 → 20, `CONTRADICTS` 8 → 0. `APPARENT_CONFLICT`/`CORROBORATES`/`AGGREGATES_INTO` are unaffected in both. Confirmed deterministic: the 5-document rebuild was run twice in isolation and produced byte-identical fact sets and relation sets both times, and the surviving facts are identical to what was already committed — only that one stale relation is gone.
 
 ---
 
@@ -900,8 +912,19 @@ To validate architectural scaling claims, stress tests were executed against syn
 - **Workload**: 100 synthetic documents contributing 12,000 total facts (120 facts/doc) fed through deduplication, resolution, clustering, and pairwise adjudication.
 - **Optimization Tested**: Rewrote `resolve.py` fuzzy matching with mathematical length bounds ($2 \cdot M / (\text{len}_a + \text{len}_b)$) to prune candidate evaluations before running `SequenceMatcher`.
 - **Result**: Resolve + cluster latency remained stable between 0.03s and 0.07s across all 100 documents.
-- **Identified Bottleneck**: Complete whole-file JSON rewriting in `Store.save()`. Save time scaled from 0.03s to **7.26s** as `data/store.json` expanded to 122 MB.
-- **Architectural Solution**: Production deployments with $\ge 1,000$ documents should transition storage from flat JSON to SQLite.
+- **Identified Bottleneck (historical measurement, retained as-is)**: Complete whole-file JSON rewriting in `Store.save()`. Save time scaled from 0.03s to **7.26s** as `data/store.json` expanded to 122 MB. This ceiling is real and JSON remains the zero-config demo/development backend — it is not hidden by the SQLite work below, only no longer the only option.
+
+**SQLite backend, benchmarked against the same workload** (`scripts/benchmark_storage.py`, reusing `scripts/retrieval_benchmark.py`'s `generate_corpus()` verbatim — same 100-doc/120-facts-per-doc/seed=20240921 corpus, not a friendlier one; report at `data/storage_benchmark_report.json`, regenerated by running the script). The metric that matters architecturally is **the cost of persisting one additional document on top of an already-persisted store**, not raw save() time — that is the specific bottleneck above:
+
+| Docs already persisted | JSON: add 1 more doc | SQLite: add 1 more doc | JSON file size | SQLite db size |
+|---|---|---|---|---|
+| 1 | 0.043s | 0.020s | 0.18 MB | 0.47 MB |
+| 10 | 0.225s | 0.020s | 1.72 MB | 2.06 MB |
+| 25 | 0.530s | 0.022s | 4.27 MB | 4.72 MB |
+| 50 | 1.068s | 0.024s | 8.52 MB | 9.15 MB |
+
+JSON's "add one document" cost grows with the store (matching the O(total size) bottleneck above); SQLite's stays flat at roughly 20-24ms regardless of how many documents are already persisted — at 50 documents already stored, SQLite adds the 51st in ~2% of the time JSON takes, and the gap widens as the store grows further, not narrows. This is an incremental-write win specifically: cold `load()` time was *not* found to be reliably faster on SQLite at this scale (0.470s SQLite vs 0.425s JSON at 100 documents in the same run) — that number is reported honestly rather than omitted because it doesn't favor the new backend.
+- **Architectural status**: SQLite is implemented and measured as the backend for larger multi-document knowledge layers (`STORAGE_BACKEND=sqlite`), not merely proposed — see §4.4.
 
 ---
 
@@ -998,7 +1021,7 @@ Three counting rules it enforces explicitly, because getting them wrong is how a
 
 **Frontend**: the fact detail drawer's new "Candidate Retrieval" panel shows the funnel (lexical → semantic → after-block → final top-K counts) and each candidate's scores and blocking status. It deliberately says "retrieval found this candidate," never a relation verdict: the comparability gate section above it in the same drawer remains the only place a verdict is shown.
 
-**Measured results (the real corpus** (`tests/test_retrieval_real_corpus_recall.py`, 552 facts, the same 15 relations README §9 documents): every one of the real corpus's 15 known relation pairs is recovered by `generate_candidate_pairs()` post-blocking (**15/15**), and Recall@K is **1.0 on every channel at every K**) lexical, semantic and hybrid all reach 1.0 by **Recall@10**. (Before blocking was pushed into the search, the lexical channel needed K=25 to get there; confining each query to its own blocking bucket stopped the K budget being spent on candidates that could never reach the gate.) At this corpus's actual scale and diversity, retrieval loses nothing.
+**Measured results (the real corpus** (`tests/test_retrieval_real_corpus_recall.py`, 552 facts, the same 14 relations README §9 documents): every one of the real corpus's 14 known relation pairs is recovered by `generate_candidate_pairs()` post-blocking (**14/14**), and Recall@K is **1.0 on every channel at every K**) lexical, semantic and hybrid all reach 1.0 by **Recall@10**. (Before blocking was pushed into the search, the lexical channel needed K=25 to get there; confining each query to its own blocking bucket stopped the K budget being spent on candidates that could never reach the gate.) At this corpus's actual scale and diversity, retrieval loses nothing.
 
 The adaptive policy behaves in the opposite regime here from the synthetic benchmark, which is the point of keeping the two evaluations separate: **546 of 552 facts stop at the first rung (K=10) and only 6 ever expand**, because the real corpus's largest blocking bucket holds 11 facts. Adaptive retrieval costs essentially nothing on a corpus this shape and only engages where density actually warrants it.
 
@@ -1207,7 +1230,7 @@ The alias table has **zero measured effect** on this specific corpus: no documen
 ### 12. Retrieval Blocking Is Narrower Than Its Own Illustrative Examples: Measured, Not Just Argued
 The retrieval task brief's own examples list "incompatible scope," "incompatible segment," "incompatible geography," and "incompatible currency/unit category" as things candidate blocking should eliminate. Implemented literally, that would mean a standalone-vs-consolidated revenue pair (or any segment/geography/unit-differing pair) never reaches `comparability.gate()` at all (which would silently delete `APPARENT_CONFLICT`/`CORROBORATES`-despite-context, the exact relation type §8's "Case 3" showcases as a headline capability, and which `adjudicate.adjudicate()`'s shared branch for every `INCOMPARABLE_*` verdict except `INCOMPARABLE_KIND` still produces. The same brief's own governing rule) "retrieval must not change the meaning of the final relationship logic": rules this out more forcefully than its examples suggest it in.
 
-**This was tested, not just argued, and the first version was wrong.** An earlier iteration of `fact_layer/retrieval/blocking.py` blocked subject, measure, value_kind, *and* unit-category mismatches, reasoning the last one was "a narrow, rare edge case" (a same-subject/measure pair reported once as a percentage and once as an absolute figure). Running that rule against the real committed corpus (`data/store.json`, 552 facts, 15 known relations) showed it silently discarding **8 of the 15 relations (53%)** (not narrow at all. The reason is structural: `gate()` only reaches its unit check after scope/issuer/segment already matched (or were left unstated), so "unit mismatch" fires exactly when nothing else already explains the difference) which is precisely the useful case, not a rare artifact. **Fixed decision:** blocking now removes only subject/measure/value_kind mismatches: the exact set `gate()` itself turns into `UNRELATED`, zero information loss, no trade-off to accept. `tests/test_retrieval_real_corpus_recall.py` pins the corrected 15/15 recovery as a regression test, and `tests/test_retrieval_blocking.py` proves scope/segment/geography/unit/currency mismatches of every kind still reach the gate.
+**This was tested, not just argued, and the first version was wrong.** An earlier iteration of `fact_layer/retrieval/blocking.py` blocked subject, measure, value_kind, *and* unit-category mismatches, reasoning the last one was "a narrow, rare edge case" (a same-subject/measure pair reported once as a percentage and once as an absolute figure). Running that rule against the real committed corpus (`data/store.json`, 552 facts, 15 known relations) showed it silently discarding **8 of the 15 relations (53%)** (not narrow at all. The reason is structural: `gate()` only reaches its unit check after scope/issuer/segment already matched (or were left unstated), so "unit mismatch" fires exactly when nothing else already explains the difference) which is precisely the useful case, not a rare artifact. **Fixed decision:** blocking now removes only subject/measure/value_kind mismatches: the exact set `gate()` itself turns into `UNRELATED`, zero information loss, no trade-off to accept. `tests/test_retrieval_real_corpus_recall.py` pins the corrected 14/14 recovery as a regression test (14, not the 15 the historical measurement above refers to — see §9's Store & Relation Inventory note on the one stale relation the comparability-gate fix later removed), and `tests/test_retrieval_blocking.py` proves scope/segment/geography/unit/currency mismatches of every kind still reach the gate.
 
 ### 14. Adaptive Retrieval Is a Bounded Search, and Cannot Promise Exhaustive Discovery
 
@@ -1226,7 +1249,7 @@ Two further honest bounds:
 `fact_layer/retrieval/vector_store.py`'s `LocalNumpyVectorStore` is an in-memory `float32` matrix with `.npz`/JSON persistence and brute-force cosine search (not FAISS, Chroma, or Qdrant. This was a deliberate scope call, not an oversight: at the scale this task specifies (the 12,000-fact synthetic benchmark; the real corpus is 552 facts), a dense `(N, 384)` matrix-vector product is sub-millisecond, so an approximate-nearest-neighbour index has no measurable benefit to buy with a new binary dependency. `VectorStore` is still a genuine interface) the same `FactStore`/`JsonFactStore`/documented-`PostgresFactStore`-skeleton shape `storage.py` already uses: so a real ANN backend could be dropped in behind it if a corpus ever grew past the point brute-force cosine search stays cheap, without any caller (`retrieval/index.py`, `api.py`) changing.
 
 ### 15. Temporal History Has No Supersession Case in the Committed Corpus
-§8c's timeline correctly shows a `SUPERSEDES` relation between two points whenever `Store.relations` actually recorded one: but the committed 552-fact / 15-relation corpus contains **zero** `SUPERSEDES` relations today (13 `APPARENT_CONFLICT`, 1 `AGGREGATES_INTO`, 1 `CONTRADICTS`). This is a property of the real 6-document corpus this project ships (no document in it happens to restate an earlier point-in-time figure at a later date in a way `comparability.gate()`'s `TEMPORAL_SUCCESSION` path catches), not a gap in `entity_history()`'s logic: `tests/test_temporal.py::test_supersession_relation_surfaced_on_both_points` proves the surfacing works correctly against a hand-built fixture, and `test_newer_fact_alone_is_not_marked_superseded` proves a merely-newer fact is never mislabeled as one. No synthetic relation was added to the demo store to manufacture a supersession showcase.
+§8c's timeline correctly shows a `SUPERSEDES` relation between two points whenever `Store.relations` actually recorded one: but the committed 552-fact / 14-relation corpus contains **zero** `SUPERSEDES` relations today (13 `APPARENT_CONFLICT`, 1 `AGGREGATES_INTO`, 0 `CONTRADICTS` — see §8 Case 2 for why the corpus has no `CONTRADICTS` relation either, and §9 for the corpus-wide fix that removed the one it used to have). This is a property of the real 6-document corpus this project ships (no document in it happens to restate an earlier point-in-time figure at a later date in a way `comparability.gate()`'s `TEMPORAL_SUCCESSION` path catches), not a gap in `entity_history()`'s logic: `tests/test_temporal.py::test_supersession_relation_surfaced_on_both_points` proves the surfacing works correctly against a hand-built fixture, and `test_newer_fact_alone_is_not_marked_superseded` proves a merely-newer fact is never mislabeled as one. No synthetic relation was added to the demo store to manufacture a supersession showcase.
 
 ---
 
@@ -1234,10 +1257,10 @@ Two further honest bounds:
 
 - [x] **Comparability Before Comparison Implemented**: Deterministic comparability gate (`fact_layer/comparability.py`) enforces qualifier alignment prior to numerical comparison.
 - [x] **Grounding & Provenance**: Every fact anchors to a verbatim quote with character offsets and pixel coordinates (`fact_layer/parse.py`).
-- [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Contradicts, Apparent Conflict, and Extraction Failure.
+- [x] **All 4 Required Cases Covered**: Real data and screenshots document Corroborates, Apparent Conflict, and Extraction Failure; Contradiction is demonstrated via a real near-miss pair honestly documented as no longer producing a `CONTRADICTS` relation under the fixed comparability gate, with no synthetic relation manufactured to fill the slot (§8 Case 2).
 - [x] **Full Modern Frontend**: React 18 + TypeScript + Vite + Tailwind CSS with dark/light theming, PDF bounding box overlays, and relation inspection.
 - [x] **Zero-Network Reproducibility**: Complete offline execution via committed replay cache (`cache/llm/`).
-- [x] **Comprehensive Test Suite**: **610** unit and integration tests passing cleanly via `pytest`, of which **107** cover the Retrieval + Scale layer, **86** the Comparability Investigator (`tests/test_investigate.py` 73, `tests/test_investigate_api.py` 13), **49** the knowledge graph (`tests/test_graph.py` 26, `tests/test_graph_api.py` 23), and **44** Temporal Knowledge / Evidence Lineage (`tests/test_temporal.py` 17, `tests/test_temporal_api.py` 5, `tests/test_lineage.py` 15, `tests/test_lineage_api.py` 7) (`tests/test_retrieval_*.py`: 16 adaptive-policy, 12 diagnostics, 11 differential, 12 blocking, 5 real-corpus recall, plus channel/index/API tests). *(Historical: this checklist previously read 283 tests, from the ingestion-job-model phase: that figure is retained here only as a record of that milestone, not as a current count.)*
+- [x] **Comprehensive Test Suite**: **630** unit and integration tests passing cleanly via `pytest`, of which **107** cover the Retrieval + Scale layer, **87** the Comparability Investigator (`tests/test_investigate.py` 74, `tests/test_investigate_api.py` 13), **49** the knowledge graph (`tests/test_graph.py` 26, `tests/test_graph_api.py` 23), **44** Temporal Knowledge / Evidence Lineage (`tests/test_temporal.py` 17, `tests/test_temporal_api.py` 5, `tests/test_lineage.py` 15, `tests/test_lineage_api.py` 7), and **19** gate-level regression tests for the `Verdict.AMBIGUOUS` source-of-truth fix (`tests/test_comparability_ambiguous.py`) (`tests/test_retrieval_*.py`: 16 adaptive-policy, 12 diagnostics, 11 differential, 12 blocking, 5 real-corpus recall, plus channel/index/API tests). *(Historical: this checklist previously read 283 tests, from the ingestion-job-model phase: that figure is retained here only as a record of that milestone, not as a current count.)*
 - [x] **Retrieval + Scale Layer** (§10a): deterministic blocking, hybrid lexical/semantic retrieval, local embedding provider + vector store, incremental indexing, `rebuild_retrieval_index()`, two diagnostic API endpoints, a compact frontend panel, a 100-document/12,000-fact benchmark script, and 65 new tests (including a dedicated real-corpus Recall@K/known-relation-recovery suite): all additive and disabled by default (`RETRIEVAL_ENABLED=false`), with the full pre-existing 324-test suite verified unchanged.
 - [x] **Temporal Knowledge & Evidence Lineage** (§8c): `fact_layer/temporal.py` (chronologically-ordered, scope/modality-grouped fact history (never interpolated, never merges scope or modality, only ever surfaces relations `Store.relations` actually recorded) and `fact_layer/lineage.py` (fact/relation provenance chains built entirely from `fact_layer.graph.GraphProjection`, no second graph engine), three new API endpoints, and 44 new tests including real-corpus integrity checks) additive, built entirely on the existing Comparability Investigator and Knowledge Graph rather than duplicating either.
 
@@ -1293,7 +1316,7 @@ npm run dev
 
 ## 17. Limitations and Next Steps
 
-**What doesn't work yet or is intentionally incomplete** (the full, honest list with real measurements is §13 (15 documented cases, each with what was tried and why it was kept/reverted). The short version: no `SUPERSEDES` relation exists in the committed corpus (§13.15); subject resolution deliberately has no fuzzy tier (§13.11, with a real corpus counter-example showing why); JSON persistence doesn't scale past roughly a few hundred documents before `Store.save()` degrades (§10, §4.4); the vector store is brute-force cosine search, not an ANN index (§13.13); the frontend has no automated test suite) correctness there was verified by build checks, live API tracing, and manual review during development, not a CI-run test harness.
+**What doesn't work yet or is intentionally incomplete** (the full, honest list with real measurements is §13 (15 documented cases, each with what was tried and why it was kept/reverted). The short version: no `SUPERSEDES` relation exists in the committed corpus (§13.15); subject resolution deliberately has no fuzzy tier (§13.11, with a real corpus counter-example showing why); the zero-config JSON backend doesn't scale past roughly a few hundred documents before `Store.save()` degrades — measured, not merely asserted, and now addressed rather than only documented: `STORAGE_BACKEND=sqlite` persists incrementally instead (§10, §4.4); the vector store is brute-force cosine search, not an ANN index (§13.13); the frontend has no automated test suite) correctness there was verified by build checks, live API tracing, and manual review during development, not a CI-run test harness.
 
 **What would come next, in priority order:**
 1. **Storage**: move `data/store.json` past the JSON-file ceiling identified in §10/§4.4: either SQLite for a single-instance deployment, or the sketched `PostgresFactStore` (§4.4 already defines the seam; it isn't implemented) for anything multi-writer.

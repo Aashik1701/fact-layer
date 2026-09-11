@@ -172,12 +172,18 @@ STORE = Store.load(backend_from_env(store_path=_STORE_PATH))
 # does and doesn't guarantee across restarts / multiple instances).
 #
 # _INGEST_LOCK serializes actual pipeline processing: STORE is one shared,
-# JSON-persisted, in-memory object, and FastAPI's BackgroundTasks runs sync
+# persisted, in-memory object, and FastAPI's BackgroundTasks runs sync
 # callables in a worker thread, so two uploads landing close together could
 # otherwise race on Store.facts/Store.clusters/Store.relations or interleave
-# writes to data/store.json. Holding this lock for the whole of
+# the resulting writes to storage. Holding this lock for the whole of
 # process_document() means jobs process one at a time — simple, correct,
 # and honest about not providing any cross-process/distributed guarantee.
+# This holds regardless of STORAGE_BACKEND: SQLiteFactStore's transactions
+# protect the DATABASE from a torn write, not the shared in-memory `STORE`
+# object above it — two threads racing on Store.facts is a Python-object
+# race no database's own locking touches, so this lock stays even though
+# STORAGE_BACKEND=sqlite has genuine transactional guarantees of its own
+# (see sqlite_storage.py's class docstring's Concurrency note).
 # --------------------------------------------------------------------------
 
 JOBS = JobStore()
@@ -260,7 +266,14 @@ def process_document(job_id: str, dest: str, filename: str) -> None:
 
         if result.skipped_reason is None:
             JOBS.set_stage(job_id, JobStage.STORING)
-            STORE.save(_STORE_PATH)
+            # STORE.backend, not the hardcoded JSON path: STORE was already
+            # constructed from STORAGE_BACKEND at module load (see below) —
+            # persisting through a fresh JsonFactStore(_STORE_PATH) here
+            # regardless of that choice was a real bug (STORAGE_BACKEND=sqlite
+            # would load from SQLite but silently persist new documents to
+            # JSON instead). save_incremental() also gets SQLite's real
+            # incremental write path for free — see store.py.
+            STORE.save_incremental(result, STORE.backend)
             write_resolution_log(STORE.resolver, _RESOLUTION_LOG_PATH)
 
         JOBS.complete(job_id, result.doc_id, response,
